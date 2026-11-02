@@ -1,0 +1,652 @@
+{
+  "date": "2026-11-02",
+  "carrel": "0.6.0",
+  "os": "macos",
+  "arch": "aarch64",
+  "notes": [
+    "Items were grouped by their cards' embeddinggemma-300m vectors and the tag and link graph.",
+    "The crawler's model here, llama/qwen3.5-4b.gguf, has no run in the crawler benchmark (/Users/carrel-ci/bench/out-restr5/crawl/runs/llama--qwen3.5-4b.jsonl), so proposals had no crawler verdicts."
+  ],
+  "proposals": [
+    {
+      "provider": null,
+      "offer": null,
+      "label": "numbers alone",
+      "version": null,
+      "eagerness": "settled",
+      "score": {
+        "changes": 2,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6923076923076923,
+          "recall": 0.9210053859964094,
+          "f1": 0.7904468412942989
+        },
+        "recovered": true,
+        "misplaced": 18,
+        "fixed": 2,
+        "broken": 0,
+        "moves": {
+          "moved": 2,
+          "weighted": 8,
+          "by_invasiveness": {
+            "between-branches": 2
+          }
+        },
+        "weighted_moves_per_fix": 4.0,
+        "findability": null,
+        "findability_gain": null,
+        "untested": "no text model was at hand to run the findability test",
+        "changed": [
+          "move to Receipts: receipt desk chair.txt",
+          "move to Insurance: car insurance renewal.txt"
+        ],
+        "held_back": [
+          "a new collection of 4 items in Home: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 4 items in Projects: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Home: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Projects: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new top-level collection of 15 items: its gain (-0.30) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 8 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.36) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 13 items: its gain (-0.38) isn't the 0.45 moving or merging top-level collections needs at this eagerness"
+        ],
+        "seconds": 0.032121917
+      }
+    },
+    {
+      "provider": null,
+      "offer": null,
+      "label": "numbers alone",
+      "version": null,
+      "eagerness": "balanced",
+      "score": {
+        "changes": 2,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6923076923076923,
+          "recall": 0.9210053859964094,
+          "f1": 0.7904468412942989
+        },
+        "recovered": true,
+        "misplaced": 18,
+        "fixed": 2,
+        "broken": 0,
+        "moves": {
+          "moved": 2,
+          "weighted": 8,
+          "by_invasiveness": {
+            "between-branches": 2
+          }
+        },
+        "weighted_moves_per_fix": 4.0,
+        "findability": null,
+        "findability_gain": null,
+        "untested": "no text model was at hand to run the findability test",
+        "changed": [
+          "move to Receipts: receipt desk chair.txt",
+          "move to Insurance: car insurance renewal.txt"
+        ],
+        "held_back": [
+          "a new collection of 4 items in Home: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 4 items in Projects: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Home: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Projects: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new top-level collection of 15 items: its gain (-0.30) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 8 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.36) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 13 items: its gain (-0.38) isn't the 0.22 moving or merging top-level collections needs at this eagerness"
+        ],
+        "seconds": 0.031295
+      }
+    },
+    {
+      "provider": null,
+      "offer": null,
+      "label": "numbers alone",
+      "version": null,
+      "eagerness": "eager",
+      "score": {
+        "changes": 2,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6923076923076923,
+          "recall": 0.9210053859964094,
+          "f1": 0.7904468412942989
+        },
+        "recovered": true,
+        "misplaced": 18,
+        "fixed": 2,
+        "broken": 0,
+        "moves": {
+          "moved": 2,
+          "weighted": 8,
+          "by_invasiveness": {
+            "between-branches": 2
+          }
+        },
+        "weighted_moves_per_fix": 4.0,
+        "findability": null,
+        "findability_gain": null,
+        "untested": "no text model was at hand to run the findability test",
+        "changed": [
+          "move to Receipts: receipt desk chair.txt",
+          "move to Insurance: car insurance renewal.txt"
+        ],
+        "held_back": [
+          "a new collection of 4 items in Home: it costs as much as it gains",
+          "a new collection of 4 items in Projects: it costs as much as it gains",
+          "a new collection of 5 items in Home: it costs as much as it gains",
+          "a new collection of 5 items in Projects: it costs as much as it gains",
+          "a new top-level collection of 15 items: it costs as much as it gains",
+          "a new top-level collection of 8 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 13 items: it costs as much as it gains"
+        ],
+        "seconds": 0.033266167
+      }
+    },
+    {
+      "provider": "apple",
+      "offer": "afm",
+      "label": "apple/Apple Foundation Model",
+      "version": "0.5.1",
+      "eagerness": "settled",
+      "score": {
+        "changes": 0,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "recovered": false,
+        "misplaced": 18,
+        "fixed": 0,
+        "broken": 0,
+        "moves": {
+          "moved": 0,
+          "weighted": 0,
+          "by_invasiveness": {}
+        },
+        "weighted_moves_per_fix": null,
+        "findability": [
+          40,
+          26,
+          26
+        ],
+        "findability_gain": 0.0,
+        "untested": null,
+        "held_back": [
+          "a new collection of 4 items in Home: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 4 items in Projects: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Home: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Projects: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new top-level collection of 15 items: its gain (-0.30) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 8 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.36) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 13 items: its gain (-0.38) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "moving an item from Reading into Receipts: the new shape wasn't easier to find things in, as tested",
+          "moving an item from Travel into Insurance: the new shape wasn't easier to find things in, as tested"
+        ],
+        "seconds": 61.635778583
+      }
+    },
+    {
+      "provider": "apple",
+      "offer": "afm",
+      "label": "apple/Apple Foundation Model",
+      "version": "0.5.1",
+      "eagerness": "balanced",
+      "score": {
+        "changes": 0,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "recovered": false,
+        "misplaced": 18,
+        "fixed": 0,
+        "broken": 0,
+        "moves": {
+          "moved": 0,
+          "weighted": 0,
+          "by_invasiveness": {}
+        },
+        "weighted_moves_per_fix": null,
+        "findability": [
+          40,
+          26,
+          26
+        ],
+        "findability_gain": 0.0,
+        "untested": null,
+        "held_back": [
+          "a new collection of 4 items in Home: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 4 items in Projects: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Home: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Projects: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new top-level collection of 15 items: its gain (-0.30) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 8 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.36) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 13 items: its gain (-0.38) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "moving an item from Reading into Receipts: the new shape wasn't easier to find things in, as tested",
+          "moving an item from Travel into Insurance: the new shape wasn't easier to find things in, as tested"
+        ],
+        "seconds": 48.272068417
+      }
+    },
+    {
+      "provider": "apple",
+      "offer": "afm",
+      "label": "apple/Apple Foundation Model",
+      "version": "0.5.1",
+      "eagerness": "eager",
+      "score": {
+        "changes": 2,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6923076923076923,
+          "recall": 0.9210053859964094,
+          "f1": 0.7904468412942989
+        },
+        "recovered": true,
+        "misplaced": 18,
+        "fixed": 2,
+        "broken": 0,
+        "moves": {
+          "moved": 2,
+          "weighted": 8,
+          "by_invasiveness": {
+            "between-branches": 2
+          }
+        },
+        "weighted_moves_per_fix": 4.0,
+        "findability": [
+          40,
+          25,
+          27
+        ],
+        "findability_gain": 0.05,
+        "untested": null,
+        "changed": [
+          "move to Receipts: receipt desk chair.txt",
+          "move to Insurance: car insurance renewal.txt"
+        ],
+        "held_back": [
+          "a new collection of 4 items in Home: it costs as much as it gains",
+          "a new collection of 4 items in Projects: it costs as much as it gains",
+          "a new collection of 5 items in Home: it costs as much as it gains",
+          "a new collection of 5 items in Projects: it costs as much as it gains",
+          "a new top-level collection of 15 items: it costs as much as it gains",
+          "a new top-level collection of 8 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 13 items: it costs as much as it gains"
+        ],
+        "seconds": 48.853929541
+      }
+    },
+    {
+      "provider": "llama",
+      "offer": "granite-4.2-3b",
+      "label": "llama/granite-4.2-3b.gguf",
+      "version": "0.6.0",
+      "eagerness": "settled",
+      "score": {
+        "changes": 0,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "recovered": false,
+        "misplaced": 18,
+        "fixed": 0,
+        "broken": 0,
+        "moves": {
+          "moved": 0,
+          "weighted": 0,
+          "by_invasiveness": {}
+        },
+        "weighted_moves_per_fix": null,
+        "findability": [
+          40,
+          26,
+          26
+        ],
+        "findability_gain": 0.0,
+        "untested": null,
+        "held_back": [
+          "a new collection of 4 items in Home: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 4 items in Projects: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Home: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Projects: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new top-level collection of 15 items: its gain (-0.30) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 8 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.36) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 13 items: its gain (-0.38) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "moving an item from Reading into Receipts: the new shape wasn't easier to find things in, as tested",
+          "moving an item from Travel into Insurance: the new shape wasn't easier to find things in, as tested"
+        ],
+        "seconds": 49.316198042
+      }
+    },
+    {
+      "provider": "llama",
+      "offer": "granite-4.2-3b",
+      "label": "llama/granite-4.2-3b.gguf",
+      "version": "0.6.0",
+      "eagerness": "balanced",
+      "score": {
+        "changes": 0,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "recovered": false,
+        "misplaced": 18,
+        "fixed": 0,
+        "broken": 0,
+        "moves": {
+          "moved": 0,
+          "weighted": 0,
+          "by_invasiveness": {}
+        },
+        "weighted_moves_per_fix": null,
+        "findability": [
+          40,
+          26,
+          26
+        ],
+        "findability_gain": 0.0,
+        "untested": null,
+        "held_back": [
+          "a new collection of 4 items in Home: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 4 items in Projects: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Home: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Projects: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new top-level collection of 15 items: its gain (-0.30) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 8 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.36) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 13 items: its gain (-0.38) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "moving an item from Reading into Receipts: the new shape wasn't easier to find things in, as tested",
+          "moving an item from Travel into Insurance: the new shape wasn't easier to find things in, as tested"
+        ],
+        "seconds": 50.055408125
+      }
+    },
+    {
+      "provider": "llama",
+      "offer": "granite-4.2-3b",
+      "label": "llama/granite-4.2-3b.gguf",
+      "version": "0.6.0",
+      "eagerness": "eager",
+      "score": {
+        "changes": 0,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "recovered": false,
+        "misplaced": 18,
+        "fixed": 0,
+        "broken": 0,
+        "moves": {
+          "moved": 0,
+          "weighted": 0,
+          "by_invasiveness": {}
+        },
+        "weighted_moves_per_fix": null,
+        "findability": [
+          40,
+          26,
+          26
+        ],
+        "findability_gain": 0.0,
+        "untested": null,
+        "held_back": [
+          "a new collection of 4 items in Home: it costs as much as it gains",
+          "a new collection of 4 items in Projects: it costs as much as it gains",
+          "a new collection of 5 items in Home: it costs as much as it gains",
+          "a new collection of 5 items in Projects: it costs as much as it gains",
+          "a new top-level collection of 15 items: it costs as much as it gains",
+          "a new top-level collection of 8 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 13 items: it costs as much as it gains",
+          "moving an item from Reading into Receipts: the new shape wasn't easier to find things in, as tested",
+          "moving an item from Travel into Insurance: the new shape wasn't easier to find things in, as tested"
+        ],
+        "seconds": 50.392749959
+      }
+    },
+    {
+      "provider": "llama",
+      "offer": "qwen3.5-4b",
+      "label": "llama/qwen3.5-4b.gguf",
+      "version": "0.6.0",
+      "eagerness": "settled",
+      "score": {
+        "changes": 2,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6923076923076923,
+          "recall": 0.9210053859964094,
+          "f1": 0.7904468412942989
+        },
+        "recovered": true,
+        "misplaced": 18,
+        "fixed": 2,
+        "broken": 0,
+        "moves": {
+          "moved": 2,
+          "weighted": 8,
+          "by_invasiveness": {
+            "between-branches": 2
+          }
+        },
+        "weighted_moves_per_fix": 4.0,
+        "findability": [
+          40,
+          26,
+          27
+        ],
+        "findability_gain": 0.025,
+        "untested": null,
+        "changed": [
+          "move to Receipts: receipt desk chair.txt",
+          "move to Insurance: car insurance renewal.txt"
+        ],
+        "held_back": [
+          "a new collection of 4 items in Home: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 4 items in Projects: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Home: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Projects: its gain (-0.05) isn't the 0.15 subdividing a collection needs at this eagerness",
+          "a new top-level collection of 15 items: its gain (-0.30) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 8 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.36) isn't the 0.45 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 13 items: its gain (-0.38) isn't the 0.45 moving or merging top-level collections needs at this eagerness"
+        ],
+        "seconds": 60.563722833
+      }
+    },
+    {
+      "provider": "llama",
+      "offer": "qwen3.5-4b",
+      "label": "llama/qwen3.5-4b.gguf",
+      "version": "0.6.0",
+      "eagerness": "balanced",
+      "score": {
+        "changes": 2,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6923076923076923,
+          "recall": 0.9210053859964094,
+          "f1": 0.7904468412942989
+        },
+        "recovered": true,
+        "misplaced": 18,
+        "fixed": 2,
+        "broken": 0,
+        "moves": {
+          "moved": 2,
+          "weighted": 8,
+          "by_invasiveness": {
+            "between-branches": 2
+          }
+        },
+        "weighted_moves_per_fix": 4.0,
+        "findability": [
+          40,
+          26,
+          27
+        ],
+        "findability_gain": 0.025,
+        "untested": null,
+        "changed": [
+          "move to Receipts: receipt desk chair.txt",
+          "move to Insurance: car insurance renewal.txt"
+        ],
+        "held_back": [
+          "a new collection of 4 items in Home: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 4 items in Projects: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Home: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new collection of 5 items in Projects: its gain (-0.05) isn't the 0.07 subdividing a collection needs at this eagerness",
+          "a new top-level collection of 15 items: its gain (-0.30) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 8 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.35) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 4 items: its gain (-0.36) isn't the 0.22 moving or merging top-level collections needs at this eagerness",
+          "a new top-level collection of 13 items: its gain (-0.38) isn't the 0.22 moving or merging top-level collections needs at this eagerness"
+        ],
+        "seconds": 59.581163875
+      }
+    },
+    {
+      "provider": "llama",
+      "offer": "qwen3.5-4b",
+      "label": "llama/qwen3.5-4b.gguf",
+      "version": "0.6.0",
+      "eagerness": "eager",
+      "score": {
+        "changes": 2,
+        "before": {
+          "precision": 0.6774193548387096,
+          "recall": 0.9048473967684022,
+          "f1": 0.7747886241352805
+        },
+        "after": {
+          "precision": 0.6923076923076923,
+          "recall": 0.9210053859964094,
+          "f1": 0.7904468412942989
+        },
+        "recovered": true,
+        "misplaced": 18,
+        "fixed": 2,
+        "broken": 0,
+        "moves": {
+          "moved": 2,
+          "weighted": 8,
+          "by_invasiveness": {
+            "between-branches": 2
+          }
+        },
+        "weighted_moves_per_fix": 4.0,
+        "findability": [
+          40,
+          26,
+          27
+        ],
+        "findability_gain": 0.025,
+        "untested": null,
+        "changed": [
+          "move to Receipts: receipt desk chair.txt",
+          "move to Insurance: car insurance renewal.txt"
+        ],
+        "held_back": [
+          "a new collection of 4 items in Home: it costs as much as it gains",
+          "a new collection of 4 items in Projects: it costs as much as it gains",
+          "a new collection of 5 items in Home: it costs as much as it gains",
+          "a new collection of 5 items in Projects: it costs as much as it gains",
+          "a new top-level collection of 15 items: it costs as much as it gains",
+          "a new top-level collection of 8 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 4 items: it costs as much as it gains",
+          "a new top-level collection of 13 items: it costs as much as it gains"
+        ],
+        "seconds": 59.456803125
+      }
+    }
+  ]
+}
