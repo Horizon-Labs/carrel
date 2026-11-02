@@ -30,6 +30,12 @@ extension ArchiveModel {
         try await call { try $0.keepsDownloaded(path: path) }
     }
 
+    /// The collection at `path`'s `sync.keep_downloaded`: its own setting, whether it keeps its
+    /// items downloaded, and which collection's setting decides that.
+    public func keepDownloaded(_ path: String) async throws -> KeepDownloaded {
+        try await call { try $0.keepDownloaded(path: path) }
+    }
+
     /// Sets the collection at `path`'s `sync.keep_downloaded`, or clears it with `nil`, as
     /// one change undo can reverse.
     public func setKeepDownloaded(_ path: String, to on: Bool?) async throws {

@@ -140,6 +140,18 @@ pub struct SyncStatus {
     pub moved_to: Option<String>,
 }
 
+/// A collection's `sync.keep_downloaded`: its own setting, and the one it follows when it has
+/// none.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct KeepDownloaded {
+    /// The collection's own setting, or `None` when it follows the collection above.
+    pub own: Option<bool>,
+    /// Whether it keeps its items downloaded, by its own setting or another's.
+    pub keeps: bool,
+    /// The collection whose setting decides, or `None` when none sets it, so it's off.
+    pub from_collection: Option<String>,
+}
+
 /// A move into iCloud Drive, checked and ready to run.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct ArchiveMove {
@@ -282,6 +294,26 @@ impl ArchiveHandle {
     pub fn keeps_downloaded(&self, path: String) -> Result<bool, CarrelError> {
         let collections = self.fresh()?.collections()?;
         Ok(cloud_files::keeps_downloaded(&collections, &path))
+    }
+
+    /// The collection at `path`'s `sync.keep_downloaded`: its own setting, whether it keeps its
+    /// items downloaded, and which collection's setting decides that.
+    ///
+    /// # Errors
+    ///
+    /// [`CarrelError::Failed`] if the archive can't be read.
+    pub fn keep_downloaded(&self, path: String) -> Result<KeepDownloaded, CarrelError> {
+        let collections = self.fresh()?.collections()?;
+        let path = path.trim().trim_matches('/');
+        let kept_by = cloud_files::kept_by(&collections, path);
+        Ok(KeepDownloaded {
+            own: collections
+                .iter()
+                .find(|c| c.path == path)
+                .and_then(cloud_files::own_setting),
+            keeps: kept_by.is_some_and(|(_, on)| on),
+            from_collection: kept_by.map(|(from, _)| from.to_owned()),
+        })
     }
 
     /// Sets the collection at `path`'s `sync.keep_downloaded`, or clears it with `None` so the

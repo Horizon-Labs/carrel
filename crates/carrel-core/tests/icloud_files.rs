@@ -344,6 +344,12 @@ fn keep_downloaded_is_off_by_default_follows_the_collection_above_and_downloads(
         "Projects/Hardware"
     ));
     assert!(!cloud_files::keeps_downloaded(&collections, "Reading"));
+    assert_eq!(
+        cloud_files::kept_by(&collections, "Projects/Hardware"),
+        Some(("Projects", true)),
+        "says which collection decides"
+    );
+    assert_eq!(cloud_files::kept_by(&collections, "Reading"), None);
     let doc = std::fs::read_to_string(s.path("Projects/_collection.md")).unwrap();
     assert!(doc.contains("keep_downloaded: true"), "{doc}");
     // The same again changes nothing.
@@ -365,6 +371,10 @@ fn keep_downloaded_is_off_by_default_follows_the_collection_above_and_downloads(
     cloud_files::set_keep_downloaded(&archive, "Projects", None, &lease).unwrap();
     let collections = s.archive().collections().unwrap();
     assert!(!cloud_files::keeps_downloaded(&collections, "Projects"));
+    assert_eq!(
+        cloud_files::kept_by(&collections, "Projects/Hardware"),
+        None
+    );
 }
 
 #[test]

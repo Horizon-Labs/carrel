@@ -21,18 +21,25 @@ pub fn own_setting(collection: &Collection) -> Option<bool> {
 /// nearest collection's above it, else off.
 #[must_use]
 pub fn keeps_downloaded(collections: &[Collection], path: &str) -> bool {
+    kept_by(collections, path).is_some_and(|(_, on)| on)
+}
+
+/// The nearest collection at or above `path` that sets `sync.keep_downloaded`, and what it
+/// sets, or `None` when none does and it's off.
+#[must_use]
+pub fn kept_by<'a>(collections: &'a [Collection], path: &str) -> Option<(&'a str, bool)> {
     let mut at = path.trim_matches('/');
     loop {
-        if let Some(on) = collections
+        if let Some((collection, on)) = collections
             .iter()
             .find(|c| c.path == at)
-            .and_then(own_setting)
+            .and_then(|c| Some((c, own_setting(c)?)))
         {
-            return on;
+            return Some((collection.path.as_str(), on));
         }
         match at.rsplit_once('/') {
             Some((parent, _)) => at = parent,
-            None => return false,
+            None => return None,
         }
     }
 }
