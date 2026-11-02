@@ -20,6 +20,7 @@
 | [Interfaces](dev/interfaces.md) | Every capability in the command line, the interactive mode and the app, and the allowed deviations |
 | [What separating the parts costs](dev/overhead.md) | Measured time, memory and disk, and what the separation buys |
 | [The on-device runner](dev/on-device-runner.md) | The tests and weekly benchmark on the owner's Mac, and setting it up |
+| [Releasing](dev/releasing.md) | How a release reaches each device, and uploading the iPad and iPhone app to TestFlight |
 | [Providers](providers.md) | The protocol for provider programs |
 | [Design documents](design/) | The accepted design for each larger feature |
 | [The v0.2 gate](v0.2-gate.md) | The checklist for filing a real Downloads sample |
