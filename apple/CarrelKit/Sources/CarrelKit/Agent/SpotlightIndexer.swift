@@ -2,7 +2,8 @@
 // archive's cards, collections and glossary facts, as much of them as `spotlight.index` says,
 // and never restricted items. The core decides what goes in; this keeps Core Spotlight in step
 // with it: entries that changed are indexed again, those gone are deleted, and an archive's
-// entries are removed when the agent stops following it.
+// entries are removed when the agent stops following it. The iPad and iPhone app keeps its own,
+// for the archive it has open.
 
 import Foundation
 
@@ -43,7 +44,7 @@ public protocol SpotlightIndexing: Sendable {
 }
 
 @MainActor
-final class SpotlightIndexer {
+public final class SpotlightIndexer {
     /// How often an archive is looked over when nothing in it seems to have changed.
     nonisolated static let interval: TimeInterval = 600
 
@@ -57,13 +58,13 @@ final class SpotlightIndexer {
     /// Archives whose entries are to be removed, before any pass.
     private var removals: Set<String> = []
 
-    init(index: any SpotlightIndexing) {
+    public init(index: any SpotlightIndexing) {
         self.index = index
     }
 
     /// Brings the archive `handle` at `root` up to date in Spotlight: at once when `changed`,
     /// else once `interval` has passed since the last time.
-    func sync(_ handle: ArchiveHandle, root: URL, at date: Date, changed: Bool) {
+    public func sync(_ handle: ArchiveHandle, root: URL, at date: Date, changed: Bool) {
         let domain = handle.id()
         let due =
             changed
@@ -76,7 +77,7 @@ final class SpotlightIndexer {
     }
 
     /// Removes the archive `domain`'s entries, when the agent stops following it.
-    func remove(_ domain: String) {
+    public func remove(_ domain: String) {
         pending[domain] = nil
         lastSynced[domain] = nil
         indexed[domain] = nil
@@ -85,7 +86,7 @@ final class SpotlightIndexer {
     }
 
     /// Waits until every pass asked for has run.
-    func settled() async {
+    public func settled() async {
         while let syncing { await syncing.value }
     }
 
