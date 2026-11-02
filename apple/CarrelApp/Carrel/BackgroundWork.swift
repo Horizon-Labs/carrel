@@ -60,7 +60,7 @@ nonisolated enum BackgroundWork {
     static let inbox = identifier("inbox")
 
     private static func identifier(_ name: String) -> String {
-        "\(Bundle.main.bundleIdentifier ?? "io.github.hannaharose.Carrel").\(name)"
+        "\(Bundle.main.bundleIdentifier ?? "me.hrose.carrel").\(name)"
     }
 
     /// Registers the tasks' handlers; called once, as the app launches.

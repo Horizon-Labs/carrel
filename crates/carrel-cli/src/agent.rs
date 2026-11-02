@@ -404,6 +404,14 @@ pub(crate) fn install_in(
         names(roots)
     );
     writeln!(text, "Wrote {}", done.file.display()).unwrap();
+    if let Some(old) = &done.removed_old {
+        writeln!(
+            text,
+            "Removed {}, the agent under its old name",
+            old.display()
+        )
+        .unwrap();
+    }
     commands_text(&done, ran, &mut text);
     match platform {
         Platform::Launchd | Platform::TaskScheduler => {
@@ -421,6 +429,7 @@ pub(crate) fn install_in(
             "as": platform.describe(),
             "file": done.file,
             "archives": roots,
+            "removed_old": done.removed_old,
             "ran": if ran { done.ran.clone() } else { Vec::new() },
             "failed": done.failed,
         }),
@@ -449,7 +458,7 @@ pub(crate) fn uninstall_in(
     ran: bool,
 ) -> Result<Report, Failure> {
     let done = service::uninstall(platform, places, manager)?;
-    if !done.was_installed {
+    if !done.was_installed && done.removed_old.is_none() {
         return Ok(Report::new(
             format!(
                 "The Carrel agent isn't installed here: there's no {}. Nothing was changed.\n",
@@ -458,17 +467,25 @@ pub(crate) fn uninstall_in(
             json!({"installed": false, "removed": Value::Null}),
         ));
     }
-    let mut text = format!(
-        "Uninstalled the Carrel agent ({}).\nRemoved {}\n",
-        platform.describe(),
-        done.file.display()
-    );
+    let mut text = format!("Uninstalled the Carrel agent ({}).\n", platform.describe());
+    if done.was_installed {
+        writeln!(text, "Removed {}", done.file.display()).unwrap();
+    }
+    if let Some(old) = &done.removed_old {
+        writeln!(
+            text,
+            "Removed {}, the agent under its old name",
+            old.display()
+        )
+        .unwrap();
+    }
     commands_text(&done, ran, &mut text);
     Ok(Report::new(
         text,
         json!({
             "installed": false,
-            "removed": done.file,
+            "removed": done.was_installed.then_some(&done.file),
+            "removed_old": done.removed_old,
             "ran": if ran { done.ran.clone() } else { Vec::new() },
             "failed": done.failed,
         }),

@@ -6,5 +6,13 @@
 	<array>
 		<string>$(CARREL_APP_GROUP)</string>
 	</array>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>$(CARREL_CLOUDKIT_CONTAINER)</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
 </dict>
 </plist>

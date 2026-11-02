@@ -11,7 +11,7 @@ use crate::start_screen::StartScreen;
 use crate::{Failure, Report};
 
 /// The app's bundle identifier: the release build's, which the Debug build doesn't share.
-const APP_BUNDLE_ID: &str = "io.github.hannaharose.Carrel";
+const APP_BUNDLE_ID: &str = "me.hrose.carrel";
 
 /// Opens the app, on `screen` and with `item` chosen when they're given.
 pub fn open_app(
@@ -137,16 +137,9 @@ mod tests {
     fn opens_the_release_app() {
         assert_eq!(
             open_args("macos", Some("carrel://open?archive=/a")).unwrap(),
-            [
-                "-b",
-                "io.github.hannaharose.Carrel",
-                "carrel://open?archive=/a"
-            ]
+            ["-b", "me.hrose.carrel", "carrel://open?archive=/a"]
         );
-        assert_eq!(
-            open_args("macos", None).unwrap(),
-            ["-b", "io.github.hannaharose.Carrel"]
-        );
+        assert_eq!(open_args("macos", None).unwrap(), ["-b", "me.hrose.carrel"]);
     }
 
     #[test]

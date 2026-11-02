@@ -64,9 +64,9 @@ final class AgentLoginItemTests: XCTestCase {
 @MainActor
 final class DebugIdentityTests: XCTestCase {
     func testTheTestHostHasItsOwnIdentityGroupAndAgent() {
-        XCTAssertEqual(Bundle.main.bundleIdentifier, "io.github.hannaharose.Carrel.dev")
-        XCTAssertEqual(AgentService.appGroup, "io.github.hannaharose.Carrel.dev")
-        XCTAssertEqual(AgentLoginItem.identifier, "io.github.hannaharose.Carrel.dev.Agent")
+        XCTAssertEqual(Bundle.main.bundleIdentifier, "me.hrose.carrel.dev")
+        XCTAssertEqual(AgentService.appGroup, "me.hrose.carrel.dev")
+        XCTAssertEqual(AgentLoginItem.identifier, "me.hrose.carrel.dev.Agent")
     }
 
     func testTheTestHostIsBareAndKeepsItsOwnDefaults() {

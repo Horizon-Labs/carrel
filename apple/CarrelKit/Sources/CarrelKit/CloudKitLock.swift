@@ -16,7 +16,7 @@ public final class CloudKitLockStore: CloudLockStore, @unchecked Sendable {
     /// build setting.
     public static let containerKey = "CarrelCloudKitContainer"
     /// The container until the owner creates the real one in the Apple Developer account.
-    public static let placeholderContainer = "iCloud.io.github.hannaharose.Carrel"
+    public static let placeholderContainer = "iCloud.me.hrose.carrel"
     /// The record type.
     public static let recordType = "WriterLock"
     /// How long to wait for CloudKit before calling it unreachable.

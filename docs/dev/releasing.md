@@ -4,7 +4,7 @@ How a release reaches each device. The Mac app and the command line are installe
 
 ## TestFlight (iPad and iPhone)
 
-The App Store Connect record is `io.github.hannaharose.Carrel`, team `4V63YRQU43`, with the owner as an internal tester. The Mac app isn't uploaded: a Mac TestFlight build needs App Sandbox, which Carrel's Mac app doesn't use.
+The App Store Connect record is `me.hrose.carrel`, team `4V63YRQU43`, with the owner as an internal tester. The Mac app isn't uploaded: a Mac TestFlight build needs App Sandbox, which Carrel's Mac app doesn't use.
 
 From the repository root, on a Mac with Xcode signed in to the team's account (Xcode → Settings → Accounts):
 
@@ -16,7 +16,7 @@ scripts/build-xcframework.sh
 scripts/testflight.sh --dry-run
 ```
 
-`--dry-run` archives the app for generic iOS and exports it signed for App Store Connect, to `target/testflight/export/Carrel.ipa`, and uploads nothing. Without a flag the script does the same and then asks before uploading; `--upload` uploads without asking. Signing is automatic, through the Xcode account and `-allowProvisioningUpdates`, which registers the app's identifiers (the app, `.Share` and the app group `group.io.github.hannaharose.Carrel`) the first time. The script never takes a password; for CI, an App Store Connect API key can stand in for the Xcode account, through `ASC_KEY_PATH`, `ASC_KEY_ID` and `ASC_ISSUER_ID`.
+`--dry-run` archives the app for generic iOS and exports it signed for App Store Connect, to `target/testflight/export/Carrel.ipa`, and uploads nothing. Without a flag the script does the same and then asks before uploading; `--upload` uploads without asking. Signing is automatic, through the Xcode account and `-allowProvisioningUpdates`, which registers the app's identifiers (the app, `.Share` and the app group `group.me.hrose.carrel`) the first time. The script never takes a password; for CI, an App Store Connect API key can stand in for the Xcode account, through `ASC_KEY_PATH`, `ASC_KEY_ID` and `ASC_ISSUER_ID`.
 
 - **Version:** the workspace version in `Cargo.toml`, without its pre-release part, since Apple takes only numbers: 1.0.0-rc.1 is uploaded as 1.0.0.
 - **Build number:** `git rev-list --count HEAD`, so it rises with each commit merged. Upload from `dev` or `main`: a branch's count can be higher than a later `dev`'s, and App Store Connect refuses a build number it has already seen for that version.

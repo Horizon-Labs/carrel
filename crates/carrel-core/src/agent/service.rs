@@ -5,7 +5,7 @@
 //! Each writes only its own file and makes only its own entry, and uninstalling removes
 //! exactly those:
 //!
-//! - macOS: `~/Library/LaunchAgents/io.github.hannaharose.carrel.agent.plist`, loaded with
+//! - macOS: `~/Library/LaunchAgents/me.hrose.carrel.agent.plist`, loaded with
 //!   `launchctl bootstrap`.
 //! - Linux: `~/.config/systemd/user/carrel-agent.service` (or under `$XDG_CONFIG_HOME`),
 //!   enabled with `systemctl --user enable --now`, which links it into `default.target.wants`.
@@ -20,7 +20,11 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 /// The launchd label, after the Mac app's bundle identifier.
-pub const LAUNCHD_LABEL: &str = "io.github.hannaharose.carrel.agent";
+pub const LAUNCHD_LABEL: &str = "me.hrose.carrel.agent";
+/// The launchd label before 1.0.0-rc.2, when the identifiers were `io.github.hannaharose`'s.
+/// Installing and uninstalling remove an agent left under it, so an upgraded Mac doesn't run
+/// two.
+pub const OLD_LAUNCHD_LABEL: &str = "io.github.hannaharose.carrel.agent";
 /// The systemd user unit.
 pub const SYSTEMD_UNIT: &str = "carrel-agent.service";
 /// The Task Scheduler task.
@@ -530,6 +534,8 @@ pub struct Done {
     pub ran: Vec<String>,
     /// Commands that failed, with why, as lines for people.
     pub failed: Vec<String>,
+    /// The definition under [`OLD_LAUNCHD_LABEL`], stopped and removed as well.
+    pub removed_old: Option<PathBuf>,
 }
 
 /// Why the agent couldn't be installed or uninstalled.
@@ -641,6 +647,33 @@ fn run_all(
     Ok(())
 }
 
+/// Stops and removes a launchd agent installed under [`OLD_LAUNCHD_LABEL`], noting it in `done`.
+fn remove_old_launchd_agent(
+    places: &Places,
+    manager: &mut dyn Manager,
+    done: &mut Done,
+) -> Result<(), ServiceError> {
+    let old = places
+        .home
+        .join("Library/LaunchAgents")
+        .join(format!("{OLD_LAUNCHD_LABEL}.plist"));
+    if !old.exists() {
+        return Ok(());
+    }
+    let domain = format!("gui/{}", owner(&places.home).unwrap_or_default());
+    let stop = vec![(
+        "launchctl",
+        vec![
+            "bootout".to_owned(),
+            format!("{domain}/{OLD_LAUNCHD_LABEL}"),
+        ],
+    )];
+    let _ = run_all(manager, &stop, done, false);
+    std::fs::remove_file(&old).map_err(io(&old))?;
+    done.removed_old = Some(old);
+    Ok(())
+}
+
 /// Installs `definition` as `platform`'s service in `places` and starts it, replacing one
 /// installed before.
 ///
@@ -668,6 +701,7 @@ pub fn install(
         done.ran.extend(stopping.ran);
     }
     if platform == Platform::Launchd {
+        remove_old_launchd_agent(places, manager, &mut done)?;
         // The log's folder must be there before launchd opens it.
         if let Some(dir) = definition.log.parent() {
             std::fs::create_dir_all(dir).map_err(io(dir))?;
@@ -695,6 +729,9 @@ pub fn uninstall(
         was_installed: file.exists(),
         ..Done::default()
     };
+    if platform == Platform::Launchd {
+        remove_old_launchd_agent(places, manager, &mut done)?;
+    }
     if !done.was_installed {
         return Ok(done);
     }

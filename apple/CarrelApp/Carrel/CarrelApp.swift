@@ -33,7 +33,7 @@ extension UserDefaults {
     /// emptied at each run, so tests never read or write a developer's settings or recents.
     nonisolated(unsafe) static let app: UserDefaults = {
         guard CarrelMain.isHostingTests else { return .standard }
-        let suite = "io.github.hannaharose.Carrel.test-host"
+        let suite = "me.hrose.carrel.test-host"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         return UserDefaults(suiteName: suite) ?? .standard
     }()
@@ -52,6 +52,9 @@ struct CarrelApp: App {
         BackgroundWork.register()
         // Before launch finishes too, so a notification that launched the app reaches it.
         MobileReminders.shared.start()
+        // Archives in iCloud Drive take their writer lock through CloudKit
+        // (docs/design/sync-and-mobile.md, "The writer lock").
+        if let store = CloudKitLockStore.forBundle() { useCloudLock(store: store) }
         #endif
     }
 
