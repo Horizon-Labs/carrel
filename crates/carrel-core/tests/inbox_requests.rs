@@ -1,7 +1,7 @@
 //! Every operation a device that isn't the writer sends through its inbox, applied by the
 //! writer as the sender's, or skipped, with why, when it no longer applies; and the holding
 //! folder a device without Kopia keeps replaced content in (`docs/design/sync-and-mobile.md`,
-//! FORMAT.md §7.8 and §7.13).
+//! FORMAT.md §7.8 and §7.14).
 
 use std::path::{Path, PathBuf};
 

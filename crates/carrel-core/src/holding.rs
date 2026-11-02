@@ -1,4 +1,4 @@
-//! The holding folder (FORMAT.md §7.13, `docs/design/sync-and-mobile.md`): on a device without
+//! The holding folder (FORMAT.md §7.14, `docs/design/sync-and-mobile.md`): on a device without
 //! Kopia, such as an iPad or iPhone, a change that replaces or removes an item's contents (a
 //! return, an expanded compressed file) keeps the old version in `_System/holding/`, one
 //! folder each, instead of dropping it. A Mac with Kopia snapshots the archive, holding folder
