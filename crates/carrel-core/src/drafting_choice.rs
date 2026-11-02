@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn nothing_is_tried_when_nothing_fits_and_apple_is_off() {
         let installed = [mlx("qwen3.5-9b", 6 * GB), mlx("empty", 0)];
-        assert!(interim_drafting_order(false, 4 * GB, &installed).is_empty());
+        assert_eq!(interim_drafting_order(false, 4 * GB, &installed), Vec::new());
     }
 
     #[test]
