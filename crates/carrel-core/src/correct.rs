@@ -861,6 +861,7 @@ pub fn apply(
         device: None,
         at: at.clone(),
         level: None,
+        drafting: None,
         extra: crate::card::Extra::new(),
     });
     generated.fields.retain(|f| !dictated.contains(&f.as_str()));
@@ -872,6 +873,7 @@ pub fn apply(
             }
         }
         generated.model = Some(model.clone());
+        generated.drafting = Some(crate::ingest::card::DRAFTING);
         generated.at = at.clone();
         generated.by = format!("carrel {}", crate::CARREL_VERSION);
     }
