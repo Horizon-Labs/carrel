@@ -115,6 +115,7 @@ pub mod status;
 pub mod sync_status;
 pub mod trash;
 pub mod worker;
+pub mod written_note;
 
 /// The version of the archive format this build reads and writes (`FORMAT.md`).
 pub const FORMAT_VERSION: FormatVersion = FormatVersion { major: 1, minor: 0 };

@@ -360,6 +360,8 @@ pub enum Effect {
         url: Option<String>,
         /// The owner's note, for the drafts and the cards.
         note: Option<String>,
+        /// A note the owner wrote, to add instead as an item of its own.
+        written: Option<String>,
     },
     /// Take this item off the intake queue.
     Unqueue(Id),
@@ -960,6 +962,7 @@ impl App {
             }
             Tab::Ingest => keys.extend([
                 ("i", "add"),
+                ("a", "write a note"),
                 ("↑↓", "choose"),
                 ("x", "remove"),
                 ("t", "to front"),
