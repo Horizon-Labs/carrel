@@ -117,6 +117,8 @@ pub enum InputPurpose {
         /// The librarian's question.
         question: String,
     },
+    /// The folder to move the archive to, in iCloud Drive by default.
+    SyncMoveTo,
 }
 
 /// What a correction is for.
@@ -166,6 +168,7 @@ impl Input {
             InputPurpose::FlagNote { .. } => "what needs work, or nothing",
             InputPurpose::Gap(gap) => gap.prompt(),
             InputPurpose::FlagAnswer { .. } => "your answer for the librarian",
+            InputPurpose::SyncMoveTo => "the folder to move it to (drop it here)",
         }
     }
 
@@ -403,6 +406,7 @@ impl App {
                     }
                     InputPurpose::Option(line) => return self.option_entered(line, text),
                     InputPurpose::Gap(gap) => self.gap_typed(gap, &text),
+                    InputPurpose::SyncMoveTo => self.sync_move_to(&text),
                     purpose => return self.action_input(purpose, text),
                 }
             }
@@ -485,6 +489,9 @@ impl App {
         }
         let on_item = self.browse_pane != Pane::Collections;
         if !on_item && let Some(handled) = self.collection_restructure_key(key) {
+            return handled;
+        }
+        if let Some(handled) = self.sync_browse_key(key, on_item) {
             return handled;
         }
         if let Some(handled) = self.flag_key(key, on_item) {

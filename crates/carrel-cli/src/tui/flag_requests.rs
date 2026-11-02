@@ -49,7 +49,7 @@ impl App {
     /// The Flags view's keys, when it's shown; `f` on Status opens it.
     pub(super) fn flags_key(&mut self, key: KeyEvent) -> Option<Handled> {
         if !self.flags.shown {
-            if key.code == KeyCode::Char('f') && !self.gaps.shown {
+            if key.code == KeyCode::Char('f') && !self.gaps.shown && !self.sync.shown {
                 self.load_flags();
                 self.flags.shown = true;
                 return Some(Handled::Yes(None));

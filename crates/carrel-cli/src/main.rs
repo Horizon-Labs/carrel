@@ -46,6 +46,7 @@ mod search;
 mod sessions;
 mod settings;
 mod start_screen;
+mod sync;
 mod tui;
 mod usage_report;
 mod worker;
@@ -359,6 +360,14 @@ enum Command {
     Crawl {
         #[command(subcommand)]
         action: Option<crawl::CrawlAction>,
+    },
+    /// An archive shared between devices through iCloud Drive: the writer lock, inboxes,
+    /// holding folder, re-checks, files not downloaded and conflicted copies (`status`, the
+    /// default); `download`, `keep` a collection downloaded, `resolve` a conflicted copy, or
+    /// `move` the archive into iCloud Drive.
+    Sync {
+        #[command(subcommand)]
+        action: Option<sync::SyncAction>,
     },
     /// Measure text models on the benchmark's test set, for choosing defaults
     /// (`docs/design/benchmark.md`).
@@ -1227,27 +1236,14 @@ fn main() -> ExitCode {
         Command::Checkouts => checkout::list(cli.archive.as_deref()),
         Command::Desk { action } => desk_command(cli.archive.as_deref(), action),
         Command::Sessions { action } => sessions_command(cli.archive.as_deref(), action),
-        Command::Return {
-            item,
-            from,
-            yes,
-            discard,
-            trim_snapshots,
-            working_copy,
-        } => checkout::return_item(
-            cli.archive.as_deref(),
-            &item,
-            from.as_deref(),
-            (yes, discard),
-            trim_snapshots,
-            working_copy,
-        ),
+        command @ Command::Return { .. } => return_command(cli.archive.as_deref(), command),
         Command::Collection { action } => collection_command(cli.archive.as_deref(), action),
         Command::Backup { action } => backup_command(cli.archive.as_deref(), action),
         Command::Questions { action } => questions_command(cli.archive.as_deref(), action),
         Command::Discover { action } => discover_command(cli.archive.as_deref(), action, cli.json),
         Command::Restructure { action } => restructure_command(cli.archive.as_deref(), action),
         Command::Crawl { action } => crawl::command(cli.archive.as_deref(), action),
+        Command::Sync { action } => sync::command(cli.archive.as_deref(), action),
         Command::Reminders => reminders::list(cli.archive.as_deref()),
         Command::Bench(args) => bench::bench(&args, cli.json),
         Command::Models { action } => models_command(action, cli.archive.as_deref(), cli.json),
@@ -1451,6 +1447,29 @@ fn rename_or_flag_command(archive: Option<&Path>, command: Command) -> Result<Re
     }
 }
 
+/// `carrel return`.
+fn return_command(archive: Option<&Path>, command: Command) -> Result<Report, Failure> {
+    let Command::Return {
+        item,
+        from,
+        yes,
+        discard,
+        trim_snapshots,
+        working_copy,
+    } = command
+    else {
+        unreachable!("only `carrel return` comes here")
+    };
+    checkout::return_item(
+        archive,
+        &item,
+        from.as_deref(),
+        (yes, discard),
+        trim_snapshots,
+        working_copy,
+    )
+}
+
 /// Whether `command` takes the writer lease to change the archive, so finished work sessions
 /// are recorded first (`carrel sessions` records them itself).
 fn changes_archive(command: &Command) -> bool {
@@ -1481,6 +1500,10 @@ fn changes_archive(command: &Command) -> bool {
         ),
         Command::Desk { action } => !matches!(action, None | Some(DeskAction::List)),
         Command::Crawl { action } => !matches!(action, None | Some(crawl::CrawlAction::Status)),
+        Command::Sync { action } => !matches!(
+            action,
+            None | Some(sync::SyncAction::Status | sync::SyncAction::Download { .. })
+        ),
         Command::Backup { action } => {
             matches!(action, BackupAction::Setup { .. } | BackupAction::Now)
         }
