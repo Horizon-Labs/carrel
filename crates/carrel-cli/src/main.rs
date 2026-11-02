@@ -20,8 +20,10 @@ mod correct;
 mod crawl;
 mod desk;
 mod discover;
+mod drawings;
 mod edit;
 mod expand;
+mod feedback;
 mod findability;
 mod flag;
 mod formats;
@@ -157,6 +159,10 @@ enum Command {
     /// titles, text, names or searches, so it can be shared. `carrel report gaps` lists what
     /// Carrel couldn't do, to report to development.
     Report(report_gaps::ReportArgs),
+    /// Send feedback for development, about the command line or another screen: `carrel
+    /// feedback "text" [--about ITEM|COLLECTION] [--kind bug|idea|confusing]`. `list`,
+    /// `export` and `issue` show what every device sent, and draft issues from it.
+    Feedback(feedback::FeedbackArgs),
     /// Add files and folders to the intake queue. A worker drafts each one's card and
     /// destination in the background, saving proposals for `carrel review` as they're ready.
     /// Nothing is moved until a proposal is approved.
@@ -267,6 +273,15 @@ enum Command {
     },
     /// List what's flagged as needing work.
     Flagged,
+    /// List the handwritten notes on an item's card, drawn with Apple Pencil on iPad or in
+    /// the Mac app: the words recognised in each and the path to its picture.
+    Drawings {
+        /// The item: its identifier, or its card's or contents' path.
+        item: String,
+        /// Remove this drawing (its identifier); undo can bring it back.
+        #[arg(long, value_name = "ID")]
+        remove: Option<String>,
+    },
     /// Check an item out to work on: a copy goes to a working folder, and the archive copy is
     /// read-only until it's returned.
     Checkout {
@@ -1166,11 +1181,16 @@ fn without_command(archive: Option<&std::path::Path>, json: bool) -> ExitCode {
         .exit();
 }
 
-fn main() -> ExitCode {
-    let cli = Cli::parse();
-    if !matches!(cli.command, Some(Command::Bench(_))) {
+/// Starts the decision log for every command but `bench`, which times the models alone.
+fn start_decision_log(command: Option<&Command>) {
+    if !matches!(command, Some(Command::Bench(_))) {
         carrel_core::decisions::start();
     }
+}
+
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    start_decision_log(cli.command.as_ref());
     let Some(command) = cli.command else {
         return without_command(cli.archive.as_deref(), cli.json);
     };
@@ -1216,6 +1236,7 @@ fn main() -> ExitCode {
         Command::Providers => Ok(providers::list()),
         Command::Formats => Ok(formats::list()),
         Command::Report(args) => report_gaps::command(cli.archive.as_deref(), args),
+        Command::Feedback(args) => feedback::command(cli.archive.as_deref(), args),
         Command::Ingest(args) => {
             ingest::command(cli.archive.as_deref(), &args.into_request(), cli.json)
         }
@@ -1234,7 +1255,8 @@ fn main() -> ExitCode {
         command @ (Command::Rename { .. }
         | Command::Flag { .. }
         | Command::Unflag { .. }
-        | Command::Flagged) => rename_or_flag_command(cli.archive.as_deref(), command),
+        | Command::Flagged
+        | Command::Drawings { .. }) => rename_or_flag_command(cli.archive.as_deref(), command),
         Command::Checkout { item, to, due } => {
             checkout::checkout(cli.archive.as_deref(), &item, to.as_deref(), due.as_deref())
         }
@@ -1441,12 +1463,15 @@ fn models_command(
     }
 }
 
-/// `carrel rename`, and the flag commands: `flag`, `unflag` and `flagged`.
+/// `carrel rename`, the flag commands (`flag`, `unflag` and `flagged`) and `carrel drawings`.
 fn rename_or_flag_command(archive: Option<&Path>, command: Command) -> Result<Report, Failure> {
     match command {
         Command::Rename { item, new_name } => commands::rename(archive, &item, new_name.as_deref()),
         Command::Flag { target, note } => flag::flag(archive, &target, note.as_deref()),
         Command::Unflag { target } => flag::unflag(archive, &target),
+        Command::Drawings { item, remove } => {
+            drawings::drawings_command(archive, &item, remove.as_deref())
+        }
         _ => flag::list(archive),
     }
 }
@@ -1489,6 +1514,7 @@ fn changes_archive(command: &Command) -> bool {
         | Command::Checkout { .. }
         | Command::Return { .. }
         | Command::Collection { .. } => true,
+        Command::Drawings { remove, .. } => remove.is_some(),
         Command::Settings { action } => matches!(action, Some(SettingsAction::Set { .. })),
         Command::Restructure { action } => matches!(
             action,

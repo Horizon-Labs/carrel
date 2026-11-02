@@ -612,6 +612,12 @@ Sometimes a card isn't up to par because Carrel is missing something: nothing on
 
 **To report a missing feature yourself**, `carrel report gaps --missing "what Carrel should do"`, with `--item ITEM` when it's about an item (`M` on an item in Browse, `m` in the Gaps view, or **Report a Missing Feature…** on an item or in Status in the app). The item's type is recorded with your words, never its name.
 
+### Feedback from any screen
+
+To tell development about something as you use Carrel, send feedback from where you are: **Help → Send Feedback** (⇧⌘F) or the toolbar's overflow in the Mac app, a **shake** or the **•••** menu on iPad and iPhone, `!` on any screen of the interactive mode, or `carrel feedback "what happened"`. Choose a kind (bug, idea or confusing; in the interactive mode, start the line with `idea:` or `confusing:`) and write a sentence or two. Carrel adds the screen and step you were on, the item or collection in view (identifiers and titles, **never contents**), its version, the device, the model in use and the last few problems from the gap log. On the Mac and iOS the form shows a screenshot of the window, which you can leave out.
+
+It's kept in the archive, in `_System/feedback/<device-id>/`, so it syncs to your other devices, and a device that isn't the writer can always send it. `carrel feedback list` and Status's Feedback show every device's, with how many aren't sent yet; `carrel feedback export` gives them as Markdown grouped by screen; `carrel feedback issue N` (**Issue Draft** in the app) opens a prefilled GitHub issue in your browser to submit yourself, and `carrel feedback sent N` marks it sent. Nothing is posted automatically.
+
 ## What Carrel keeps on this device
 
 Outside any archive, in `~/Library/Application Support/Carrel` on macOS, `%APPDATA%\Carrel` on Windows, or `~/.config/carrel` elsewhere (or `CARREL_CONFIG_DIR`):

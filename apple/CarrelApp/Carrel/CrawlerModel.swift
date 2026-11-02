@@ -58,6 +58,7 @@ final class CrawlerModel {
     func approve(_ ids: [CrawlerFinding.ID]) async {
         report = nil
         var done = 0
+        var sent: String?
         var problems: [String] = []
         for id in ids {
             let title = findings.first { $0.id == id }?.description ?? id
@@ -66,11 +67,16 @@ final class CrawlerModel {
                 done += 1
             } catch {
                 archive.lastError = nil
-                problems.append("Couldn’t \(title): \(message(for: error))")
+                if wentToInbox(error) {
+                    sent = message(for: error)
+                } else {
+                    problems.append("Couldn’t \(title): \(message(for: error))")
+                }
             }
         }
         selection.subtract(ids)
         var said = done == 0 ? [] : [done == 1 ? "Made 1 change" : "Made \(done) changes"]
+        said += sent.map { [$0.trimmingCharacters(in: CharacterSet(charactersIn: "."))] } ?? []
         said += problems
         report = said.joined(separator: ". ")
         if done > 0 { await didChange() }
@@ -79,10 +85,22 @@ final class CrawlerModel {
     /// Rejects `ids`: nothing changes, and the crawler won't suggest them again.
     func reject(_ ids: [CrawlerFinding.ID]) async {
         report = nil
+        var sent: String?
         for id in ids {
-            guard (try? await archive.reject(finding: id)) != nil else { return }
+            do {
+                try await archive.reject(finding: id)
+            } catch let error where wentToInbox(error) {
+                archive.lastError = nil
+                sent = message(for: error)
+            } catch {
+                return
+            }
         }
         selection.subtract(ids)
+        if let sent {
+            report = sent
+            return
+        }
         report =
             ids.count == 1
             ? "Rejected; the crawler won’t suggest it again."

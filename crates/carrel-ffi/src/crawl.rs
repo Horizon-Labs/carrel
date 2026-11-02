@@ -12,6 +12,7 @@ use carrel_core::crawl::pass::Crawler;
 use carrel_core::crawl::verdicts::Verdicts;
 use carrel_core::crawl::{self, Device};
 use carrel_core::history::History;
+use carrel_core::inbox::Request;
 use carrel_core::librarian::changes;
 
 use crate::correct::ModelProvider;
@@ -197,9 +198,9 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
-    /// [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-    /// if it isn't found or the change can't be made, as when the item has gone; the finding
-    /// is kept then.
+    /// [`CarrelError::SentToInbox`] when another device is the writer, which approves it, or
+    /// [`CarrelError::Failed`] if it isn't found or the change can't be made, as when the item
+    /// has gone; the finding is kept then.
     pub fn approve_crawler_finding(
         &self,
         id: String,
@@ -207,6 +208,11 @@ impl ArchiveHandle {
     ) -> Result<Option<String>, CarrelError> {
         let archive = self.fresh()?;
         let entry = findings::find(&archive, &id)?;
+        self.through_inbox(&archive, || {
+            Ok(Request::ApproveFindings {
+                findings: vec![entry.id],
+            })
+        })?;
         let registry = self.correction_registry(model);
         let lease =
             DiskLock::for_archive(&archive).acquire(self.holder()?, "review", DEFAULT_LEASE)?;
@@ -219,10 +225,16 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
+    /// [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
     /// [`CarrelError::Failed`] if it isn't found or can't be removed.
     pub fn reject_crawler_finding(&self, id: String) -> Result<(), CarrelError> {
         let archive = self.fresh()?;
         let entry = findings::find(&archive, &id)?;
+        self.through_inbox(&archive, || {
+            Ok(Request::RejectFindings {
+                findings: vec![entry.id],
+            })
+        })?;
         findings::reject(&archive, &entry, self.identity()?.device)?;
         Ok(())
     }
@@ -285,9 +297,16 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
-    /// [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`].
+    /// [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+    /// [`CarrelError::Failed`].
     pub fn undo_crawler_changes(&self, since: i64) -> Result<LibrarianUndone, CarrelError> {
         let archive = self.fresh()?;
+        self.through_inbox(&archive, || {
+            Ok(Request::UndoSince {
+                by: crawl::AGENT.to_owned(),
+                since,
+            })
+        })?;
         let lease =
             DiskLock::for_archive(&archive).acquire(self.holder()?, "undo", DEFAULT_LEASE)?;
         let done = changes::undo_since_by(&archive, crawl::AGENT, since, &lease);

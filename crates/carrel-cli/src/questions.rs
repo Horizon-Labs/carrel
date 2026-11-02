@@ -577,6 +577,11 @@ pub fn about(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
                 carrel_core::questions::suggest::with_model(&registry, question, &context);
         }
     }
+    if !asked.is_empty()
+        && let Some(through) = crate::through_inbox::check(&archive)?
+    {
+        return raise_through_inbox(&archive, &through, item.id, asked);
+    }
     let raised = core_answer::raise(&archive, asked)?;
     let (all, _) = QuestionQueue::of(&archive).list()?;
     let about: Vec<&QuestionEntry> = all
@@ -604,6 +609,29 @@ pub fn about(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
             "raised": raised.iter().map(|q| q.id).collect::<Vec<_>>(),
         }),
     ))
+}
+
+/// Sends the questions `asked` about the item `item` to the writer through this device's
+/// inbox, for it to add to the queue, and says which they are.
+fn raise_through_inbox(
+    archive: &Archive,
+    through: &crate::through_inbox::ThroughInbox,
+    item: carrel_core::card::Id,
+    asked: Vec<QuestionEntry>,
+) -> Result<Report, Failure> {
+    let mut listed = String::new();
+    for question in &asked {
+        writeln!(listed, "  {}", question.question).unwrap();
+        for (i, suggestion) in question.suggestions.iter().enumerate() {
+            writeln!(listed, "      {}", suggestion_line(i + 1, suggestion)).unwrap();
+        }
+    }
+    let ids: Vec<_> = asked.iter().map(|q| q.id).collect();
+    let mut report = through.send(archive, Request::Raise { questions: asked })?;
+    report.text.push_str(&listed);
+    report.json["item"] = json!(item);
+    report.json["raised"] = json!(ids);
+    Ok(report)
 }
 
 /// Adds the answer to the glossary, then drafts the items waiting on it again.

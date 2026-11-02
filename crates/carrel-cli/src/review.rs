@@ -129,19 +129,37 @@ fn crawler_findings(archive: &Archive, ids: &[String]) -> (Vec<CrawlEntry>, Vec<
     (found, rest)
 }
 
-/// Says the crawler's findings `found` weren't approved: they change the archive's structure,
-/// so only the writer approves them, and they don't go through the inbox.
-fn findings_on_the_writer(found: &[CrawlEntry]) -> String {
-    let mut text = String::new();
-    for entry in found {
-        writeln!(
-            text,
-            "Not approved {}: the crawler's findings are approved on the writer, not through this device's inbox",
-            short_id(entry.id)
-        )
-        .unwrap();
+/// Sends the crawler's findings `found` to the writer through this device's inbox, approved
+/// or rejected as `approve` says: `None` when there are none.
+fn send_findings(
+    archive: &Archive,
+    through: &crate::through_inbox::ThroughInbox,
+    found: &[CrawlEntry],
+    approve: bool,
+) -> Result<Option<Report>, Failure> {
+    if found.is_empty() {
+        return Ok(None);
     }
-    text
+    let findings = found.iter().map(|e| e.id).collect();
+    let request = if approve {
+        Request::ApproveFindings { findings }
+    } else {
+        Request::RejectFindings { findings }
+    };
+    through.send(archive, request).map(Some)
+}
+
+/// Adds what `findings` says was sent to `report`, which says what else was.
+fn with_findings(mut report: Report, findings: Option<Report>) -> Report {
+    if let Some(findings) = findings {
+        let sent = findings.text.lines().filter(|l| l.starts_with("Sent: "));
+        for line in sent {
+            report.text.push_str(line);
+            report.text.push('\n');
+        }
+        report.json["findings"] = findings.json["inbox"].clone();
+    }
+    report
 }
 
 /// Approves the crawler's findings `found`, making each change as the owner's.
@@ -421,8 +439,18 @@ fn write_comparison(text: &mut String, comparison: &actions::Comparison) {
 pub fn reject(archive: Option<&Path>, ids: &[String]) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let (found, ids) = crawler_findings(&archive, ids);
+    let through = crate::through_inbox::check(&archive)?;
     let mut text = String::new();
-    if !found.is_empty() {
+    let sent = match &through {
+        Some(through) => send_findings(&archive, through, &found, false)?,
+        None => None,
+    };
+    if ids.is_empty()
+        && let Some(sent) = sent
+    {
+        return Ok(sent);
+    }
+    if !found.is_empty() && through.is_none() {
         let identity = Identity::load_or_create()?;
         for entry in &found {
             carrel_core::crawl::findings::reject(&archive, entry, identity.device)?;
@@ -448,11 +476,10 @@ pub fn reject(archive: Option<&Path>, ids: &[String]) -> Result<Report, Failure>
             entry.state.as_str()
         )));
     }
-    if let Some(through) = crate::through_inbox::check(&archive)? {
+    if let Some(through) = through {
         let proposals = entries.iter().map(|e| e.id).collect();
-        let mut report = through.send(&archive, Request::Reject { proposals })?;
-        report.text.insert_str(0, &text);
-        return Ok(report);
+        let report = through.send(&archive, Request::Reject { proposals })?;
+        return Ok(with_findings(report, sent));
     }
     for entry in actions::reject(&archive, entries)? {
         writeln!(
@@ -479,17 +506,18 @@ pub fn approve(
     let archive = locate(archive)?;
     let (found, ids) = crawler_findings(&archive, ids);
     let through = crate::through_inbox::check(&archive)?;
-    let approved = if through.is_some() {
-        findings_on_the_writer(&found)
-    } else {
-        approve_findings(&archive, &found)?
+    let (approved, sent) = match &through {
+        Some(through) => (
+            String::new(),
+            send_findings(&archive, through, &found, true)?,
+        ),
+        None => (approve_findings(&archive, &found)?, None),
     };
     if !all_high && ids.is_empty() && !found.is_empty() {
-        let ids: Vec<String> = if through.is_some() {
-            Vec::new()
-        } else {
-            found.iter().map(|e| e.id.to_string()).collect()
-        };
+        if let Some(sent) = sent {
+            return Ok(sent);
+        }
+        let ids: Vec<String> = found.iter().map(|e| e.id.to_string()).collect();
         return Ok(Report::new(approved, json!({ "approved": ids })));
     }
     let mut entries = if all_high {
@@ -510,9 +538,10 @@ pub fn approve(
             holding: false,
             keep,
         };
-        let mut report = through.send(&archive, request)?;
-        report.text.insert_str(0, &approved);
-        return Ok(report);
+        return Ok(with_findings(through.send(&archive, request)?, sent));
+    }
+    if let Some(sent) = sent {
+        return Ok(sent);
     }
     let kept = as_version_of
         .map(|t| (actions::Kept::AsVersion, t))
@@ -729,6 +758,7 @@ pub fn edit(archive: Option<&Path>, id: &str) -> Result<Report, Failure> {
     let mut entry = actions::proposals(&archive, &[id.to_owned()])?
         .pop()
         .ok_or_else(|| Failure::new(format!("no proposal {id}")))?;
+    let before = entry.clone();
     let file = std::env::temp_dir().join(format!("carrel-{}.yaml", entry.id));
     let mut text = actions::draft_text(&archive, &entry, &[])?;
     let result = loop {
@@ -741,6 +771,16 @@ pub fn edit(archive: Option<&Path>, id: &str) -> Result<Report, Failure> {
         match actions::apply_draft(&archive, &mut entry, &edited)? {
             Edited::Unchanged => break "Nothing changed\n".to_owned(),
             Edited::Changed => {
+                if let Some(through) = crate::through_inbox::check(&archive)? {
+                    let _ = std::fs::remove_file(&file);
+                    let sent = carrel_core::inbox::send_proposal_edit(
+                        &archive,
+                        through.holder,
+                        &before,
+                        &entry,
+                    )?;
+                    return Ok(through.report(&sent, "edit a proposal"));
+                }
                 ReviewQueue::of(&archive).save(&entry)?;
                 break format!(
                     "Saved the card for {} ({})\n",

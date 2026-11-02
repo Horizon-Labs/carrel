@@ -163,7 +163,12 @@ final class CardEditModel {
             await saved()
             return true
         case nil:
-            return false
+            // Sent to the writer, checked here: it's made there, and the window's alert says
+            // so, so the editor goes back to the card as it is.
+            guard archive.lastError?.isSentToInbox == true else { return false }
+            problems = []
+            revert()
+            return true
         }
     }
 

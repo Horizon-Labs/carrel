@@ -372,6 +372,7 @@ const HELP_ROWS: &[(&str, &str)] = &[
     ),
     ("Ctrl-O", "open another archive, or create one"),
     ("Ctrl-R", "read everything again"),
+    ("!", "send feedback about this screen, for development"),
     ("?", "this help"),
     ("q, Esc, Ctrl-C", "quit"),
 ];
@@ -1145,6 +1146,7 @@ fn draw_input(frame: &mut Frame, input: &Input, theme: Theme, area: Rect) {
         ),
         InputPurpose::Option(line) => line.text(),
         InputPurpose::Gap(gap) => gap.text(),
+        InputPurpose::Feedback(context) => super::feedback::input_text(context),
         InputPurpose::SyncMoveTo => (
             " Move into iCloud Drive ",
             "The folder to move the archive to; it mustn't exist yet. Next, you see what moves \
@@ -1178,6 +1180,7 @@ fn draw_input(frame: &mut Frame, input: &Input, theme: Theme, area: Rect) {
 }
 
 fn draw_backups(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
+    let area = super::held::draw_held(frame, app, theme, area);
     let status = crate::backup::status_line(&app.archive, Some(&app.history));
     let snapshots = app.snapshots();
     let [top, rest] = Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).areas(area);

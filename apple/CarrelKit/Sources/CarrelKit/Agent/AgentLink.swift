@@ -30,6 +30,8 @@ public struct AgentLink: Sendable, Equatable {
         case cancelCheckout = "cancel"
         /// Ask About This: the librarian, with the item in the question.
         case ask
+        /// Write a Note: the drawing editor, for a handwritten note on the item's card.
+        case draw
     }
 
     /// A screen a link can ask for, with the names `carrel gui` and `carrel tui` use.

@@ -31,6 +31,7 @@
 //! | [`quick_look`] | Quick Look: cards laid out for the preview extension, and the drawings the agent keeps for it |
 //! | [`spotlight`] | Spotlight on the Mac: what the agent indexes, by `spotlight.index` |
 //! | [`creating`] | Creating an archive with a chosen embedding model |
+//! | [`feedback`] | Feedback from any screen, with the screen, step and screenshot |
 //!
 //! [`TextModel`] and [`ModelProvider`](correct::ModelProvider) are implemented in Swift and called from Rust, as is
 //! [`ProgressListener`], which long operations report to.
@@ -62,7 +63,9 @@ pub mod correct;
 pub mod crawl;
 pub mod creating;
 pub mod discover;
+pub mod drawings;
 pub mod edit;
+pub mod feedback;
 pub mod flags;
 pub mod gaps;
 pub mod graph;

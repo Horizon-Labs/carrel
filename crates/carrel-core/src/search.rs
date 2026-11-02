@@ -438,7 +438,13 @@ fn item_doc(card: &Card, card_path: &str, item: Option<&String>, body: &str) -> 
             .collect();
         fields.push((Field::Date, days.join(" ")));
     }
-    let notes = owner_text(body);
+    let mut notes = owner_text(body);
+    // Handwritten notes are found by the text recognised in them (FORMAT.md §5.10).
+    for said in card.drawings.iter().filter_map(|d| d.text.as_deref()) {
+        notes.push('\n');
+        notes.push_str(said);
+    }
+    let notes = notes.trim().to_owned();
     if !notes.is_empty() {
         fields.push((Field::Notes, notes));
     }

@@ -13,6 +13,7 @@ use carrel_core::backup::Backups;
 use carrel_core::coordinator::{Coordinator as _, DEFAULT_LEASE, DiskLock};
 use carrel_core::discover::Catalog;
 use carrel_core::graph::Graph;
+use carrel_core::inbox::Request;
 use carrel_core::providers::{Capability, Registry};
 use carrel_core::restructure::eagerness::{self, Eagerness, Source};
 use carrel_core::restructure::grouping::card_vectors;
@@ -159,6 +160,13 @@ pub fn approve(
 ) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let proposal = restructure::find_any(&archive, id)?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = Request::ApproveRestructure {
+            proposal: proposal.id,
+            only: only.to_vec(),
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let only = (!only.is_empty()).then_some(only);
     let (backups, note) = if proposal.kind == ProposalKind::Section {
@@ -201,6 +209,14 @@ pub fn approve(
 pub fn reject(archive: Option<&Path>, id: Option<&str>) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let proposal = restructure::find_any(&archive, id)?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        return through.send(
+            &archive,
+            Request::RejectRestructure {
+                proposal: proposal.id,
+            },
+        );
+    }
     restructure::reject(&archive, &proposal)?;
     Ok(Report::new(
         format!(

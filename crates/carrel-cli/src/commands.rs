@@ -416,6 +416,8 @@ pub fn status_on(
     text.push_str(&names_section(&summary.names));
     text.push_str(&signals_section(&summary.signals));
     text.push_str(&crate::flag::status_section(&summary.flagged));
+    let (feedback_text, feedback_unsent) = crate::feedback::status_line(&archive);
+    text.push_str(&feedback_text);
     let (sync_text, sync) = crate::sync_status::section(&archive, this_device);
     text.push_str(&sync_text);
     let (desk_text, desk) = crate::desk::suggestions_section(&summary.desk);
@@ -460,6 +462,7 @@ pub fn status_on(
             "suggestion": f.suggestion,
         })).collect::<Vec<_>>(),
         "warnings": warnings,
+        "feedback_unsent": feedback_unsent,
     });
     Ok(Report::new(text, json))
 }
@@ -677,6 +680,8 @@ pub(crate) fn describe(archive: &Archive, query: &str) -> Result<Shown, Failure>
             writeln!(text, "  {problem}").unwrap();
         }
     }
+    let (drawings_text, drawings) = crate::drawings::listing(archive, &item)?;
+    text.push_str(&drawings_text);
     let links = card
         .links
         .iter()
@@ -703,6 +708,7 @@ pub(crate) fn describe(archive: &Archive, query: &str) -> Result<Shown, Failure>
         "collection": collection,
         "fields": card,
         "problems": problems.iter().map(|p| json!({ "field": p.field, "message": p.message })).collect::<Vec<_>>(),
+        "drawings": drawings,
     });
     Ok(Shown {
         id: card.id,
@@ -934,6 +940,14 @@ pub fn collection_new(
                 .ok_or_else(|| Failure::new(format!("give a tag as name=meaning, not “{t}”")))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = carrel_core::inbox::Request::CreateCollection {
+            path: path.trim().trim_matches('/').to_owned(),
+            description,
+            tags,
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "collection", DEFAULT_LEASE)?;
@@ -980,6 +994,18 @@ pub fn rename(
         }
         suggestion
     };
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        // The writer checks it again, but a name that can't work is said here, at once.
+        let problems = carrel_core::names::problems(&new_name);
+        if !problems.is_empty() {
+            return Err(carrel_core::rename::RenameError::NotPortable(problems).into());
+        }
+        let request = carrel_core::inbox::Request::Rename {
+            item: item.id,
+            name: new_name,
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "rename", DEFAULT_LEASE)?;

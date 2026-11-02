@@ -13,7 +13,7 @@ struct Card: Equatable {
 
     /// Top-level front matter fields in file order; nested values are joined on one line.
     let fields: [Field]
-    /// The notes after the front matter, without the history section.
+    /// The notes after the front matter, without the history and drawings sections.
     let notes: String
     /// The history section's lines.
     let history: [String]
@@ -27,7 +27,14 @@ struct Card: Equatable {
         }
         fields = Self.fields(frontMatter)
 
-        let body = lines.joined(separator: "\n")
+        var body = lines.joined(separator: "\n")
+        // The drawings section is shown by its pictures (ItemDrawingsSection), not as notes.
+        if let start = body.range(of: "<!-- carrel:drawings -->"),
+            let end = body.range(
+                of: "<!-- /carrel:drawings -->", range: start.upperBound..<body.endIndex)
+        {
+            body.removeSubrange(start.lowerBound..<end.upperBound)
+        }
         if let start = body.range(of: "<!-- carrel:history -->"),
             let end = body.range(
                 of: "<!-- /carrel:history -->", range: start.upperBound..<body.endIndex)

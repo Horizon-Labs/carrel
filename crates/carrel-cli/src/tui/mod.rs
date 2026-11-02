@@ -11,8 +11,10 @@ mod backups;
 mod browser;
 mod discover;
 mod embedding;
+mod feedback;
 mod flagging;
 mod gaps;
+mod held;
 mod intake;
 mod item;
 mod librarian;
@@ -553,15 +555,9 @@ fn background(app: &mut App, effect: Effect) -> Option<Done> {
         effect @ (Effect::BackupNow
         | Effect::BackupVerify(_)
         | Effect::BackupRestore { .. }
+        | Effect::RestoreHeld(_)
         | Effect::BackupSetup { .. }) => backup_work(root, effect),
-        Effect::ApproveAllHigh => (
-            "Filing every high-confidence proposal…".into(),
-            Box::new(move || {
-                let result = crate::review::approve(Some(&root), &[], true, None, None);
-                changed(&root, &result);
-                result
-            }),
-        ),
+        Effect::ApproveAllHigh => approve_all_high_work(root),
         Effect::Keep { id, kept, target } => keep(root, id, kept, target),
         Effect::Redraft(chosen) => review::redraft_work(root, &chosen),
         Effect::Sync(work) => sync::sync_work(app, root, work),
@@ -581,6 +577,18 @@ fn background(app: &mut App, effect: Effect) -> Option<Done> {
         let _ = send.send(result);
     });
     Some(receive)
+}
+
+/// Files every high-confidence proposal, in the background.
+fn approve_all_high_work(root: PathBuf) -> (String, Work) {
+    (
+        "Filing every high-confidence proposal…".into(),
+        Box::new(move || {
+            let result = crate::review::approve(Some(&root), &[], true, None, None);
+            changed(&root, &result);
+            result
+        }),
+    )
 }
 
 /// The work for restructuring and the crawler, downloading a model, the index and switching
@@ -721,6 +729,7 @@ fn backup_work(root: PathBuf, effect: Effect) -> (String, Work) {
                 crate::backup::restore(Some(&root), &item, Some(&at), to.as_deref(), None)
             }),
         ),
+        Effect::RestoreHeld(id) => held::restore_held_work(root, id),
         Effect::BackupSetup {
             repository,
             password,
