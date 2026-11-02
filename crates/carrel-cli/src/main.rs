@@ -27,6 +27,7 @@ mod findability;
 mod flag;
 mod formats;
 mod gui;
+mod held;
 mod index;
 mod ingest;
 mod models;
@@ -47,6 +48,8 @@ mod sessions;
 mod settings;
 mod start_screen;
 mod sync;
+mod sync_status;
+mod through_inbox;
 mod tui;
 mod usage_report;
 mod worker;
@@ -754,6 +757,10 @@ enum BackupAction {
         /// Where to restore it; it must not exist yet.
         #[arg(long)]
         to: Option<PathBuf>,
+        /// Restore the version kept in the holding folder (its identifier, or the newest of
+        /// the item's) instead of a backup; without backups, that's where it comes from.
+        #[arg(long, value_name = "ID", num_args = 0..=1, default_missing_value = "")]
+        held: Option<String>,
     },
 }
 
@@ -1037,9 +1044,13 @@ fn backup_command(archive: Option<&Path>, action: BackupAction) -> Result<Report
         BackupAction::Now => backup::now(archive),
         BackupAction::List => backup::list(archive),
         BackupAction::Verify { percent } => backup::verify(archive, percent),
-        BackupAction::Restore { item, at, to } => {
-            backup::restore(archive, &item, at.as_deref(), to.as_deref())
-        }
+        BackupAction::Restore { item, at, to, held } => backup::restore(
+            archive,
+            &item,
+            at.as_deref(),
+            to.as_deref(),
+            held.as_deref(),
+        ),
     }
 }
 
