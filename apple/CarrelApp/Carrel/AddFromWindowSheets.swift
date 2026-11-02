@@ -1,10 +1,9 @@
 // Adding from the window itself (#439): the add sheet for files and folders dropped on the
 // window or chosen with File → Add to Archive…, with the owner's note and, for folders, how they
-// go in; File → Add Web Address… and Add Note…; and pasting any of them onto the window. Each
-// goes through the core as the share sheet's do, and into this Mac's inbox while another device
-// is the writer.
+// go in; File → Add Web Address… and Add Note… (Web Address… and Note… in the + menu on iPad and
+// iPhone); and pasting any of them onto the window. Each goes through the core as the share
+// sheet's do, and into this device's inbox while another device is the writer.
 
-import AppKit
 import CarrelKit
 import SwiftUI
 
@@ -28,10 +27,24 @@ struct AddFromWindowSheets: ViewModifier {
             ) { writing in
                 if let intake = model.intake { WriteToAddSheet(intake: intake, writing: writing) }
             }
-            .onPasteCommand(of: [.fileURL, .url, .plainText]) { _ in
-                guard let intake = model.intake, !model.isReadOnly else { return }
-                Task { await intake.paste(from: .general) }
-            }
+            #if os(macOS)
+        .onPasteCommand(of: [.fileURL, .url, .plainText]) { _ in
+            guard let intake = model.intake, !model.isReadOnly else { return }
+            Task { await intake.paste(from: .general) }
+        }
+            #endif
+    }
+}
+
+extension View {
+    /// A sheet's form with its Cancel and Add buttons: in the sheet's own toolbar on the Mac,
+    /// and in a navigation bar on iPad and iPhone, where a sheet has no toolbar of its own.
+    fileprivate func addSheetChrome() -> some View {
+        #if os(macOS)
+        self
+        #else
+        NavigationStack { self }
+        #endif
     }
 }
 
@@ -75,7 +88,9 @@ struct AddFilesSheet: View {
             .lineLimit(2...5)
         }
         .formStyle(.grouped)
+        #if os(macOS)
         .frame(minWidth: 440)
+        #endif
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
@@ -88,6 +103,7 @@ struct AddFilesSheet: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
+        .addSheetChrome()
     }
 
     private static func isFolder(_ url: URL) -> Bool {
@@ -144,7 +160,9 @@ struct WriteToAddSheet: View {
             }
         }
         .formStyle(.grouped)
+        #if os(macOS)
         .frame(minWidth: 460)
+        #endif
         .onAppear { text = writing.text }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -163,6 +181,7 @@ struct WriteToAddSheet: View {
                 .disabled(!canAdd)
             }
         }
+        .addSheetChrome()
     }
 }
 

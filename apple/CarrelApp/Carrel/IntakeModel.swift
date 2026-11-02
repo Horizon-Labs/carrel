@@ -2,13 +2,18 @@
 // Archive…, with the owner's note, a web address (File → Add Web Address…) and a note written
 // in the window (File → Add Note…), or any of these pasted onto it, join the intake queue as
 // `carrel ingest` adds them, and a worker drafts them. While another device is the writer they
-// go into this Mac's inbox instead. The agent runs the worker; Status shows its progress, read
+// go into this device's inbox instead. The agent runs the worker; Status shows its progress, read
 // from the worker's status file.
 
-import AppKit
 import CarrelKit
 import Foundation
 import Observation
+
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 @Observable
 final class IntakeModel {
@@ -53,7 +58,7 @@ final class IntakeModel {
 
     /// Adds the files and folders at `urls` to the intake queue, folders as `how` says, as
     /// `carrel ingest --each` and `--whole` do, with the owner's `note` for their cards. While
-    /// another device is the writer, they go into this Mac's inbox.
+    /// another device is the writer, they go into this device's inbox.
     func add(_ urls: [URL], as how: FolderIntake, note: String? = nil) async {
         adding = nil
         guard !urls.isEmpty else { return }
@@ -107,21 +112,40 @@ final class IntakeModel {
     /// The web address or note sheet, while it's open.
     var writing: Writing?
 
-    /// Adds what's on `pasteboard`, as pasting onto the window does: files and folders go to
-    /// the add sheet, a web address to Add Web Address and text to Add Note, filled in for the
-    /// owner to add. Returns whether there was anything to add.
+    #if os(macOS)
+    /// Adds what's on `pasteboard`, as pasting onto the window does. Returns whether there was
+    /// anything to add.
     @discardableResult
     func paste(from pasteboard: NSPasteboard) async -> Bool {
         let files =
             pasteboard.readObjects(
                 forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
             ?? []
+        return await paste(
+            files: files,
+            text: pasteboard.string(forType: .URL) ?? pasteboard.string(forType: .string))
+    }
+    #else
+    /// Adds what's on `pasteboard`, as Paste in the + menu does. Returns whether there was
+    /// anything to add.
+    @discardableResult
+    func paste(from pasteboard: UIPasteboard) async -> Bool {
+        let files = pasteboard.urls?.filter(\.isFileURL) ?? []
+        let address = pasteboard.urls?.first(where: { !$0.isFileURL })?.absoluteString
+        return await paste(files: files, text: address ?? pasteboard.string)
+    }
+    #endif
+
+    /// Adds pasted `files`, or else `text`: files and folders go to the add sheet, a web
+    /// address to Add Web Address and other text to Add Note, filled in for the owner to add.
+    /// Returns whether there was anything to add.
+    @discardableResult
+    func paste(files: [URL], text: String?) async -> Bool {
         if !files.isEmpty {
             await add(files)
             return true
         }
-        let text =
-            pasteboard.string(forType: .URL) ?? pasteboard.string(forType: .string) ?? ""
+        let text = text ?? ""
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         writing =
@@ -218,7 +242,7 @@ struct AddReport: Equatable {
     var leftOut: [(name: String, reason: String)] = []
     /// Why nothing could be added.
     var problem: String?
-    /// The writing device, when it went into this Mac's inbox instead.
+    /// The writing device, when it went into this device's inbox instead.
     var writer: String?
 
     init(_ added: Added) {
@@ -240,7 +264,7 @@ struct AddReport: Equatable {
 
     var title: String {
         if problem != nil { return "Couldn’t Add to the Archive" }
-        if writer != nil { return "Sent to This Mac’s Inbox" }
+        if writer != nil { return "Sent to \(Self.thisDeviceTitle)’s Inbox" }
         return switch added.count {
         case 0: "Nothing to Add"
         case 1: "Added “\(added[0])” to the Intake Queue"
@@ -248,12 +272,17 @@ struct AddReport: Equatable {
         }
     }
 
+    /// This device in a title: "This Mac", "This iPad" or "This iPhone".
+    private static var thisDeviceTitle: String {
+        isMac ? "This Mac" : PowerPolicy.isPhone ? "This iPhone" : "This iPad"
+    }
+
     /// What was left out and why, one to a line, or what went wrong.
     var details: String? {
         if let problem { return problem }
         if let writer {
             return "Another device (\(writer.prefix(8))) is the writer now, so this went into "
-                + "this Mac’s inbox; that device adds it to its queue and drafts it."
+                + "\(thisDevice)’s inbox; that device adds it to its queue and drafts it."
         }
         guard !leftOut.isEmpty else { return nil }
         return leftOut.map { "\($0.name): \($0.reason)" }.joined(separator: "\n")
