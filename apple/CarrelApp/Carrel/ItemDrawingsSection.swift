@@ -8,16 +8,9 @@ import ImageIO
 import SwiftUI
 
 struct ItemDrawingsSection: View {
-    /// The item a link asked to write a note on (`action=draw`), opened when its card shows.
-    private static var noteToWrite: String?
-    private static let writeNoteAsked = Notification.Name("CarrelWriteNote")
-
-    /// Opens the editor for a new note on the item `id`'s card, now if it's showing, or else
-    /// when it shows.
-    static func writeNote(on id: String) {
-        noteToWrite = id
-        NotificationCenter.default.post(name: writeNoteAsked, object: nil)
-    }
+    /// Posted when a drawing on `object`'s card (the item's identifier) was saved elsewhere,
+    /// such as from a link.
+    static let drawingsChanged = Notification.Name("CarrelDrawingsChanged")
 
     let archive: ArchiveModel
     let item: String
@@ -53,24 +46,15 @@ struct ItemDrawingsSection: View {
                 ProgressView().frame(maxWidth: .infinity)
             }
         }
-        .task(id: item) {
-            takeNoteToWrite()
-            await reload()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: Self.writeNoteAsked)) { _ in
-            takeNoteToWrite()
+        .task(id: item) { await reload() }
+        .onReceive(NotificationCenter.default.publisher(for: Self.drawingsChanged)) { note in
+            if note.object as? String == item { Task { await reload() } }
         }
         .sheet(item: $editing) { edited in
             DrawingEditor(existing: edited.existing) { drawn in
                 try await save(drawn, over: edited.existing)
             }
         }
-    }
-
-    private func takeNoteToWrite() {
-        guard Self.noteToWrite == item else { return }
-        Self.noteToWrite = nil
-        editing = EditedDrawing(existing: nil)
     }
 
     private func reload() async {
@@ -93,6 +77,49 @@ struct ItemDrawingsSection: View {
             problem = (error as? CarrelError)?.message ?? error.localizedDescription
         }
         await reload()
+    }
+}
+
+/// Opens the editor for a new note when a link asks for one (`action=draw`), on the card as a
+/// whole, since the Drawings section's rows aren't made until they're scrolled to.
+struct WritesNotesFromLinks: ViewModifier {
+    /// The item a link asked to write a note on, taken by its card when it shows.
+    private static var noteToWrite: String?
+    private static let writeNoteAsked = Notification.Name("CarrelWriteNote")
+
+    /// Opens the editor for a new note on the item `id`'s card, now if it's showing, or else
+    /// when it shows.
+    static func writeNote(on id: String) {
+        noteToWrite = id
+        NotificationCenter.default.post(name: writeNoteAsked, object: nil)
+    }
+
+    let archive: ArchiveModel?
+    let item: String
+    @State private var writing = false
+
+    func body(content: Content) -> some View {
+        content
+            .task(id: item) { take() }
+            .onReceive(NotificationCenter.default.publisher(for: Self.writeNoteAsked)) { _ in
+                take()
+            }
+            .sheet(isPresented: $writing) {
+                DrawingEditor(existing: nil) { drawn in
+                    guard let archive else { return }
+                    try await archive.saveDrawing(
+                        on: item, drawing: nil, data: drawn.data, picture: drawn.picture,
+                        text: drawn.text)
+                    NotificationCenter.default.post(
+                        name: ItemDrawingsSection.drawingsChanged, object: item)
+                }
+            }
+    }
+
+    private func take() {
+        guard archive != nil, Self.noteToWrite == item else { return }
+        Self.noteToWrite = nil
+        writing = true
     }
 }
 

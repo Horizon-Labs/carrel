@@ -30,7 +30,7 @@ extension ArchiveWindowModel {
             // After Browse has replaced the screen the link showed first, so the editor opens
             // on the card that stays.
             try? await Task.sleep(for: .milliseconds(500))
-            ItemDrawingsSection.writeNote(on: id)
+            WritesNotesFromLinks.writeNote(on: id)
         }
     }
 }
