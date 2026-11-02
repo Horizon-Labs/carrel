@@ -1,5 +1,7 @@
 //! Applying every device's inbox, as the writer ([`super::apply()`]).
 
+mod rest;
+
 use std::path::{Path, PathBuf};
 
 use super::{
@@ -290,6 +292,7 @@ fn apply_one(
         Request::Expand { .. } | Request::Undo { .. } | Request::Record { .. } => {
             recorded(archive, &entry.request, sender)
         }
+        _ => rest::apply_rest(archive, &entry.request, sender, applying),
     }
 }
 
