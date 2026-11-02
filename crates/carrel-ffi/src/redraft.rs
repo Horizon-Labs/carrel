@@ -31,7 +31,7 @@ pub struct RedraftOutcome {
 
 impl ArchiveHandle {
     /// The providers for drafting: the device's, with the app's model when it gives one.
-    fn drafting_registry(&self, model: Option<Arc<dyn ModelProvider>>) -> Registry {
+    pub(crate) fn drafting_registry(&self, model: Option<Arc<dyn ModelProvider>>) -> Registry {
         let mut registry = self.registry();
         if let Some(model) = model {
             registry.add(Box::new(FromSwift::new(model)));

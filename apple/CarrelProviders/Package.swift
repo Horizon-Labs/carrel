@@ -7,7 +7,7 @@ import PackageDescription
 
 let package = Package(
     name: "CarrelProviders",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v15), .iOS(.v26)],
     products: [
         .library(name: "CarrelAppleProviders", targets: ["CarrelAppleProviders"]),
         .executable(name: "carrel-provider-apple", targets: ["carrel-provider-apple"]),

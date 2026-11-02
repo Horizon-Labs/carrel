@@ -70,7 +70,7 @@ final class LibrarianModel {
 
     init(archive: ArchiveModel, provider: ModelProvider? = nil, memoryGB: UInt64? = thisMac) {
         self.archive = archive
-        self.provider = provider
+        self.provider = provider ?? OnDeviceModels.forArchive(archive.handle)
         self.memoryGB = memoryGB
     }
 

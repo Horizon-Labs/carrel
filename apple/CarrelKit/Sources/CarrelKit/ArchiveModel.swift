@@ -582,6 +582,16 @@ public final class ArchiveModel {
         }
     }
 
+    /// Downloads the catalog model `name`'s MLX build through `fetcher`, where the core can't
+    /// start its network helper, as on iPad and iPhone. Only once the owner has confirmed,
+    /// having seen its size.
+    @discardableResult
+    public func download(mlx name: String, through fetcher: FileFetcher) async throws -> String {
+        try await call(reporting: "Downloading \(name)") { handle, relay in
+            try handle.downloadMlxModel(name: name, fetcher: fetcher, progress: relay)
+        }
+    }
+
     /// Deletes the downloaded model `name` in `format`, leaving the other. Only once the
     /// owner has confirmed.
     @discardableResult
@@ -696,14 +706,15 @@ public final class ArchiveModel {
     }
 
     /// Drafts what's queued here, when the agent isn't running to do it: with it running,
-    /// this does nothing and says so, and the agent drafts.
+    /// this does nothing and says so, and the agent drafts. `model` is the app's own, as the
+    /// iPad and iPhone give the models they run in-process.
     @discardableResult
-    public func draftQueued() async throws -> Drafted {
+    public func draftQueued(model: ModelProvider? = nil) async throws -> Drafted {
         if handle.agentRunning() {
             return Drafted(drafted: 0, embedded: 0, failures: [], alreadyRunning: true)
         }
         let drafted = try await call(reporting: "Drafting") { handle, relay in
-            try handle.draftQueued(progress: relay)
+            try handle.draftQueued(model: model, progress: relay)
         }
         try await refreshIntake()
         try await changed { try await $0.refreshReview() }

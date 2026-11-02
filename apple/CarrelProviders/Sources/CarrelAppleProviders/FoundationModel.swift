@@ -47,7 +47,7 @@ public struct FoundationModel: TextModel {
 
     public func countTokens(_ text: String) async throws(ProviderError) -> Int {
         #if canImport(FoundationModels)
-        if #available(macOS 26.4, *) {
+        if #available(macOS 26.4, iOS 26.4, *) {
             do {
                 return try await SystemLanguageModel.default.tokenCount(for: text)
             } catch {
@@ -74,7 +74,7 @@ public struct FoundationModel: TextModel {
     static var modelName: String {
         // `variant` is in the macOS 27 SDK, which comes with Swift 6.4; older SDKs can't name it.
         #if compiler(>=6.4)
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             let slug = SystemLanguageModel.default.variant.displayName
                 .lowercased()
                 .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
@@ -114,7 +114,7 @@ public struct FoundationModel: TextModel {
             return error
         }
         #if compiler(>=6.4)
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             if let error = error as? LanguageModelError {
                 return map(error)
             }
@@ -133,7 +133,7 @@ public struct FoundationModel: TextModel {
     }
 
     #if compiler(>=6.4)
-    @available(macOS 27.0, *)
+    @available(macOS 27.0, iOS 27.0, *)
     static func map(_ error: LanguageModelError) -> ProviderError {
         let why = error.localizedDescription
         switch error {

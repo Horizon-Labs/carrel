@@ -14,10 +14,16 @@ extension ModelFormat {
         }
     }
 
-    /// Whether this Mac can run it: MLX needs Apple silicon.
+    /// Whether this device can run it: MLX needs Apple silicon, and an iPad or iPhone runs
+    /// only MLX, in the app's own process.
     var runsHere: Bool {
         switch self {
-        case .gguf: true
+        case .gguf:
+            #if os(iOS)
+            false
+            #else
+            true
+            #endif
         case .mlx:
             #if arch(arm64)
             true

@@ -31,6 +31,7 @@ final class ReviewModel {
 
     init(archive: ArchiveModel) {
         self.archive = archive
+        self.redraftModel = OnDeviceModels.forArchive(archive.handle)
     }
 
     /// Every proposal waiting, oldest batch first, each batch's by destination.

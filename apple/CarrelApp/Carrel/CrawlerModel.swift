@@ -31,6 +31,7 @@ final class CrawlerModel {
 
     init(archive: ArchiveModel) {
         self.archive = archive
+        self.provider = OnDeviceModels.forArchive(archive.handle)
     }
 
     var findings: [CrawlerFinding] { archive.crawlerFindings }

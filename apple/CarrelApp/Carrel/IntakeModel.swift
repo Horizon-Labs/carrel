@@ -214,7 +214,9 @@ final class IntakeModel {
     func draft() async {
         isDrafting = true
         defer { isDrafting = false }
-        _ = try? await archive.draftQueued()
+        let handle = archive.handle
+        let model = await Task.detached { OnDeviceModels.forArchive(handle) }.value
+        _ = try? await archive.draftQueued(model: model)
         await refresh()
     }
 
