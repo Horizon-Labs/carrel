@@ -1,27 +1,31 @@
-// What an archive's window does beyond its screens: search in the toolbar (⌘F), adding items
-// by dropping them on the window or with File → Add to Archive… (⌘O), and watching the
-// worker draft them.
+// What an archive's window does beyond its screens: search (⌘F; in the toolbar on the Mac, in
+// ToolbarSearchField.swift), adding items by dropping them on the window or with File → Add to
+// Archive… (⌘O), and watching the worker draft them.
 
 import CarrelKit
 import SwiftUI
 
-/// Search in the toolbar, adding items by dropping them, and the window's commands.
+/// Search on iPad and iPhone, adding items by dropping them, and the window's commands.
 struct ArchiveWindowActions: ViewModifier {
     let model: ArchiveWindowModel
     @State private var isTargeted = false
+    #if os(iOS)
     @FocusState private var searchFocused: Bool
+    #endif
 
     func body(content: Content) -> some View {
         content
-            .searchable(
-                text: Binding(
-                    get: { model.search?.text ?? "" },
-                    set: { model.search?.text = $0 }),
-                placement: .toolbar,
-                prompt: "Search, or tag:receipts"
-            )
-            .searchFocused($searchFocused)
-            .onChange(of: model.search?.focusRequests) { searchFocused = true }
+            #if os(iOS)
+        .searchable(
+            text: Binding(
+                get: { model.search?.text ?? "" },
+                set: { model.search?.text = $0 }),
+            placement: .toolbar,
+            prompt: "Search, or tag:receipts"
+        )
+        .searchFocused($searchFocused)
+        .onChange(of: model.search?.focusRequests) { searchFocused = true }
+            #endif
             .onChange(of: model.screen) { model.search?.clear() }
             .dropDestination(for: URL.self) { urls, _ in
                 guard let intake = model.intake, !model.isReadOnly else { return false }

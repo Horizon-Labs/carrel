@@ -48,6 +48,9 @@ struct ArchiveWindow: View {
         .modifier(ArchiveWindowActions(model: model))
         .browseSheets(model.browse)
         .librarianPanel(model)
+        #if os(macOS)
+        .toolbarSearchField(model)
+        #endif
         .navigationTitle(model.name)
         #if os(macOS)
         .navigationSubtitle(
