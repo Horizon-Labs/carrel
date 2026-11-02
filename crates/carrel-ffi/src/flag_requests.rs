@@ -451,7 +451,7 @@ mod tests {
             handle.item_detail(parts.clone()).unwrap().fields.title,
             "Lamp bill of materials"
         );
-        assert!(handle.flag_requests().unwrap().is_empty());
+        assert_eq!(handle.flag_requests().unwrap(), []);
         assert_eq!(handle.item_flag(parts).unwrap(), None);
     }
 }

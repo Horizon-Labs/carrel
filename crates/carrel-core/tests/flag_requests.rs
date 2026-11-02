@@ -199,14 +199,8 @@ fn a_flag_leads_to_a_question_and_the_answer_to_a_fix_that_clears_it() {
     let card = std::fs::read_to_string(archive.root().join(ORIGIN_CARD)).unwrap();
     assert!(card.contains("a first edition reprint"), "{card}");
     assert!(!card.contains("needs_work"), "the flag is cleared: {card}");
-    assert!(request::all(&archive).unwrap().is_empty());
-    assert!(
-        request::RequestQueue::of(&archive)
-            .list()
-            .unwrap()
-            .0
-            .is_empty()
-    );
+    assert_eq!(request::all(&archive).unwrap(), []);
+    assert_eq!(request::RequestQueue::of(&archive).list().unwrap().0, []);
 }
 
 #[test]
@@ -267,7 +261,7 @@ fn a_new_note_starts_again_and_a_cleared_flag_takes_its_request_away() {
         taken.cant_help.unwrap().why,
         "I looked, and everything in Projects fits what it's for."
     );
-    assert!(request::waiting(&archive).unwrap().is_empty());
+    assert_eq!(request::waiting(&archive).unwrap(), []);
 
     // A new note is a new request.
     flags::flag(
@@ -278,13 +272,7 @@ fn a_new_note_starts_again_and_a_cleared_flag_takes_its_request_away() {
     )
     .unwrap();
     assert_eq!(request::waiting(&archive).unwrap().len(), 1);
-    assert!(
-        request::RequestQueue::of(&archive)
-            .list()
-            .unwrap()
-            .0
-            .is_empty()
-    );
+    assert_eq!(request::RequestQueue::of(&archive).list().unwrap().0, []);
 
     // Clearing the flag takes its request and question away.
     let (registry, _) = scripted(vec![answer(
@@ -296,14 +284,8 @@ fn a_new_note_starts_again_and_a_cleared_flag_takes_its_request_away() {
     let asked = request::take_up(&archive, &librarian, &flagged).unwrap();
     assert_eq!(asked.state, State::Asked);
     flags::unflag(&archive, &Flaggable::collection("Projects"), holder()).unwrap();
-    assert!(request::all(&archive).unwrap().is_empty());
-    assert!(
-        request::RequestQueue::of(&archive)
-            .list()
-            .unwrap()
-            .0
-            .is_empty()
-    );
+    assert_eq!(request::all(&archive).unwrap(), []);
+    assert_eq!(request::RequestQueue::of(&archive).list().unwrap().0, []);
     let (questions, _) = QuestionQueue::of(&archive).list().unwrap();
     assert!(questions.iter().all(|q| q.kind != QuestionKind::Flag));
 }

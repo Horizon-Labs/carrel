@@ -107,7 +107,7 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
         Tab::Questions => draw_questions(frame, app, theme, inner),
         Tab::Browse => draw_browse(frame, app, theme, inner),
         Tab::Status if app.flags.shown => {
-            super::flag_requests::draw_flags(frame, app, theme, inner)
+            super::flag_requests::draw_flags(frame, app, theme, inner);
         }
         Tab::Status if app.gaps.shown => super::gaps::draw_gaps(frame, app, theme, inner),
         Tab::Status => draw_report(frame, app, inner, Some(waiting_line(app))),

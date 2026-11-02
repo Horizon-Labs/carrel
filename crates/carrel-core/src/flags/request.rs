@@ -20,6 +20,8 @@
 //! Interfaces take waiting flags up when the device is idle, as the crawler runs, or at once
 //! when the owner asks ([`take_up`]).
 
+use std::fmt::Write as _;
+
 use serde::{Deserialize, Serialize};
 
 use crate::FormatVersion;
@@ -464,7 +466,7 @@ fn read_answer(answer: &str) -> Said {
 pub fn words(request: &FlagRequest) -> String {
     let mut text = String::from("The owner flagged this as needing work");
     match &request.note {
-        Some(note) => text.push_str(&format!(", saying: “{note}”.")),
+        Some(note) => write!(text, ", saying: “{note}”.").unwrap(),
         None => text.push_str(", without saying what."),
     }
     text.push_str(
@@ -482,9 +484,9 @@ pub fn words(request: &FlagRequest) -> String {
     text.push_str(&options.join(", "));
     text.push_str(", then why in a sentence.");
     for exchange in &request.exchanges {
-        text.push_str(&format!("\nYou asked the owner: “{}”", exchange.question));
+        write!(text, "\nYou asked the owner: “{}”", exchange.question).unwrap();
         if let Some(answer) = &exchange.answer {
-            text.push_str(&format!(" They answered: “{answer}”"));
+            write!(text, " They answered: “{answer}”").unwrap();
         }
     }
     text

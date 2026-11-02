@@ -177,24 +177,21 @@ pub fn describe(listed: &Listed, commands: bool) -> String {
         writeln!(text, "\nThe librarian: {}", request.said).unwrap();
     }
     for exchange in &request.exchanges {
-        match &exchange.answer {
-            Some(answer) => {
+        if let Some(answer) = &exchange.answer {
+            writeln!(
+                text,
+                "\nIt asked: {}\nYou said: {answer}",
+                exchange.question
+            )
+            .unwrap();
+        } else {
+            writeln!(text, "\nThe librarian asks: {}", exchange.question).unwrap();
+            if commands {
                 writeln!(
                     text,
-                    "\nIt asked: {}\nYou said: {answer}",
-                    exchange.question
+                    "Answer with `carrel flagged {quoted} --answer \"…\"`."
                 )
                 .unwrap();
-            }
-            None => {
-                writeln!(text, "\nThe librarian asks: {}", exchange.question).unwrap();
-                if commands {
-                    writeln!(
-                        text,
-                        "Answer with `carrel flagged {quoted} --answer \"…\"`."
-                    )
-                    .unwrap();
-                }
             }
         }
     }
