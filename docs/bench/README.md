@@ -197,6 +197,23 @@ The same run on DeskBook with `dev` after #361, which lets the librarian finish 
 
 No model has the `librarian` flag yet, so the default is unchanged.
 
+### Librarian: after #448
+
+The same run on DeskBook with `dev` after #448, which includes #417's finishing of answers the librarian would cut off. [Full report](2026-11-02-after-448/librarian/report.md) · [results.json](2026-11-02-after-448/librarian/results.json)
+
+| Model | Recall | Precision | Facts | Restricted shown | Unanswered | Steps | s/question | Meets the bar |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Apple Foundation Model | 84% | 82% | 63% | 0 | 0 | 3.3 | 109.9 | no: facts, too slow |
+| Granite 4.2 3B (llama.cpp) | 70% (was 60%) | 92% | 76% | 0 | 0 | 2.8 | 65.7 | no: recall, facts, too slow |
+| Qwen3.5 4B (llama.cpp) | 84% (was 70%) | 86% | 100% | 0 | 0 | 2.2 | 71.3 | no: 71.3 s a question |
+
+- **Every question is answered now,** by every model: #417 finishes the answers that used to be cut off.
+- **Qwen3.5 4B meets every part of the bar but speed:** 84% recall, 86% precision and every fact stated, at 71 seconds a question against the bar's 60 (it was 51 before, as finished answers are longer). It uses the fewest tokens (7,200 a question).
+- **Apple's model** finds as much but states the fewest facts, and at 110 seconds a question it's the slowest.
+- **No model showed restricted text.**
+
+No model has the `librarian` flag yet, so the default is unchanged. DeskBook is slower than the reference machine (an M4 Max), where Qwen would likely be under 60 seconds; a run there decides whether it gets the flag.
+
 ## Question value
 
 Whether the question queue asks the questions that help most (`docs/design/librarian.md`, "Measuring it"). `carrel bench --questions` ingests the test set with each text model in one batch, as ingest would, and ranks the questions the batch raises as the queue does (`questions::rank`). It then answers each question alone with the answer the test set implies, and re-routes:
@@ -316,6 +333,21 @@ On DeskBook, as above, after #431. [Report](2026-11-01-v0.7/restructure/report.m
 - a new top-level collection of 4 items (gain -0.40).
 
 Neither clears the margin, so both are held back. That's safe: an earlier run, before #431's findability check, proposed changes that lowered the shape to 68%. But it isn't useful yet. The real vectors don't show the groups the stub vectors in the tests do, which is #435.
+
+### Restructure: after #448
+
+On DeskBook, as above, after #448, which moves items into existing collections and asks the crawler where items belong. [Report](2026-11-02-after-448/restructure/report.md) · [results.json](2026-11-02-after-448/restructure/results.json)
+
+| Wording | Settled | Balanced | Eager | Fixed | Broken |
+| --- | --- | --- | --- | --- | --- |
+| Numbers alone | 77% → 79% | 77% → 79% | 77% → 79% | 2 of 18 | 0 |
+| Apple Foundation Model | 77% | 77% | 77% → 79% | 0–2 of 18 | 0 |
+| Granite 4.2 3B (llama.cpp) | 77% | 77% | 77% | 0 of 18 | 0 |
+| Qwen3.5 4B (llama.cpp) | 77% → 79% | 77% → 79% | 77% → 79% | 2 of 18 | 0 |
+
+- **Proposals are safe and now do something:** two misplaced items move to where they belong (a desk chair receipt to Receipts, a car insurance renewal to Insurance), breaking nothing. Qwen's findability test confirms them (+2 points).
+- **But they recover little of the shape:** 2 of the 18 misplaced items. Every new collection is still held back, since the findability test scores each candidate's gain below zero (-0.05 to -0.38), short of the 0.07 to 0.45 margins.
+- **The crawler's verdicts weren't used:** this run had no crawler results for Qwen to read, so the next run should run `--crawl` first.
 
 ## Running it again
 
