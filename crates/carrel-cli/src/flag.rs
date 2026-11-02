@@ -9,7 +9,7 @@ use std::path::Path;
 
 use carrel_core::archive::Archive;
 use carrel_core::card::Id;
-use carrel_core::flags::{self, Flaggable, Flagged};
+use carrel_core::flags::{self, Flaggable};
 use carrel_core::inbox::{FlagTarget, Request};
 use serde_json::json;
 
@@ -51,7 +51,12 @@ fn flaggable(archive: &Archive, query: &str) -> Result<Flaggable, Failure> {
 ///
 /// [`Failure`] if nothing matches, the note is too long, the item is checked out, or the
 /// change can't be written.
-pub fn flag(archive: Option<&Path>, query: &str, note: Option<&str>) -> Result<Report, Failure> {
+pub fn flag(
+    archive: Option<&Path>,
+    query: &str,
+    note: Option<&str>,
+    ask: bool,
+) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let what = flaggable(&archive, query)?;
     if let Some(through) = crate::through_inbox::check(&archive)? {
@@ -69,6 +74,18 @@ pub fn flag(archive: Option<&Path>, query: &str, note: Option<&str>) -> Result<R
     }
     let identity = Identity::load_or_create()?;
     let done = flags::flag(&archive, &what, note, holder(&identity))?;
+    if ask {
+        let flagged = flags::request::all(&archive)?
+            .into_iter()
+            .find(|l| l.flagged.what == what)
+            .ok_or_else(|| Failure::new("it isn't flagged"))?;
+        let mut report = crate::flag_librarian::take_up(&archive, &flagged.flagged)?;
+        if done.changed {
+            report.text.insert_str(0, &format!("{}.\n", done.summary));
+        }
+        report.json["commit"] = json!(done.commit);
+        return Ok(report);
+    }
     let text = if done.changed {
         format!(
             "{}; undo it from History or with `carrel undo`.\n",
@@ -112,46 +129,6 @@ pub fn unflag(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
         text,
         json!({"unflagged": what, "changed": done.changed, "commit": done.commit}),
     ))
-}
-
-/// `carrel flagged`: everything flagged, collections first.
-///
-/// # Errors
-///
-/// [`Failure`] if the archive can't be read.
-pub fn list(archive: Option<&Path>) -> Result<Report, Failure> {
-    let archive = locate(archive)?;
-    let flagged = flags::all(&archive)?;
-    let text = if flagged.is_empty() {
-        "Nothing is flagged as needing work. Flag something with `carrel flag ITEM --note \"what\"`.\n"
-            .to_owned()
-    } else {
-        lines(&flagged)
-    };
-    Ok(Report::new(text, json!({ "flagged": flagged })))
-}
-
-/// One line each, under a heading.
-fn lines(flagged: &[Flagged]) -> String {
-    let mut text = String::from("Flagged as needing work:\n");
-    for f in flagged {
-        let what = flags::describe(&f.flag);
-        match &f.what {
-            Flaggable::Collection { path } => writeln!(text, "  ⚑ {path}/ (collection): {what}"),
-            Flaggable::Item { card, .. } => writeln!(text, "  ⚑ {card}: {what}"),
-        }
-        .unwrap();
-    }
-    text
-}
-
-/// The part of `carrel status` about what's flagged.
-pub fn status_section(flagged: &[Flagged]) -> String {
-    if flagged.is_empty() {
-        String::new()
-    } else {
-        format!("\n{}", lines(flagged))
-    }
 }
 
 /// After a correction or an edit of `item` was saved, when its card is flagged: asks on the

@@ -404,7 +404,7 @@ pub fn status_on(
     text.push_str(&problems_section(&summary.problems));
     text.push_str(&names_section(&summary.names));
     text.push_str(&signals_section(&summary.signals));
-    text.push_str(&crate::flag::status_section(&summary.flagged));
+    text.push_str(&crate::flag_librarian::status_section(&archive));
     let (feedback_text, feedback_unsent) = crate::feedback::status_line(&archive);
     text.push_str(&feedback_text);
     let (sync_text, sync) = crate::sync_status::section(&archive, this_device);

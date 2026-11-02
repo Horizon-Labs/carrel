@@ -106,6 +106,9 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
         Tab::Active => draw_active(frame, app, theme, inner),
         Tab::Questions => draw_questions(frame, app, theme, inner),
         Tab::Browse => draw_browse(frame, app, theme, inner),
+        Tab::Status if app.flags.shown => {
+            super::flag_requests::draw_flags(frame, app, theme, inner);
+        }
         Tab::Status if app.sync.shown => super::sync::draw_sync(frame, app, theme, inner),
         Tab::Status if app.gaps.shown => super::gaps::draw_gaps(frame, app, theme, inner),
         Tab::Status => draw_report(frame, app, inner, Some(waiting_line(app))),
@@ -841,6 +844,7 @@ fn draw_questions(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
                 "Enter to answer yes, no or a collection; Carrel asks before adding a rule."
             }
             QuestionKind::Item => "Enter to answer; you see what it changes before it's saved.",
+            QuestionKind::Flag => "Enter to answer; the librarian tries again with it.",
         },
         theme.dim(),
     )));

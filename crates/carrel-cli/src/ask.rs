@@ -422,7 +422,7 @@ pub fn describe(answer: &Answer) -> String {
     text
 }
 
-fn suggestion_lines(suggestion: &Suggestion) -> String {
+pub(crate) fn suggestion_lines(suggestion: &Suggestion) -> String {
     let mut text = format!(
         "  {} ({:.0}% sure){}\n",
         capitalized(&suggestion.change.describe()),

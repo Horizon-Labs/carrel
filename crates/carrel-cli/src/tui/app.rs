@@ -511,6 +511,8 @@ pub struct App {
     pub crawler: super::review_crawler::CrawlerReview,
     /// The Gaps view on Status: what Carrel couldn't do on this device.
     pub gaps: super::gaps::GapsView,
+    /// The Flags view on Status.
+    pub flags: super::flag_requests::FlagsView,
     /// The Sync view on Status: the archive shared between devices.
     pub sync: super::sync::SyncView,
     /// Restructure proposals waiting in Review.
@@ -653,6 +655,14 @@ fn lines(text: &str) -> Vec<String> {
     text.lines().map(str::to_owned).collect()
 }
 
+/// This device's identifier, from its identity, if it has one.
+fn this_device() -> Option<Id> {
+    crate::config::Identity::load()
+        .ok()
+        .flatten()
+        .map(|i| i.device)
+}
+
 /// Where the interactive mode records what it asks about: in memory under test, so tests
 /// never write the owner's records.
 fn records_for(archive: &Archive) -> crate::asking::Records {
@@ -693,6 +703,7 @@ impl App {
             review_list: super::review_crawler::ReviewList::default(),
             crawler: super::review_crawler::CrawlerReview::default(),
             gaps: super::gaps::GapsView::default(),
+            flags: super::flag_requests::FlagsView::default(),
             sync: super::sync::SyncView::default(),
             restructure: super::review_restructure::RestructureReview::default(),
             chosen: 0,
@@ -727,10 +738,7 @@ impl App {
             input: None,
             message: None,
             confirm: None,
-            device: crate::config::Identity::load()
-                .ok()
-                .flatten()
-                .map(|i| i.device),
+            device: this_device(),
             intake: Vec::new(),
             intake_chosen: 0,
             planned: None,
@@ -802,6 +810,9 @@ impl App {
             .extend(crate::usage_report::status_lines(&self.archive));
         self.load_gaps();
         self.status.extend(self.gaps_status_lines());
+        if self.flags.shown {
+            self.load_flags();
+        }
         self.load_sync_if_shown();
         self.history = match History::open(&self.archive) {
             Ok(history) => history.log()?,
@@ -909,6 +920,29 @@ impl App {
         keys
     }
 
+    /// Status's keys: those of the view shown on it, else its own and the views it opens.
+    fn status_keys(&self) -> Vec<(&'static str, &'static str)> {
+        if self.flags.shown {
+            return self.flags_keys();
+        }
+        if self.sync.shown {
+            return self.sync_keys();
+        }
+        if self.gaps.shown {
+            return self.gaps_keys();
+        }
+        let mut keys = if self.reminder_has_item() {
+            vec![("↑↓", "scroll"), ("Enter", "reminder's item")]
+        } else {
+            vec![("↑↓", "scroll")]
+        };
+        keys.extend([("f", "flags"), ("g", "gaps"), ("s", "sync")]);
+        if self.rechecks_here > 0 {
+            keys.push(("c", "re-check cards"));
+        }
+        keys
+    }
+
     /// The keys the current screen answers to, for the help line.
     pub fn keys(&self) -> Vec<(&'static str, &'static str)> {
         if self.correction.is_some() {
@@ -1001,26 +1035,10 @@ impl App {
                 keys.extend([("↑↓", "choose"), ("Enter", "answer"), ("d", "dismiss")]);
             }
             Tab::Browse => return self.browse_keys(),
-            Tab::Status if self.sync.shown => keys.extend(self.sync_keys()),
-            Tab::Status if self.gaps.shown => keys.extend(self.gaps_keys()),
-            Tab::Status if self.reminder_has_item() => {
-                keys.extend([("↑↓", "scroll"), ("Enter", "reminder's item")]);
-            }
+            Tab::Status => keys.extend(self.status_keys()),
             _ => keys.push(("↑↓", "scroll")),
         }
-        if self.tab == Tab::Status && !self.gaps.shown && !self.sync.shown {
-            keys.extend(self.status_keys());
-        }
         keys.extend([("^R", "refresh"), ("?", "help"), ("q", "quit")]);
-        keys
-    }
-
-    /// Status's own keys, when no panel is open on it.
-    fn status_keys(&self) -> Vec<(&'static str, &'static str)> {
-        let mut keys = vec![("g", "gaps"), ("s", "sync")];
-        if self.rechecks_here > 0 {
-            keys.push(("c", "re-check cards"));
-        }
         keys
     }
 
@@ -1118,7 +1136,9 @@ impl App {
             Tab::Backups => self.backups_key(key),
             Tab::Librarian => self.talk_key(key),
             Tab::Discover => self.discover_key(key),
-            Tab::Status => self.status_or_sync_key(key),
+            Tab::Status => self
+                .flags_key(key)
+                .unwrap_or_else(|| self.status_or_sync_key(key)),
             Tab::History => Handled::No,
         };
         if let Handled::Yes(effect) = handled {

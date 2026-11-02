@@ -446,6 +446,12 @@ While browsing, you'll notice a card with the wrong title or a collection that's
 - **What it feeds:** Status lists what's flagged, and `carrel flagged` (`F` in Browse, **Flagged** in the app's sidebar) lists it whenever you like. The crawler looks at flagged items, and the items of flagged collections, first, reading your note with the card. A flagged collection counts as a sign a restructure may help. Ask the librarian "what needs work?" and it lists them.
 - **Clearing it:** `carrel unflag`, `f` again, or **Unflag**. When you save an edit or a correction on a flagged card, Carrel asks whether that settled it; it never clears a flag on its own.
 - **Searching:** the filter `flagged` finds flagged items, alone or with words and other filters.
+- **The librarian takes a look:** a flag is a request to the [librarian](#asking-the-librarian). When the device is idle, as the crawler runs, it reads what you flagged, its collection and your note, and comes to one of three ends:
+  - **It knows the fix:** a correction, refile, rename or new collection, waiting for you. Accept it and the flag is cleared. With `librarian.changes` on, it makes the fixes it's sure of itself, each undoable.
+  - **It needs more:** a question, first in your queue, such as "what's wrong with it: too mixed, or the wrong year?" Your answer goes back to the librarian, which tries again.
+  - **It can't help:** it says why. When the fix needs something Carrel can't do, such as reading a kind of file, that's recorded as a gap you can report to development (`carrel report gaps`).
+
+  Status lists flags by where the librarian is with each. `carrel flagged ITEM` shows what it suggested or asked; `--answer "…"`, `--accept N` and `--again` act on it, and `carrel flag ITEM --ask` (or `carrel flagged ITEM --ask`) hands it over now rather than waiting for idle time. In the interactive mode, `f` on Status opens Flags; in the app, **Needs Work** under a flagged item's card, or in a collection's inspector, does the same.
 
 ## Reorganizing the archive
 

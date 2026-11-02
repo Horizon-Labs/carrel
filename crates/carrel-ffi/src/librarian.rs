@@ -418,7 +418,7 @@ impl ArchiveHandle {
     }
 
     /// As [`ArchiveHandle::explain_librarian_model`], with no model an error saying why.
-    fn librarian_model(
+    pub(crate) fn librarian_model(
         &self,
         model: Option<Arc<dyn ModelProvider>>,
         memory_gb: Option<u64>,

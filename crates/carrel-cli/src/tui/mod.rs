@@ -13,6 +13,7 @@ mod devices;
 mod discover;
 mod embedding;
 mod feedback;
+mod flag_requests;
 mod flagging;
 mod gaps;
 mod held;

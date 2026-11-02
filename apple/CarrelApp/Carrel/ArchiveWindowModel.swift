@@ -105,6 +105,8 @@ final class ArchiveWindowModel {
     var correction: CorrectionModel?
     /// Report a Missing Feature's sheet, while it's open (#455).
     var missingFeature: MissingFeatureModel?
+    /// Everything flagged, with where the librarian is with each (`FlagLibrarian.swift`).
+    var flagRequests: [FlagRequestView] = []
     /// Send Feedback's form, while it's open, and where each view says the owner is (#487).
     var feedback: FeedbackModel?
     let feedbackMarks = FeedbackMarks()

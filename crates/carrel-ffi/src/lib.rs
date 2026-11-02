@@ -67,6 +67,7 @@ pub mod discover;
 pub mod drawings;
 pub mod edit;
 pub mod feedback;
+pub mod flag_requests;
 pub mod flags;
 pub mod gaps;
 pub mod graph;

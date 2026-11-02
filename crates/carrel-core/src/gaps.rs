@@ -576,18 +576,21 @@ pub enum CrawlerGap {
 
 /// Records that the librarian, working a flag on an item of `media_type` and `extension`,
 /// concluded that fixing the card needs something Carrel can't do. `capability` names it in
-/// a few words Carrel chooses, such as `text from 3D print files`, never the model's own
-/// words, which could quote the item. For #454.
-pub fn librarian_cant_help(media_type: &str, extension: &str, capability: &str) {
-    record(&[(
-        Sighting::new(
-            GapKind::LibrarianCantHelp,
-            media_type,
-            extension,
-            &format!("librarian: {capability}"),
-        ),
-        1,
-    )]);
+/// a few words Carrel chooses, such as `reading this kind of file`, never the model's own
+/// words, which could quote the item. The gap's number, when gaps are being recorded and the
+/// log could be written (#454).
+#[must_use]
+pub fn librarian_cant_help(media_type: &str, extension: &str, capability: &str) -> Option<u32> {
+    let path = recording_to()?;
+    let sighting = Sighting::new(
+        GapKind::LibrarianCantHelp,
+        media_type,
+        extension,
+        &format!("librarian: {capability}"),
+    );
+    let mut log = GapLog::load(&path);
+    let number = log.note(&sighting, 1, &today(), crate::CARREL_VERSION);
+    log.save(&path).ok().map(|()| number)
 }
 
 /// The media type and extension of the item at `path`: `inode/directory` for a folder.

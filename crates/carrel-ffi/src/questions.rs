@@ -31,6 +31,9 @@ pub enum QuestionAsks {
     Sender,
     /// Something about one item; the answer is a correction of its card.
     Item,
+    /// What the librarian needs to know to fix something flagged; the answer goes back to
+    /// the librarian ([`ArchiveHandle::answer_flag_question`]).
+    Flag,
 }
 
 impl From<QuestionKind> for QuestionAsks {
@@ -41,6 +44,7 @@ impl From<QuestionKind> for QuestionAsks {
             QuestionKind::Group => Self::Group,
             QuestionKind::Sender => Self::Sender,
             QuestionKind::Item => Self::Item,
+            QuestionKind::Flag => Self::Flag,
         }
     }
 }

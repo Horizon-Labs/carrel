@@ -13,6 +13,7 @@ extension ArchiveWindowModel {
     /// kind straight away. Returns what it did, in a sentence, once it's done.
     func answerAsked(_ question: Question, with given: String) async -> String? {
         guard let archive else { return nil }
+        if question.kind == .flag { return await answerFlagQuestion(question, with: given) }
         if question.kind == .item, question.picked(given)?.noChange != true {
             answerItemQuestion(question, with: question.picked(given)?.answer ?? given)
             return nil

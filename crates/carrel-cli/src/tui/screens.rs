@@ -110,6 +110,13 @@ pub enum InputPurpose {
     },
     /// Something about the gaps in Carrel (`super::gaps`).
     Gap(super::gaps::GapInput),
+    /// The owner's answer to what the librarian asked about a flag (`super::flag_requests`).
+    FlagAnswer {
+        /// The item's card or the collection's folder.
+        target: String,
+        /// The librarian's question.
+        question: String,
+    },
     /// Feedback for development, about this screen (`super::feedback`).
     Feedback(carrel_core::feedback::ScreenContext),
     /// The folder to move the archive to, in iCloud Drive by default.
@@ -162,6 +169,7 @@ impl Input {
             InputPurpose::Option(line) => line.prompt(),
             InputPurpose::FlagNote { .. } => "what needs work, or nothing",
             InputPurpose::Gap(gap) => gap.prompt(),
+            InputPurpose::FlagAnswer { .. } => "your answer for the librarian",
             InputPurpose::Feedback(_) => super::feedback::PROMPT,
             InputPurpose::SyncMoveTo => "the folder to move it to (drop it here)",
         }

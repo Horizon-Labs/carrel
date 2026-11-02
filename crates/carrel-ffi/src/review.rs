@@ -358,9 +358,10 @@ impl From<&QuestionEntry> for Question {
         Self {
             id: entry.id.to_string(),
             topic: match entry.kind {
-                QuestionKind::Term | QuestionKind::Item | QuestionKind::Sender => {
-                    QuestionTopic::Term
-                }
+                QuestionKind::Term
+                | QuestionKind::Item
+                | QuestionKind::Sender
+                | QuestionKind::Flag => QuestionTopic::Term,
                 QuestionKind::Collection | QuestionKind::Group => QuestionTopic::Collection,
             },
             subject: entry.subject.clone(),
@@ -418,6 +419,9 @@ fn inbox_answer(
         }),
         QuestionKind::Item => Err(CarrelError::invalid(
             "an item question is answered through a correction of its card",
+        )),
+        QuestionKind::Flag => Err(CarrelError::invalid(
+            "the librarian's questions about flags are answered on the device that keeps the archive",
         )),
         QuestionKind::Collection | QuestionKind::Group => Ok(InboxAnswer::Place {
             collection: answer.to_owned(),
@@ -790,6 +794,12 @@ impl ArchiveHandle {
             QuestionKind::Item => Err(CarrelError::invalid(
                 "an item question is answered through a correction of its card",
             )),
+            // Recorded for the librarian to try again when the Mac is idle;
+            // `answer_flag_question` has it try again at once.
+            QuestionKind::Flag => {
+                carrel_core::flags::request::answer_question(&archive, &question, answer)?;
+                Ok(answered)
+            }
             QuestionKind::Collection | QuestionKind::Group => {
                 let create = picked.as_ref().is_some_and(|s| s.new_collection);
                 self.place_answer(&archive, &question, answer, create, answered)

@@ -154,7 +154,7 @@ private func day(_ time: String) -> String {
 
 extension String {
     /// The string with its first letter capitalized.
-    fileprivate var capitalizedFirst: String {
+    var capitalizedFirst: String {
         prefix(1).uppercased() + dropFirst()
     }
 }
