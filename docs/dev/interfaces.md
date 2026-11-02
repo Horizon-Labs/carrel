@@ -84,7 +84,7 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | What's checked out, at a glance | `checkouts` | ✓ Active | ✓ menu bar (#237) | ✓ Active |
 | Sync status: the writer lock and its expiry, each device's inbox backlog, the holding folder, re-checks, files not downloaded, kept collections (#472) | `sync status`, a line in `status` | ✓ `s` on Status | ✓ Status → Sync | ✓ Status → Sync |
 | Download an item's or a collection's contents iCloud evicted; done by itself to open, preview, check out, draft or snapshot (#468) | `sync download` | ✓ `d` in Browse | ✓ Download from iCloud on an item, Download Now on a collection; Quick Look downloads first | ✓ as on the Mac |
-| Keep a collection downloaded on every device, `sync.keep_downloaded` (#468) | `sync keep COLLECTION on\|off\|default` | ✓ `K` on a collection in Browse (on, off, default) | ✓ the collection inspector's Keep Downloaded (on or off; default: #482) | ✓ as on the Mac (default: #482) |
+| Keep a collection downloaded on every device, `sync.keep_downloaded` (#468) | `sync keep COLLECTION on\|off\|default` | ✓ `K` on a collection in Browse (on, off, default) | ✓ the collection inspector's Keep Downloaded (as the collection above, on or off) | ✓ as on the Mac |
 | Conflicted copies: reported, and settled as the owner chooses (#468) | `sync status`, `sync resolve --keep` | ✓ Sync on Status, `o` or `c` | ✓ Status → Sync, Keep Original or Keep Copy | ✓ Status → Sync |
 | Move the archive into iCloud Drive: room, copy, verify, switch over, the old copy kept (#472) | `sync move [--to]` | ✓ `m` on Sync | ✓ File → Move to iCloud Drive… | ✓ Status → Sync, choosing the folder in iCloud Drive |
 

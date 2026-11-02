@@ -2449,6 +2449,16 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
     func downloadItem(item: String) throws  -> String
     
     /**
+     * The collection at `path`'s `sync.keep_downloaded`: its own setting, whether it keeps its
+     * items downloaded, and which collection's setting decides that.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the archive can't be read.
+     */
+    func keepDownloaded(path: String) throws  -> KeepDownloaded
+    
+    /**
      * Whether the collection at `path` keeps its items downloaded on every device: its own
      * `sync.keep_downloaded`, else the collection above's.
      *
@@ -5610,6 +5620,24 @@ open func downloadItem(item: String)throws  -> String  {
     uniffi_carrel_ffi_fn_method_archivehandle_download_item(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(item),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The collection at `path`'s `sync.keep_downloaded`: its own setting, whether it keeps its
+     * items downloaded, and which collection's setting decides that.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the archive can't be read.
+     */
+open func keepDownloaded(path: String)throws  -> KeepDownloaded  {
+    return try  FfiConverterTypeKeepDownloaded_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_keep_downloaded(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(path),uniffiCallStatus
     )
 })
 }
@@ -14969,6 +14997,86 @@ public func FfiConverterTypeItemSummary_lift(_ buf: RustBuffer) throws -> ItemSu
 #endif
 public func FfiConverterTypeItemSummary_lower(_ value: ItemSummary) -> RustBuffer {
     return FfiConverterTypeItemSummary.lower(value)
+}
+
+
+/**
+ * A collection's `sync.keep_downloaded`: its own setting, and the one it follows when it has
+ * none.
+ */
+public struct KeepDownloaded: Equatable, Hashable {
+    /**
+     * The collection's own setting, or `None` when it follows the collection above.
+     */
+    public var own: Bool?
+    /**
+     * Whether it keeps its items downloaded, by its own setting or another's.
+     */
+    public var keeps: Bool
+    /**
+     * The collection whose setting decides, or `None` when none sets it, so it's off.
+     */
+    public var fromCollection: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The collection's own setting, or `None` when it follows the collection above.
+         */own: Bool?, 
+        /**
+         * Whether it keeps its items downloaded, by its own setting or another's.
+         */keeps: Bool, 
+        /**
+         * The collection whose setting decides, or `None` when none sets it, so it's off.
+         */fromCollection: String?) {
+        self.own = own
+        self.keeps = keeps
+        self.fromCollection = fromCollection
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension KeepDownloaded: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeKeepDownloaded: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> KeepDownloaded {
+        return
+            try KeepDownloaded(
+                own: FfiConverterOptionBool.read(from: &buf), 
+                keeps: FfiConverterBool.read(from: &buf), 
+                fromCollection: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: KeepDownloaded, into buf: inout [UInt8]) {
+        FfiConverterOptionBool.write(value.own, into: &buf)
+        FfiConverterBool.write(value.keeps, into: &buf)
+        FfiConverterOptionString.write(value.fromCollection, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeKeepDownloaded_lift(_ buf: RustBuffer) throws -> KeepDownloaded {
+    return try FfiConverterTypeKeepDownloaded.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeKeepDownloaded_lower(_ value: KeepDownloaded) -> RustBuffer {
+    return FfiConverterTypeKeepDownloaded.lower(value)
 }
 
 
@@ -28845,6 +28953,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_download_item() != 1102) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_keep_downloaded() != 25182) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_keeps_downloaded() != 52649) {

@@ -56,6 +56,19 @@ final class SyncTests: XCTestCase {
         await hardware.load()
         XCTAssertEqual(hardware.keeps, false)
 
+        // A collection's own setting, cleared so it follows the one above again.
+        await hardware.setKeeps(true)
+        XCTAssertEqual(hardware.setting?.own, true)
+        XCTAssertEqual(hardware.keeps, true)
+        XCTAssertEqual(
+            CollectionSyncSection.followingLabel(hardware.inherited), "As Projects (Off)")
+        await hardware.setKeeps(nil)
+        XCTAssertNil(hardware.problem)
+        XCTAssertNil(hardware.setting?.own)
+        XCTAssertEqual(hardware.keeps, false, "follows Projects again")
+        XCTAssertEqual(hardware.setting?.fromCollection, "Projects")
+        XCTAssertEqual(CollectionSyncSection.followingLabel(nil), "Off by Default")
+
         await projects.downloadNow()
         XCTAssertNil(projects.problem)
         XCTAssertEqual(projects.downloaded, 0, "it's all here already")

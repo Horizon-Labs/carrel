@@ -12,8 +12,11 @@ import SwiftUI
 final class CollectionSyncModel {
     let archive: ArchiveModel
     let path: String
-    /// Whether it keeps its items downloaded, by its own setting or the collection above's.
-    private(set) var keeps: Bool?
+    /// Its setting, once read: its own, and the one it follows when it has none.
+    private(set) var setting: KeepDownloaded?
+    /// What it follows when it has no setting of its own: the collection above's, and that
+    /// collection; `nil` for off, set by none.
+    private(set) var inherited: KeepDownloaded?
     /// Whether its items are being downloaded.
     private(set) var isDownloading = false
     /// How many files the last Download Now downloaded.
@@ -26,19 +29,27 @@ final class CollectionSyncModel {
         self.path = path
     }
 
-    /// Reads the setting.
+    /// Whether it keeps its items downloaded, by its own setting or the collection above's.
+    var keeps: Bool? { setting?.keeps }
+
+    /// Reads the setting, and the one above it.
     func load() async {
         do {
-            keeps = try await archive.keepsDownloaded(path)
+            setting = try await archive.keepDownloaded(path)
+            if let slash = path.lastIndex(of: "/") {
+                inherited = try await archive.keepDownloaded(String(path[..<slash]))
+            } else {
+                inherited = nil
+            }
         } catch {
             archive.lastError = nil
             problem = message(for: error)
         }
     }
 
-    /// Sets the collection's own `sync.keep_downloaded`, as one change undo can reverse; when
-    /// on, its items are downloaded.
-    func setKeeps(_ on: Bool) async {
+    /// Sets the collection's own `sync.keep_downloaded`, or with `nil` clears it so it follows
+    /// the collection above, as one change undo can reverse; when on, its items are downloaded.
+    func setKeeps(_ on: Bool?) async {
         do {
             try await archive.setKeepDownloaded(path, to: on)
             problem = nil
@@ -73,13 +84,12 @@ struct CollectionSyncSection: View {
     var body: some View {
         Section {
             if let model {
-                Toggle(
-                    "Keep Downloaded",
-                    isOn: Binding(
-                        get: { model.keeps ?? false },
-                        set: { on in Task { await model.setKeeps(on) } })
-                )
-                .disabled(window.isReadOnly || model.keeps == nil)
+                Picker("Keep Downloaded", selection: choice(model)) {
+                    Text(Self.followingLabel(model.inherited)).tag(Choice.following)
+                    Text("On").tag(Choice.on)
+                    Text("Off").tag(Choice.off)
+                }
+                .disabled(window.isReadOnly || model.setting == nil)
                 LabeledContent {
                     Button("Download Now") { Task { await model.downloadNow() } }
                         .disabled(model.isDownloading)
@@ -114,6 +124,33 @@ struct CollectionSyncSection: View {
             self.model = model
             await model.load()
         }
+    }
+
+    /// The picker's choices: the collection's own setting, or none to follow the one above.
+    enum Choice: Hashable { case following, on, off }
+
+    private func choice(_ model: CollectionSyncModel) -> Binding<Choice> {
+        Binding {
+            switch model.setting?.own {
+            case true?: .on
+            case false?: .off
+            case nil: .following
+            }
+        } set: { choice in
+            let on: Bool? =
+                switch choice {
+                case .on: true
+                case .off: false
+                case .following: nil
+                }
+            Task { await model.setKeeps(on) }
+        }
+    }
+
+    /// What following the collection above means: as the collection that decides, or off.
+    static func followingLabel(_ inherited: KeepDownloaded?) -> String {
+        guard let inherited, let from = inherited.fromCollection else { return "Off by Default" }
+        return "As \(from) (\(inherited.keeps ? "On" : "Off"))"
     }
 }
 

@@ -26,7 +26,7 @@ use std::sync::{Arc, RwLock};
 
 pub use conflicts::{ConflictedCopy, Keep, conflicts, resolve};
 pub use keep::{
-    KeptPass, keep_downloaded_pass, keeps_downloaded, own_setting, set_keep_downloaded,
+    KeptPass, keep_downloaded_pass, keeps_downloaded, kept_by, own_setting, set_keep_downloaded,
 };
 
 /// Why a conflicted copy couldn't be resolved, or `sync.keep_downloaded` set.
