@@ -9316,7 +9316,7 @@ public struct CardDrawingInfo: Equatable, Hashable {
      */
     public var modified: String?
     /**
-     * Its PencilKit data, as a full path.
+     * Its `PencilKit` data, as a full path.
      */
     public var dataPath: String
     /**
@@ -9340,7 +9340,7 @@ public struct CardDrawingInfo: Equatable, Hashable {
          * When it was last changed, if it has been since.
          */modified: String?, 
         /**
-         * Its PencilKit data, as a full path.
+         * Its `PencilKit` data, as a full path.
          */dataPath: String, 
         /**
          * Its PNG picture, as a full path.
