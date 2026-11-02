@@ -17,6 +17,12 @@ func problemTitle(_ title: String, _ archive: ArchiveModel?, showing problem: St
     return "Sent to the Writer"
 }
 
+/// Whether `error` says a change went into this device's inbox for the writer instead of
+/// being made: not a failure, and the window's alert says so.
+func wentToInbox(_ error: Error) -> Bool {
+    (error as? CarrelError)?.isSentToInbox == true
+}
+
 /// This device's inbox, then the holding folder, when there's anything to say about them.
 struct InboxStatusSection: View {
     let model: ArchiveWindowModel

@@ -192,7 +192,9 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
-    /// [`CarrelError::Invalid`] for a decided proposal, or [`CarrelError::Failed`].
+    /// [`CarrelError::Invalid`] for a decided proposal, [`CarrelError::SentToInbox`] when the
+    /// edit, checked here, went into this device's inbox for the writer, or
+    /// [`CarrelError::Failed`].
     pub fn edit_proposal(
         &self,
         id: String,
@@ -204,11 +206,21 @@ impl ArchiveHandle {
             .ok_or_else(|| CarrelError::invalid("no such proposal"))?;
         let was = actions::draft_fields(&entry);
         let before = was.clone();
+        let before_entry = entry.clone();
         Ok(
             match actions::apply_draft_fields(&archive, &mut entry, fields.into_core(&was))? {
                 Edited::Unchanged => EditOutcome::Unchanged,
                 Edited::Problems(problems) => EditOutcome::Problems { problems },
                 Edited::Changed => {
+                    if let Some((holder, sending)) = self.sending(&archive)? {
+                        carrel_core::inbox::send_proposal_edit(
+                            &archive,
+                            holder,
+                            &before_entry,
+                            &entry,
+                        )?;
+                        return Err(CarrelError::sent(&sending));
+                    }
                     ReviewQueue::of(&archive).save(&entry)?;
                     let after = actions::draft_fields(&entry);
                     EditOutcome::Saved {

@@ -254,6 +254,8 @@ final class LibrarianModel {
     }
 
     private func take(_ error: Error) {
+        // A change sent to the writer isn't a problem: the window's alert says where it went.
+        if wentToInbox(error) { return }
         archive.lastError = nil
         problem = message(for: error)
     }
