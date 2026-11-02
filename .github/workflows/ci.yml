@@ -258,7 +258,10 @@ jobs:
         if: ${{ !cancelled() && needs.changes.outputs.cad == 'true' }}
         env:
           CARREL_REQUIRE_OPENCASCADE: "1"
+        # The workspace was built before OpenCascade was installed, and the build script's
+        # result is cached, so build the provider again to find it.
         run: |
+          cargo clean -p carrel-provider-cad
           cargo clippy -p carrel-provider-cad --all-targets --locked -- -D warnings
           cargo test -p carrel-provider-cad --locked
       # As the Kopia backups job runs it on Linux and Windows, with the same release.

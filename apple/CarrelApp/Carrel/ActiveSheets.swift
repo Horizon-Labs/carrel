@@ -108,12 +108,17 @@ private struct ActiveDialogs: ViewModifier {
                 )
             }
             .alert(
-                "Couldn’t Do That",
+                problemTitle("Couldn’t Do That", model.archive, showing: model.problem),
                 isPresented: present($model.problem)
             ) {
                 Button("OK") { model.problem = nil }
             } message: {
                 Text(model.problem ?? "")
+            }
+            .alert("Checked Out Here", isPresented: present($model.notice)) {
+                Button("OK") { model.notice = nil }
+            } message: {
+                Text(model.notice ?? "")
             }
     }
 }
@@ -129,7 +134,7 @@ private struct HistoryDialogs: ViewModifier {
                 }
             }
             .alert(
-                "Couldn’t Undo",
+                problemTitle("Couldn’t Undo", model.archive, showing: model.problem),
                 isPresented: present($model.problem)
             ) {
                 Button("OK") { model.problem = nil }

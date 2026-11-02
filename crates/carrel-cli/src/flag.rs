@@ -10,6 +10,7 @@ use std::path::Path;
 use carrel_core::archive::Archive;
 use carrel_core::card::Id;
 use carrel_core::flags::{self, Flaggable};
+use carrel_core::inbox::{FlagTarget, Request};
 use serde_json::json;
 
 use crate::commands::{find_item, holder, locate};
@@ -58,6 +59,19 @@ pub fn flag(
 ) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let what = flaggable(&archive, query)?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = Request::Flag {
+            target: FlagTarget::of(&what),
+            note: note
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+                .map(str::to_owned),
+        };
+        let mut report = through.send(&archive, request)?;
+        report.json["flagged"] = json!(what);
+        report.json["changed"] = json!(false);
+        return Ok(report);
+    }
     let identity = Identity::load_or_create()?;
     let done = flags::flag(&archive, &what, note, holder(&identity))?;
     if ask {
@@ -94,6 +108,13 @@ pub fn flag(
 pub fn unflag(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let what = flaggable(&archive, query)?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let target = FlagTarget::of(&what);
+        let mut report = through.send(&archive, Request::Unflag { target })?;
+        report.json["unflagged"] = json!(what);
+        report.json["changed"] = json!(false);
+        return Ok(report);
+    }
     let identity = Identity::load_or_create()?;
     let done = flags::unflag(&archive, &what, holder(&identity))?;
     let text = if done.changed {
@@ -126,6 +147,13 @@ pub fn offer_to_clear(archive: &Archive, item: Id, report: &mut Report) -> Resul
     let said = flags::describe(&flag);
     let ask = std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
     if ask && crate::models::confirm(&format!("It's flagged: {said}. Clear the flag?"), false)? {
+        if let Some(through) = crate::through_inbox::check(archive)? {
+            let target = FlagTarget::of(&Flaggable::item(&found));
+            let sent = through.send(archive, Request::Unflag { target })?;
+            report.text.push_str(&sent.text);
+            report.json["flag_cleared"] = json!(null);
+            return Ok(());
+        }
         let identity = Identity::load_or_create()?;
         let done = flags::unflag(archive, &Flaggable::item(&found), holder(&identity))?;
         report.text.push_str("Cleared its flag.\n");
