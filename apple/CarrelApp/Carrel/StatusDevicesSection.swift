@@ -62,10 +62,9 @@ final class DevicesModel {
         #endif
     }
 
-    /// Writes this device's profile, unless the archive is read only, then reads every
-    /// device's.
-    func open(isReadOnly: Bool) async {
-        if !isReadOnly { try? await archive.updateDeviceProfile(facts) }
+    /// Writes this device's profile when `writingProfile`, then reads every device's.
+    func open(writingProfile: Bool) async {
+        if writingProfile { try? await archive.updateDeviceProfile(facts) }
         await refresh()
     }
 

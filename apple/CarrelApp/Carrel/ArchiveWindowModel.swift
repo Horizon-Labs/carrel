@@ -220,7 +220,9 @@ final class ArchiveWindowModel {
             try? await archive.refreshAll()
             let devices = DevicesModel(archive: archive)
             self.devices = devices
-            await devices.open(isReadOnly: isReadOnly)
+            // Opened with options, as tests open the sample in place, it writes nothing.
+            let writesProfile = !isReadOnly && options == nil
+            Task { await devices.open(writingProfile: writesProfile) }
         } catch {
             problem = message(for: error)
         }
