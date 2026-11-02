@@ -59,6 +59,7 @@ pub mod cloud_lock;
 pub mod correct;
 pub mod crawl;
 pub mod creating;
+pub mod devices;
 pub mod discover;
 pub mod edit;
 pub mod flags;

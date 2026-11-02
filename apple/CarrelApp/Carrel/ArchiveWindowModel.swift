@@ -112,6 +112,8 @@ final class ArchiveWindowModel {
     private(set) var restructure: RestructureModel?
     /// The crawler's findings in Review, and its changes on Status.
     private(set) var crawler: CrawlerModel?
+    /// Every device's capability profile and the re-check queue, on Status.
+    private(set) var devices: DevicesModel?
 
     // Active and History (#235).
     private(set) var activeScreen: ActiveScreenModel?
@@ -214,6 +216,9 @@ final class ArchiveWindowModel {
             self.previews = previews
             await previews.reload()
             try? await archive.refreshAll()
+            let devices = DevicesModel(archive: archive)
+            self.devices = devices
+            await devices.open(isReadOnly: isReadOnly)
         } catch {
             problem = message(for: error)
         }
