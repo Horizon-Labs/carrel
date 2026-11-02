@@ -62,7 +62,7 @@ final class CorrectionModel {
     init(archive: ArchiveModel, target: Target, provider: ModelProvider? = nil) {
         self.archive = archive
         self.target = target
-        self.provider = provider
+        self.provider = provider ?? OnDeviceModels.forArchive(archive.handle)
     }
 
     var changes: CorrectionChanges? {

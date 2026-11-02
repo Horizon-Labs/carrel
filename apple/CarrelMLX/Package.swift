@@ -11,7 +11,7 @@ import PackageDescription
 
 let package = Package(
     name: "CarrelMLX",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v15), .iOS(.v18)],
     products: [
         .library(name: "CarrelMLXProvider", targets: ["CarrelMLXProvider"]),
         .executable(name: "carrel-provider-mlx", targets: ["carrel-provider-mlx"]),

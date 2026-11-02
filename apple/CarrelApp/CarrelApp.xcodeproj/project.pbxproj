@@ -13,6 +13,8 @@
 		CA0000000000000000000305 /* Send to Archive.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = CA0000000000000000000206 /* Send to Archive.appex */; platformFilters = (macos, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		CA0000000000000000000306 /* CarrelKit in Frameworks */ = {isa = PBXBuildFile; productRef = CA0000000000000000000603 /* CarrelKit */; };
 		CA0000000000000000000301 /* CarrelKit in Frameworks */ = {isa = PBXBuildFile; productRef = CA0000000000000000000601 /* CarrelKit */; };
+		CA0000000000000000481101 /* CarrelAppleProviders in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, ); productRef = CA0000000000000000481105 /* CarrelAppleProviders */; };
+		CA0000000000000000481102 /* CarrelMLXProvider in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, ); productRef = CA0000000000000000481106 /* CarrelMLXProvider */; };
 		CA0000000000000000000302 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = CA0000000000000000000203 /* AppIcon.icon */; };
 		CA0000000000000000000303 /* CarrelKit in Frameworks */ = {isa = PBXBuildFile; productRef = CA0000000000000000000602 /* CarrelKit */; };
 		CA0000000000000000000304 /* Carrel Agent.app in Embed Login Item */ = {isa = PBXBuildFile; fileRef = CA0000000000000000000204 /* Carrel Agent.app */; platformFilters = (macos, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -181,6 +183,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				CA0000000000000000000301 /* CarrelKit in Frameworks */,
+				CA0000000000000000481101 /* CarrelAppleProviders in Frameworks */,
+				CA0000000000000000481102 /* CarrelMLXProvider in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -343,6 +347,8 @@
 			name = Carrel;
 			packageProductDependencies = (
 				CA0000000000000000000601 /* CarrelKit */,
+				CA0000000000000000481105 /* CarrelAppleProviders */,
+				CA0000000000000000481106 /* CarrelMLXProvider */,
 			);
 			productName = Carrel;
 			productReference = CA0000000000000000000201 /* Carrel.app */;
@@ -460,6 +466,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				CA0000000000000000000501 /* XCLocalSwiftPackageReference "../CarrelKit" */,
+				CA0000000000000000481103 /* XCLocalSwiftPackageReference "../CarrelProviders" */,
+				CA0000000000000000481104 /* XCLocalSwiftPackageReference "../CarrelMLX" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CA0000000000000000000003 /* Products */;
@@ -1102,6 +1110,14 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../CarrelKit;
 		};
+		CA0000000000000000481103 /* XCLocalSwiftPackageReference "../CarrelProviders" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../CarrelProviders;
+		};
+		CA0000000000000000481104 /* XCLocalSwiftPackageReference "../CarrelMLX" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../CarrelMLX;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1124,6 +1140,16 @@
 		CA0000000000000000004108 /* CarrelKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CarrelKit;
+		};
+		CA0000000000000000481105 /* CarrelAppleProviders */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CA0000000000000000481103 /* XCLocalSwiftPackageReference "../CarrelProviders" */;
+			productName = CarrelAppleProviders;
+		};
+		CA0000000000000000481106 /* CarrelMLXProvider */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CA0000000000000000481104 /* XCLocalSwiftPackageReference "../CarrelMLX" */;
+			productName = CarrelMLXProvider;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

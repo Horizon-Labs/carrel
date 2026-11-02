@@ -232,14 +232,17 @@ impl ArchiveHandle {
 
     /// Runs the worker here, as `carrel worker` does: drafts every item waiting in the
     /// intake queue on this device, then embeds what changed for search, reporting to
-    /// `progress`. Does nothing when another worker, such as the agent's, is running. It
-    /// takes as long as the models do, so call it off the main thread.
+    /// `progress`. Drafts with the device's providers, and with `model` when the app gives
+    /// one, as the iPad and iPhone do with the models they run in-process. Does nothing when
+    /// another worker, such as the agent's, is running. It takes as long as the models do, so
+    /// call it off the main thread.
     ///
     /// # Errors
     ///
     /// [`CarrelError::Failed`] if the queues can't be read or written.
     pub fn draft_queued(
         &self,
+        model: Option<Arc<dyn crate::correct::ModelProvider>>,
         progress: Option<Arc<dyn ProgressListener>>,
     ) -> Result<Drafted, CarrelError> {
         let archive = self.fresh()?;
@@ -253,7 +256,7 @@ impl ArchiveHandle {
                 already_running: true,
             });
         };
-        let registry = self.registry();
+        let registry = self.drafting_registry(model);
         let backups = crate::backups(&archive);
         let worker = Worker {
             archive: &archive,

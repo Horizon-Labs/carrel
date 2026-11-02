@@ -2,10 +2,12 @@
 // by the battery rules, where checked-out working copies go, and what only a Mac does.
 
 #if os(iOS)
+import CarrelKit
 import SwiftUI
 import UIKit
 
 struct DeviceSettingsPage: View {
+    var archive: ArchiveModel?
     @State private var refresh = UIApplication.shared.backgroundRefreshStatus
     @State private var heavyWork = PowerPolicy.heavyWorkWaits
 
@@ -25,6 +27,7 @@ struct DeviceSettingsPage: View {
                         : "This iPad drafts new items in the background when it has time, except in Low Power Mode."
                 )
             }
+            OnDeviceDraftingSection(archive: archive)
             Section {
                 LabeledContent("Working copies") {
                     Text("Files → On My \(PowerPolicy.isPhone ? "iPhone" : "iPad") → Carrel")

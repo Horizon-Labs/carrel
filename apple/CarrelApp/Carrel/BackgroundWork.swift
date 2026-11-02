@@ -66,7 +66,10 @@ nonisolated enum BackgroundWork {
     /// Registers the tasks' handlers; called once, as the app launches.
     static func register() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: intake, using: nil) { task in
-            run(task) { handle in _ = try handle.draftQueued(progress: nil) }
+            run(task) { handle in
+                _ = try handle.draftQueued(
+                    model: OnDeviceModels.forArchive(handle), progress: nil)
+            }
         }
         BGTaskScheduler.shared.register(forTaskWithIdentifier: inbox, using: nil) { task in
             run(task) { handle in try applyInboxes(handle) }

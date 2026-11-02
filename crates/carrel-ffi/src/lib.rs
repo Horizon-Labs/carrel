@@ -21,6 +21,7 @@
 //! | [`inbox`] | Changes sent to this device's inbox while another device writes, and the holding folder's kept versions |
 //! | [`settings`] | The archive's settings and this device's model choices |
 //! | [`models`] | The model catalog, providers, and downloads |
+//! | [`on_device`] | iPad and iPhone: choosing the in-process model, and downloading MLX models through the app |
 //! | [`intake`] | The intake queue |
 //! | [`sharing`] | Adding from a Mac's share sheet: notes, web addresses, and the inbox while another device writes |
 //! | [`backups`](mod@backups) | Backups: setting up a repository, the snapshots, taking one, verifying, restoring |
@@ -75,6 +76,7 @@ pub mod intake;
 pub mod librarian;
 pub mod model_formats;
 pub mod models;
+pub mod on_device;
 pub mod previews;
 pub mod question_subjects;
 pub mod questions;
@@ -1227,7 +1229,7 @@ mod tests {
             .unwrap();
         assert_eq!(added.added.len(), 1);
         assert_eq!(sample.handle.intake().unwrap().waiting.len(), 1);
-        let drafted = sample.handle.draft_queued(None).unwrap();
+        let drafted = sample.handle.draft_queued(None, None).unwrap();
         assert_eq!(drafted.drafted, 1, "{drafted:?}");
         assert_eq!(sample.handle.intake().unwrap().waiting.len(), 0);
         let proposal = sample

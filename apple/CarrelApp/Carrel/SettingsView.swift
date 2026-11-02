@@ -70,7 +70,7 @@ struct SettingsView: View {
                     Label("Providers", systemImage: "puzzlepiece.extension")
                 }
                 NavigationLink {
-                    DeviceSettingsPage().navigationTitle("This Device")
+                    DeviceSettingsPage(archive: model?.archive).navigationTitle("This Device")
                 } label: {
                     Label("This Device", systemImage: "battery.100percent.bolt")
                 }

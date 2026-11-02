@@ -348,8 +348,9 @@ public final class Agent {
                     guard let item else { return }
                     Task { @MainActor in self?.activity = "Working on \(item) in “\(name)”" }
                 }
-                let drafted = try await Task.detached { try handle.draftQueued(progress: relay) }
-                    .value
+                let drafted = try await Task.detached {
+                    try handle.draftQueued(model: nil, progress: relay)
+                }.value
                 if let failure = drafted.failures.last {
                     problem(root, "Couldn’t draft \(failure.path): \(failure.reason)")
                 } else {

@@ -145,7 +145,7 @@ public struct ImageReader: TextExtractor {
     /// Whether Apple's model can see images here: macOS 27 or later, with Apple Intelligence on.
     static var canSee: Bool {
         #if canImport(FoundationModels) && compiler(>=6.4)
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             let model = SystemLanguageModel.default
             return model.isAvailable && model.capabilities.contains(.vision)
         }
@@ -157,7 +157,7 @@ public struct ImageReader: TextExtractor {
     /// can't see images or declines. Shared with the 3D model reader.
     static func describe(_ image: CGImage, instructions: String, prompt: String) async -> String? {
         #if canImport(FoundationModels) && compiler(>=6.4)
-        if #available(macOS 27.0, *), canSee {
+        if #available(macOS 27.0, iOS 27.0, *), canSee {
             let session = LanguageModelSession(model: .default, instructions: instructions)
             do {
                 let response = try await session.respond(
