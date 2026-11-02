@@ -744,8 +744,8 @@ fn questions_undo_and_decisions_of_things_gone_are_handled() {
         &Glossary::of(&s.archive),
         &entries,
     );
-    assert!(!questions.is_empty());
     let count = questions.len();
+    assert_ne!(count, 0);
     s.send(Request::Raise { questions });
     s.send(Request::UndoSince {
         by: carrel_core::librarian::changes::AGENT.into(),
