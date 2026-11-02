@@ -10403,6 +10403,11 @@ public struct CrawlerStatus: Equatable, Hashable {
      */
     public var waiting: [CrawlerStage]
     /**
+     * The cards that could get a better draft, from a stronger model or a newer Carrel, by
+     * card path, in the order it takes them.
+     */
+    public var drafts: [String]
+    /**
      * Collections whose items keep failing.
      */
     public var misfits: [CrawlerMisfits]
@@ -10434,6 +10439,10 @@ public struct CrawlerStatus: Equatable, Hashable {
          * Those due, by stage, in the order it takes them.
          */waiting: [CrawlerStage], 
         /**
+         * The cards that could get a better draft, from a stronger model or a newer Carrel, by
+         * card path, in the order it takes them.
+         */drafts: [String], 
+        /**
          * Collections whose items keep failing.
          */misfits: [CrawlerMisfits], 
         /**
@@ -10447,6 +10456,7 @@ public struct CrawlerStatus: Equatable, Hashable {
         self.items = items
         self.judged = judged
         self.waiting = waiting
+        self.drafts = drafts
         self.misfits = misfits
         self.findings = findings
         self.lastPass = lastPass
@@ -10473,6 +10483,7 @@ public struct FfiConverterTypeCrawlerStatus: FfiConverterRustBuffer {
                 items: FfiConverterUInt64.read(from: &buf), 
                 judged: FfiConverterUInt64.read(from: &buf), 
                 waiting: FfiConverterSequenceTypeCrawlerStage.read(from: &buf), 
+                drafts: FfiConverterSequenceString.read(from: &buf), 
                 misfits: FfiConverterSequenceTypeCrawlerMisfits.read(from: &buf), 
                 findings: FfiConverterUInt64.read(from: &buf), 
                 lastPass: FfiConverterOptionString.read(from: &buf)
@@ -10485,6 +10496,7 @@ public struct FfiConverterTypeCrawlerStatus: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.items, into: &buf)
         FfiConverterUInt64.write(value.judged, into: &buf)
         FfiConverterSequenceTypeCrawlerStage.write(value.waiting, into: &buf)
+        FfiConverterSequenceString.write(value.drafts, into: &buf)
         FfiConverterSequenceTypeCrawlerMisfits.write(value.misfits, into: &buf)
         FfiConverterUInt64.write(value.findings, into: &buf)
         FfiConverterOptionString.write(value.lastPass, into: &buf)

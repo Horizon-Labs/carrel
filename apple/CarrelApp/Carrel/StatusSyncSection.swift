@@ -1,7 +1,7 @@
 // Status's Sync section (docs/design/sync-and-mobile.md, "In each interface"), as `carrel sync
 // status` shows it: who holds the writer lock and until when, each device's inbox backlog, the
 // holding folder waiting for a snapshot, re-checks waiting for a stronger device, the files
-// iCloud evicted from this Mac, the collections kept downloaded, and iCloud's conflicted
+// iCloud evicted from this device, the collections kept downloaded, and iCloud's conflicted
 // copies, each settled by keeping the original or the copy. An archive left behind by a move
 // into iCloud Drive says where it went; one outside iCloud Drive offers to move there.
 
@@ -104,7 +104,7 @@ private struct SyncStatusRows: View {
         LabeledContent("Writer Lock", value: syncWriterLockText(status.writer))
         ForEach(status.inboxes, id: \.device) { inbox in
             LabeledContent(
-                inbox.thisDevice ? "Inbox on This Mac" : "Inbox on \(inbox.device)",
+                inbox.thisDevice ? "Inbox on This Device" : "Inbox on \(inbox.device)",
                 value: "\(inbox.waiting) waiting")
         }
         holding
@@ -161,7 +161,7 @@ private struct SyncStatusRows: View {
 /// Who holds the writer lock, and until when, as the Sync section says it.
 func syncWriterLockText(_ writer: WriterLock?) -> String {
     guard let writer else { return "Free" }
-    let who = writer.thisDevice ? "This Mac" : writer.device
+    let who = writer.thisDevice ? "This Device" : writer.device
     let until =
         (try? Date(writer.expires, strategy: .iso8601))
         .map { $0.formatted(date: .abbreviated, time: .shortened) } ?? writer.expires

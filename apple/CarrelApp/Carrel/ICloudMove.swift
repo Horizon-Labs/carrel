@@ -4,7 +4,6 @@
 // moves, and the space free there; then copies it holding the writer lease, checks the copy,
 // and reopens the window on the new copy. The old copy stays until the owner removes it.
 
-import AppKit
 import CarrelKit
 import SwiftUI
 
@@ -31,7 +30,7 @@ final class ICloudMoveModel: Identifiable {
         self.from = from
         destination = archive.defaultICloudDestination
         if destination == nil {
-            problem = "iCloud Drive isn’t turned on for this Mac. Choose another folder."
+            problem = "Choose the folder in iCloud Drive to move it into."
         }
     }
 
@@ -60,7 +59,7 @@ final class ICloudMoveModel: Identifiable {
         }
     }
 
-    /// Copies the archive to the destination and makes the copy this Mac's archive.
+    /// Copies the archive to the destination and makes the copy this device's archive.
     func move() async {
         guard canMove, let destination else { return }
         isMoving = true
@@ -114,8 +113,12 @@ struct ICloudMoveSheet: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    #if os(macOS)
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+    #else
+    @Environment(MobileLibrary.self) private var library
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -192,7 +195,9 @@ struct ICloudMoveSheet: View {
             }
         }
         .padding(20)
+        #if os(macOS)
         .frame(width: 520)
+        #endif
         .interactiveDismissDisabled(move.isMoving)
     }
 
@@ -205,23 +210,22 @@ struct ICloudMoveSheet: View {
 
     /// Chooses the folder to move the archive into.
     private func choose() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.directoryURL = move.destination?.deletingLastPathComponent()
-        panel.message = "Choose the folder to move “\(move.from.lastPathComponent)” into."
-        panel.prompt = "Choose"
-        guard panel.runModal() == .OK, let parent = panel.url else { return }
-        Task { await move.choose(parent: parent) }
+        pickFolder(
+            message: "Choose the folder to move “\(move.from.lastPathComponent)” into.",
+            start: move.destination?.deletingLastPathComponent()
+        ) { parent in Task { await move.choose(parent: parent) } }
     }
 
-    /// Opens the moved archive in a window of its own, in place of this one.
+    /// Opens the moved archive in place of this one: in a window of its own on the Mac.
     private func reopen(at root: URL) {
         app.recents.remove(move.from)
-        let opened = (try? app.resolve(root)) ?? root
         dismiss()
+        #if os(macOS)
+        let opened = (try? app.resolve(root)) ?? root
         openWindow(id: ArchiveWindow.windowID, value: opened)
         dismissWindow(id: ArchiveWindow.windowID, value: window.url)
+        #else
+        library.open(root)
+        #endif
     }
 }

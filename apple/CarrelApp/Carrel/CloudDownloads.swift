@@ -92,7 +92,7 @@ struct CollectionSyncSection: View {
                                 ? "It’s all downloaded already."
                                 : "Downloaded \(downloaded) files.")
                     } else {
-                        Text("Download what iCloud removed from this Mac")
+                        Text("Download what iCloud removed from this device")
                     }
                 }
                 if let problem = model.problem {
