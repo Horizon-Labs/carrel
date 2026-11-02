@@ -1009,12 +1009,18 @@ impl App {
             _ => keys.push(("↑↓", "scroll")),
         }
         if self.tab == Tab::Status && !self.gaps.shown && !self.sync.shown {
-            keys.extend([("g", "gaps"), ("s", "sync")]);
-            if self.rechecks_here > 0 {
-                keys.push(("c", "re-check cards"));
-            }
+            keys.extend(self.status_keys());
         }
         keys.extend([("^R", "refresh"), ("?", "help"), ("q", "quit")]);
+        keys
+    }
+
+    /// Status's own keys, when no panel is open on it.
+    fn status_keys(&self) -> Vec<(&'static str, &'static str)> {
+        let mut keys = vec![("g", "gaps"), ("s", "sync")];
+        if self.rechecks_here > 0 {
+            keys.push(("c", "re-check cards"));
+        }
         keys
     }
 
