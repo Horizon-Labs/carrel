@@ -24,7 +24,7 @@ use crate::coordinator::{CoordinatorError, WriterLease};
 pub const HISTORY_DIR: &str = "_System/history.git";
 
 /// Folders under `_System/` that history never tracks (FORMAT.md §8.1).
-const UNTRACKED_SYSTEM: [&str; 6] = [
+const UNTRACKED_SYSTEM: [&str; 7] = [
     "history.git",
     "manifests",
     "index",
@@ -33,6 +33,8 @@ const UNTRACKED_SYSTEM: [&str; 6] = [
     // snapshot: both pass through, and neither is metadata.
     "inbox",
     "holding",
+    // Feedback, which each device writes without the writer lease (#487).
+    "feedback",
 ];
 
 /// The kind of change a commit records (FORMAT.md §8.2).

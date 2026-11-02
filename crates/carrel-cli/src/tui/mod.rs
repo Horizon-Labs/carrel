@@ -11,6 +11,7 @@ mod backups;
 mod browser;
 mod discover;
 mod embedding;
+mod feedback;
 mod flagging;
 mod gaps;
 mod held;

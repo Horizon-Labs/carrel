@@ -1480,6 +1480,63 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
     func editableProposal(id: String) throws  -> EditableCard
     
     /**
+     * Every device's feedback, oldest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+    func feedbackEntries() throws  -> [FeedbackEntry]
+    
+    /**
+     * A Markdown bundle of every entry (or only the unsent), grouped by screen.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+    func feedbackExport(unsentOnly: Bool) throws  -> String
+    
+    /**
+     * The issue draft for the entry `name`. Nothing is sent: the app opens its address.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such entry.
+     */
+    func feedbackIssueDraft(name: String) throws  -> FeedbackIssueDraft
+    
+    /**
+     * Marks the entry `name` sent, as the issue at `address` (or none when empty); `-`
+     * unmarks it. It's recorded in this device's own folder.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such entry or the address isn't one.
+     */
+    func markFeedbackSent(name: String, address: String) throws  -> FeedbackEntry
+    
+    /**
+     * Saves the owner's feedback in this device's feedback folder, with the screenshot
+     * beside it. No writer lease is needed.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if the words are empty or the kind isn't one;
+     * [`CarrelError::Failed`] if it can't be saved.
+     */
+    func sendFeedback(sending: FeedbackSending) throws  -> FeedbackEntry
+    
+    /**
+     * How many entries haven't been marked sent, for Status.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+    func unsentFeedback() throws  -> UInt32
+    
+    /**
      * Flags the collection at `path` as needing work, with `note` saying what.
      *
      * # Errors
@@ -3970,6 +4027,110 @@ open func editableProposal(id: String)throws  -> EditableCard  {
     uniffi_carrel_ffi_fn_method_archivehandle_editable_proposal(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(id),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Every device's feedback, oldest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+open func feedbackEntries()throws  -> [FeedbackEntry]  {
+    return try  FfiConverterSequenceTypeFeedbackEntry.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_feedback_entries(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * A Markdown bundle of every entry (or only the unsent), grouped by screen.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+open func feedbackExport(unsentOnly: Bool)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_feedback_export(
+            self.uniffiCloneHandle(),
+        FfiConverterBool.lower(unsentOnly),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The issue draft for the entry `name`. Nothing is sent: the app opens its address.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such entry.
+     */
+open func feedbackIssueDraft(name: String)throws  -> FeedbackIssueDraft  {
+    return try  FfiConverterTypeFeedbackIssueDraft_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_feedback_issue_draft(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(name),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Marks the entry `name` sent, as the issue at `address` (or none when empty); `-`
+     * unmarks it. It's recorded in this device's own folder.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such entry or the address isn't one.
+     */
+open func markFeedbackSent(name: String, address: String)throws  -> FeedbackEntry  {
+    return try  FfiConverterTypeFeedbackEntry_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_mark_feedback_sent(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(name),
+        FfiConverterString.lower(address),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Saves the owner's feedback in this device's feedback folder, with the screenshot
+     * beside it. No writer lease is needed.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if the words are empty or the kind isn't one;
+     * [`CarrelError::Failed`] if it can't be saved.
+     */
+open func sendFeedback(sending: FeedbackSending)throws  -> FeedbackEntry  {
+    return try  FfiConverterTypeFeedbackEntry_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_send_feedback(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeFeedbackSending_lower(sending),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * How many entries haven't been marked sent, for Status.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+open func unsentFeedback()throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_unsent_feedback(
+            self.uniffiCloneHandle(),uniffiCallStatus
     )
 })
 }
@@ -13173,6 +13334,511 @@ public func FfiConverterTypeExpandedItem_lift(_ buf: RustBuffer) throws -> Expan
 #endif
 public func FfiConverterTypeExpandedItem_lower(_ value: ExpandedItem) -> RustBuffer {
     return FfiConverterTypeExpandedItem.lower(value)
+}
+
+
+/**
+ * One entry, as listed.
+ */
+public struct FeedbackEntry: Equatable, Hashable {
+    /**
+     * Its number in the list, oldest first; 0 for one just sent.
+     */
+    public var number: UInt32
+    /**
+     * Its name, which `feedback_issue_draft` and `mark_feedback_sent` take.
+     */
+    public var name: String
+    /**
+     * `bug`, `idea` or `confusing`.
+     */
+    public var kind: String
+    /**
+     * The owner's words.
+     */
+    public var words: String
+    /**
+     * The screen and step in one line: `Review → proposal 2`.
+     */
+    public var screenPath: String
+    /**
+     * The screen alone.
+     */
+    public var screen: String
+    /**
+     * The interface it was sent from.
+     */
+    public var interface: String
+    /**
+     * When it was sent (RFC 3339).
+     */
+    public var at: String
+    /**
+     * The screenshot's file, if there is one.
+     */
+    public var screenshotPath: String?
+    /**
+     * The issue it was sent as (empty when marked sent without one), or `None` if unsent.
+     */
+    public var sent: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its number in the list, oldest first; 0 for one just sent.
+         */number: UInt32, 
+        /**
+         * Its name, which `feedback_issue_draft` and `mark_feedback_sent` take.
+         */name: String, 
+        /**
+         * `bug`, `idea` or `confusing`.
+         */kind: String, 
+        /**
+         * The owner's words.
+         */words: String, 
+        /**
+         * The screen and step in one line: `Review → proposal 2`.
+         */screenPath: String, 
+        /**
+         * The screen alone.
+         */screen: String, 
+        /**
+         * The interface it was sent from.
+         */interface: String, 
+        /**
+         * When it was sent (RFC 3339).
+         */at: String, 
+        /**
+         * The screenshot's file, if there is one.
+         */screenshotPath: String?, 
+        /**
+         * The issue it was sent as (empty when marked sent without one), or `None` if unsent.
+         */sent: String?) {
+        self.number = number
+        self.name = name
+        self.kind = kind
+        self.words = words
+        self.screenPath = screenPath
+        self.screen = screen
+        self.interface = interface
+        self.at = at
+        self.screenshotPath = screenshotPath
+        self.sent = sent
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackEntry: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackEntry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackEntry {
+        return
+            try FeedbackEntry(
+                number: FfiConverterUInt32.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                kind: FfiConverterString.read(from: &buf), 
+                words: FfiConverterString.read(from: &buf), 
+                screenPath: FfiConverterString.read(from: &buf), 
+                screen: FfiConverterString.read(from: &buf), 
+                interface: FfiConverterString.read(from: &buf), 
+                at: FfiConverterString.read(from: &buf), 
+                screenshotPath: FfiConverterOptionString.read(from: &buf), 
+                sent: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackEntry, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.number, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterString.write(value.words, into: &buf)
+        FfiConverterString.write(value.screenPath, into: &buf)
+        FfiConverterString.write(value.screen, into: &buf)
+        FfiConverterString.write(value.interface, into: &buf)
+        FfiConverterString.write(value.at, into: &buf)
+        FfiConverterOptionString.write(value.screenshotPath, into: &buf)
+        FfiConverterOptionString.write(value.sent, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackEntry_lift(_ buf: RustBuffer) throws -> FeedbackEntry {
+    return try FfiConverterTypeFeedbackEntry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackEntry_lower(_ value: FeedbackEntry) -> RustBuffer {
+    return FfiConverterTypeFeedbackEntry.lower(value)
+}
+
+
+/**
+ * An item or collection in view, by identifier and title, never its contents.
+ */
+public struct FeedbackInView: Equatable, Hashable {
+    /**
+     * `item`, `collection`, `proposal` or `question`.
+     */
+    public var kind: String
+    /**
+     * Its identifier.
+     */
+    public var id: String
+    /**
+     * Its title, or empty.
+     */
+    public var title: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * `item`, `collection`, `proposal` or `question`.
+         */kind: String, 
+        /**
+         * Its identifier.
+         */id: String, 
+        /**
+         * Its title, or empty.
+         */title: String) {
+        self.kind = kind
+        self.id = id
+        self.title = title
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackInView: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackInView: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackInView {
+        return
+            try FeedbackInView(
+                kind: FfiConverterString.read(from: &buf), 
+                id: FfiConverterString.read(from: &buf), 
+                title: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackInView, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.title, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackInView_lift(_ buf: RustBuffer) throws -> FeedbackInView {
+    return try FfiConverterTypeFeedbackInView.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackInView_lower(_ value: FeedbackInView) -> RustBuffer {
+    return FfiConverterTypeFeedbackInView.lower(value)
+}
+
+
+/**
+ * An entry's issue draft, for the owner to read before it opens in the browser.
+ */
+public struct FeedbackIssueDraft: Equatable, Hashable {
+    /**
+     * The issue's title.
+     */
+    public var title: String
+    /**
+     * Its body, in Markdown.
+     */
+    public var body: String
+    /**
+     * The prefilled new-issue address on GitHub, which the app opens.
+     */
+    public var url: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The issue's title.
+         */title: String, 
+        /**
+         * Its body, in Markdown.
+         */body: String, 
+        /**
+         * The prefilled new-issue address on GitHub, which the app opens.
+         */url: String) {
+        self.title = title
+        self.body = body
+        self.url = url
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackIssueDraft: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackIssueDraft: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackIssueDraft {
+        return
+            try FeedbackIssueDraft(
+                title: FfiConverterString.read(from: &buf), 
+                body: FfiConverterString.read(from: &buf), 
+                url: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackIssueDraft, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterString.write(value.body, into: &buf)
+        FfiConverterString.write(value.url, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackIssueDraft_lift(_ buf: RustBuffer) throws -> FeedbackIssueDraft {
+    return try FfiConverterTypeFeedbackIssueDraft.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackIssueDraft_lower(_ value: FeedbackIssueDraft) -> RustBuffer {
+    return FfiConverterTypeFeedbackIssueDraft.lower(value)
+}
+
+
+/**
+ * Where the owner is: what each screen declares.
+ */
+public struct FeedbackScreen: Equatable, Hashable {
+    /**
+     * The screen, such as `Review`.
+     */
+    public var screen: String
+    /**
+     * The step in its workflow, such as `proposal → question 2`, or empty.
+     */
+    public var step: String
+    /**
+     * What's in view.
+     */
+    public var inView: [FeedbackInView]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The screen, such as `Review`.
+         */screen: String, 
+        /**
+         * The step in its workflow, such as `proposal → question 2`, or empty.
+         */step: String, 
+        /**
+         * What's in view.
+         */inView: [FeedbackInView]) {
+        self.screen = screen
+        self.step = step
+        self.inView = inView
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackScreen: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackScreen: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackScreen {
+        return
+            try FeedbackScreen(
+                screen: FfiConverterString.read(from: &buf), 
+                step: FfiConverterString.read(from: &buf), 
+                inView: FfiConverterSequenceTypeFeedbackInView.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackScreen, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.screen, into: &buf)
+        FfiConverterString.write(value.step, into: &buf)
+        FfiConverterSequenceTypeFeedbackInView.write(value.inView, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackScreen_lift(_ buf: RustBuffer) throws -> FeedbackScreen {
+    return try FfiConverterTypeFeedbackScreen.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackScreen_lower(_ value: FeedbackScreen) -> RustBuffer {
+    return FfiConverterTypeFeedbackScreen.lower(value)
+}
+
+
+/**
+ * What the owner sends from the app.
+ */
+public struct FeedbackSending: Equatable, Hashable {
+    /**
+     * `bug`, `idea` or `confusing`.
+     */
+    public var kind: String
+    /**
+     * Their words.
+     */
+    public var words: String
+    /**
+     * Where they were.
+     */
+    public var screen: FeedbackScreen
+    /**
+     * `mac app`, `ipad app` or `iphone app`.
+     */
+    public var interface: String
+    /**
+     * The device in words, such as `iPad Pro 13-inch (M5)`.
+     */
+    public var deviceName: String
+    /**
+     * The app's version and build.
+     */
+    public var appVersion: String?
+    /**
+     * The window's screenshot as PNG, when kept.
+     */
+    public var screenshot: Data?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * `bug`, `idea` or `confusing`.
+         */kind: String, 
+        /**
+         * Their words.
+         */words: String, 
+        /**
+         * Where they were.
+         */screen: FeedbackScreen, 
+        /**
+         * `mac app`, `ipad app` or `iphone app`.
+         */interface: String, 
+        /**
+         * The device in words, such as `iPad Pro 13-inch (M5)`.
+         */deviceName: String, 
+        /**
+         * The app's version and build.
+         */appVersion: String?, 
+        /**
+         * The window's screenshot as PNG, when kept.
+         */screenshot: Data?) {
+        self.kind = kind
+        self.words = words
+        self.screen = screen
+        self.interface = interface
+        self.deviceName = deviceName
+        self.appVersion = appVersion
+        self.screenshot = screenshot
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackSending: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackSending: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackSending {
+        return
+            try FeedbackSending(
+                kind: FfiConverterString.read(from: &buf), 
+                words: FfiConverterString.read(from: &buf), 
+                screen: FfiConverterTypeFeedbackScreen.read(from: &buf), 
+                interface: FfiConverterString.read(from: &buf), 
+                deviceName: FfiConverterString.read(from: &buf), 
+                appVersion: FfiConverterOptionString.read(from: &buf), 
+                screenshot: FfiConverterOptionData.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackSending, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterString.write(value.words, into: &buf)
+        FfiConverterTypeFeedbackScreen.write(value.screen, into: &buf)
+        FfiConverterString.write(value.interface, into: &buf)
+        FfiConverterString.write(value.deviceName, into: &buf)
+        FfiConverterOptionString.write(value.appVersion, into: &buf)
+        FfiConverterOptionData.write(value.screenshot, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackSending_lift(_ buf: RustBuffer) throws -> FeedbackSending {
+    return try FfiConverterTypeFeedbackSending.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackSending_lower(_ value: FeedbackSending) -> RustBuffer {
+    return FfiConverterTypeFeedbackSending.lower(value)
 }
 
 
@@ -26714,6 +27380,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeAgentClaim: FfiConverterRustBuffer {
     typealias SwiftType = AgentClaim?
 
@@ -27929,6 +28619,56 @@ fileprivate struct FfiConverterSequenceTypeEmbeddingElsewhere: FfiConverterRustB
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeEmbeddingElsewhere.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFeedbackEntry: FfiConverterRustBuffer {
+    typealias SwiftType = [FeedbackEntry]
+
+    public static func write(_ value: [FeedbackEntry], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFeedbackEntry.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FeedbackEntry] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FeedbackEntry]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFeedbackEntry.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFeedbackInView: FfiConverterRustBuffer {
+    typealias SwiftType = [FeedbackInView]
+
+    public static func write(_ value: [FeedbackInView], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFeedbackInView.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FeedbackInView] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FeedbackInView]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFeedbackInView.read(from: &buf))
         }
         return seq
     }
@@ -29873,6 +30613,24 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_editable_proposal() != 23041) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_feedback_entries() != 28090) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_feedback_export() != 34893) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_feedback_issue_draft() != 16452) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_mark_feedback_sent() != 34830) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_send_feedback() != 28205) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_unsent_feedback() != 24198) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_flag_collection() != 21397) {

@@ -495,6 +495,7 @@ _System/
   inbox/<device-id>/    changes from devices that aren't the writer (§7.8)
   inbox-skipped/<device-id>/  inbox entries the writer skipped, and why (§7.8)
   holding/              replaced content waiting for a snapshot (§7.14)
+  feedback/<device-id>/ feedback the owner sends for development (§7.8)
   queue/                pending proposals, questions and tasks (§7.9)
   devices/<device-id>/  device profiles and desk-item registries (§7.10)
   drawings/<item-id>/   handwritten notes drawn on cards (§5.10)
@@ -684,6 +685,8 @@ The writer applies every device's entries in timestamp order, each as its sender
 ```
 
 The writer removes skipped records after 30 days. An entry that can't be applied for now, such as while the writer lease is busy, stays in its inbox to be tried again.
+
+Feedback the owner sends for development, from any screen of any program, is kept the same way, in `_System/feedback/<device-id>/`: one `<timestamp>-<id>.json` each, with `kind` (`bug`, `idea` or `confusing`), the owner's `words`, the `screen` and `step` they were on, `in_view` (the items and collections shown, by `kind`, `id` and `title`, never their contents), the `interface`, Carrel's `version` and `commit`, the `device` and `os`, the `model` in use, `recent_problems` from the device's own gap log, and `at`. A `screenshot` names a PNG beside it. `sent.json` maps the entries that device has marked sent to their issues' addresses. A device writes only its own folder, needs no writer lease to do so, and nothing applies or removes the entries; history doesn't track them (§8.1).
 
 ### 7.9 Queues
 
@@ -971,7 +974,7 @@ On a device that has no backups set up, such as an iPad or iPhone, which can't r
 
 The archive's metadata history is a Git repository whose Git directory is `_System/history.git` and whose work tree is the archive root. Keeping the Git directory under `_System` leaves no `.git` folder at the root, so the root never looks like a code repository and never interferes with sealed bundles that are repositories themselves.
 
-The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/`, `inbox/` and `holding/` (which only pass through, and hold copies of contents) and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
+The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/`, `inbox/` and `holding/` (which only pass through, and hold copies of contents), `feedback/` and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
 
 - **Staging:** programs compute that set of files and stage exactly it for each commit, rather than relying on ignore patterns. The repository's `info/exclude` contains `*`, so Git tools never add item contents by accident.
 - **Work tree:** the repository's `core.worktree` is the relative path `../..`, so it stays valid when the archive is moved or synced to another device.

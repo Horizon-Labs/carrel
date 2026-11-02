@@ -1114,6 +1114,7 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
             KeyCode::Char('?') => self.help = true,
+            KeyCode::Char('!') => self.ask_feedback(),
             KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 // Providers may have come or gone too.
                 if self.here.is_some() {

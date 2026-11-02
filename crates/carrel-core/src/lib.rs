@@ -78,6 +78,7 @@ pub mod documents;
 pub mod drawings;
 pub mod edit;
 pub mod entries;
+pub mod feedback;
 pub mod file_pickers;
 pub mod finder;
 pub mod flags;

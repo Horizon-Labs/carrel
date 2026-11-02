@@ -110,6 +110,8 @@ pub enum InputPurpose {
     },
     /// Something about the gaps in Carrel (`super::gaps`).
     Gap(super::gaps::GapInput),
+    /// Feedback for development, about this screen (`super::feedback`).
+    Feedback(carrel_core::feedback::ScreenContext),
     /// The folder to move the archive to, in iCloud Drive by default.
     SyncMoveTo,
 }
@@ -160,6 +162,7 @@ impl Input {
             InputPurpose::Option(line) => line.prompt(),
             InputPurpose::FlagNote { .. } => "what needs work, or nothing",
             InputPurpose::Gap(gap) => gap.prompt(),
+            InputPurpose::Feedback(_) => super::feedback::PROMPT,
             InputPurpose::SyncMoveTo => "the folder to move it to (drop it here)",
         }
     }
@@ -398,6 +401,7 @@ impl App {
                     }
                     InputPurpose::Option(line) => return self.option_entered(line, text),
                     InputPurpose::Gap(gap) => self.gap_typed(gap, &text),
+                    InputPurpose::Feedback(context) => self.feedback_typed(context, &text),
                     InputPurpose::SyncMoveTo => self.sync_move_to(&text),
                     purpose => return self.action_input(purpose, text),
                 }

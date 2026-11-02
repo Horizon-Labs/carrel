@@ -66,6 +66,7 @@ struct CarrelApp: App {
             ActiveCommands()
             BrowseCommands()
             LibrarianCommands()
+            FeedbackCommands()
             ICloudMoveCommands()
         }
     }
@@ -93,6 +94,7 @@ struct CarrelApp: App {
             ArchiveWindowCommands()
             BrowseCommands()
             LibrarianCommands()
+            FeedbackCommands()
             ICloudMoveCommands()
         }
 

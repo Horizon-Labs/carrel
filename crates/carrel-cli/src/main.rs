@@ -23,6 +23,7 @@ mod discover;
 mod drawings;
 mod edit;
 mod expand;
+mod feedback;
 mod findability;
 mod flag;
 mod formats;
@@ -158,6 +159,10 @@ enum Command {
     /// titles, text, names or searches, so it can be shared. `carrel report gaps` lists what
     /// Carrel couldn't do, to report to development.
     Report(report_gaps::ReportArgs),
+    /// Send feedback for development, about the command line or another screen: `carrel
+    /// feedback "text" [--about ITEM|COLLECTION] [--kind bug|idea|confusing]`. `list`,
+    /// `export` and `issue` show what every device sent, and draft issues from it.
+    Feedback(feedback::FeedbackArgs),
     /// Add files and folders to the intake queue. A worker drafts each one's card and
     /// destination in the background, saving proposals for `carrel review` as they're ready.
     /// Nothing is moved until a proposal is approved.
@@ -1176,11 +1181,16 @@ fn without_command(archive: Option<&std::path::Path>, json: bool) -> ExitCode {
         .exit();
 }
 
-fn main() -> ExitCode {
-    let cli = Cli::parse();
-    if !matches!(cli.command, Some(Command::Bench(_))) {
+/// Starts the decision log for every command but `bench`, which times the models alone.
+fn start_decision_log(command: Option<&Command>) {
+    if !matches!(command, Some(Command::Bench(_))) {
         carrel_core::decisions::start();
     }
+}
+
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    start_decision_log(cli.command.as_ref());
     let Some(command) = cli.command else {
         return without_command(cli.archive.as_deref(), cli.json);
     };
@@ -1226,6 +1236,7 @@ fn main() -> ExitCode {
         Command::Providers => Ok(providers::list()),
         Command::Formats => Ok(formats::list()),
         Command::Report(args) => report_gaps::command(cli.archive.as_deref(), args),
+        Command::Feedback(args) => feedback::command(cli.archive.as_deref(), args),
         Command::Ingest(args) => {
             ingest::command(cli.archive.as_deref(), &args.into_request(), cli.json)
         }
