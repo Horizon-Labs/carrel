@@ -775,6 +775,7 @@ fn card_for(
         placement: placement_record(entry, placement),
         removed: None,
         expanded_from: None,
+        drawings: Vec::new(),
         needs_work: None,
         extra: draft.extra.clone(),
     }

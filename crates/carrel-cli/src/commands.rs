@@ -672,6 +672,8 @@ pub(crate) fn describe(archive: &Archive, query: &str) -> Result<Shown, Failure>
             writeln!(text, "  {problem}").unwrap();
         }
     }
+    let (drawings_text, drawings) = crate::drawings::listing(archive, &item)?;
+    text.push_str(&drawings_text);
     let links = card
         .links
         .iter()
@@ -698,6 +700,7 @@ pub(crate) fn describe(archive: &Archive, query: &str) -> Result<Shown, Failure>
         "collection": collection,
         "fields": card,
         "problems": problems.iter().map(|p| json!({ "field": p.field, "message": p.message })).collect::<Vec<_>>(),
+        "drawings": drawings,
     });
     Ok(Shown {
         id: card.id,

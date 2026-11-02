@@ -1,10 +1,12 @@
-// An item's card in the inspector: its fields, notes, history and related items.
+// An item's card in the inspector: its fields, notes, drawings, history and related items.
 
 import CarrelKit
 import SwiftUI
 
 /// Fields shown in the header rather than the list.
-private let headerFields: Set<String> = ["carrel", "format", "id", "kind", "title", "summary"]
+private let headerFields: Set<String> = [
+    "carrel", "format", "id", "kind", "title", "summary", "drawings",
+]
 
 struct ItemCardView<Actions: View, Below: View>: View {
     let item: ItemSummary
@@ -65,6 +67,9 @@ struct ItemCardView<Actions: View, Below: View>: View {
                         )
                         .textSelection(.enabled)
                     }
+                }
+                if let archive {
+                    ItemDrawingsSection(archive: archive, item: item.id)
                 }
                 if !card.history.isEmpty {
                     Section("History") {

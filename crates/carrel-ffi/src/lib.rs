@@ -60,6 +60,7 @@ pub mod correct;
 pub mod crawl;
 pub mod creating;
 pub mod discover;
+pub mod drawings;
 pub mod edit;
 pub mod flags;
 pub mod gaps;
