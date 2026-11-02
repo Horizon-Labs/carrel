@@ -289,7 +289,10 @@ fn usage_mistakes_exit_with_status_2() {
     let out = sandbox.run_in(sandbox.dir.path(), &["frobnicate"]);
     assert_eq!(out.status.code(), Some(2));
     let version = sandbox.ok(sandbox.dir.path(), &["--version"]);
-    assert!(version.starts_with("carrel 0."), "{version}");
+    assert!(
+        version.starts_with(&format!("carrel {}", env!("CARGO_PKG_VERSION"))),
+        "{version}"
+    );
 }
 
 #[test]
