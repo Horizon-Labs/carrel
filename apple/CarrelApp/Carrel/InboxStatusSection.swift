@@ -1,4 +1,4 @@
-// Status's parts about syncing (FORMAT.md §7.8 and §7.13): this device's inbox, where changes
+// Status's parts about syncing (FORMAT.md §7.8 and §7.14): this device's inbox, where changes
 // go while another device is the writer, with what the writer skipped and why; and the
 // holding folder, where a device without backups keeps the versions its changes replace
 // until a snapshot has them, each of which can be restored to a folder.
