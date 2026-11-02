@@ -1424,6 +1424,91 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
     func editableProposal(id: String) throws  -> EditableCard
     
     /**
+     * Accepts fix `number` (from 1, among those waiting) for the flag on `target`, as the
+     * owner's change, clearing the flag once no other fix waits.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such fix or it can't be made;
+     * [`CarrelError::Busy`] if another writer holds the archive.
+     */
+    func acceptFlagFix(target: String, number: UInt32) throws  -> FlagFixAccepted
+    
+    /**
+     * Answers what the librarian asked about the flag on `target`, and has it try again at
+     * once, as `carrel flagged TARGET --answer` does.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if it isn't asking anything or there's no model, or
+     * [`CarrelError::Failed`] if the librarian fails.
+     */
+    func answerFlag(target: String, answer: String, model: ModelProvider?, memoryGb: UInt64?) throws  -> FlagRequestView
+    
+    /**
+     * Answers the flag question `id` from the question queue, and has the librarian try
+     * again at once.
+     *
+     * # Errors
+     *
+     * As [`ArchiveHandle::answer_flag`]; [`CarrelError::Invalid`] if it isn't a flag
+     * question.
+     */
+    func answerFlagQuestion(id: String, answer: String, model: ModelProvider?, memoryGb: UInt64?) throws  -> FlagRequestView
+    
+    /**
+     * The flag on `target` (an item's identifier or card, or a collection's folder), with
+     * where the librarian is with it.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if it isn't flagged.
+     */
+    func flagRequest(target: String) throws  -> FlagRequestView
+    
+    /**
+     * Everything flagged, each with where the librarian is with it, as `carrel flagged`
+     * lists them.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the archive or the queue can't be read.
+     */
+    func flagRequests() throws  -> [FlagRequestView]
+    
+    /**
+     * When this device (idle for `idle_seconds`, on mains power when `on_power`; `None` when
+     * unknown) allows, as the crawler's pace says, takes up the oldest flag waiting for the
+     * librarian: what came of it, or `None` when nothing ran or there's no model. What the
+     * app's agent runs after the crawler.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the librarian fails or the request can't be saved.
+     */
+    func flagsWhenIdle(idleSeconds: UInt64?, onPower: Bool?, model: ModelProvider?, memoryGb: UInt64?) throws  -> FlagRequestView?
+    
+    /**
+     * Hands the flag on `target` to the librarian now, as `carrel flagged TARGET --ask`
+     * does, on `model` or the strongest model this device has that fits in `memory_gb`.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if it isn't flagged or there's no model, or
+     * [`CarrelError::Failed`] if the librarian fails.
+     */
+    func handFlagToLibrarian(target: String, model: ModelProvider?, memoryGb: UInt64?) throws  -> FlagRequestView
+    
+    /**
+     * Asks the librarian to look at the flag on `target` again, now.
+     *
+     * # Errors
+     *
+     * As [`ArchiveHandle::hand_flag_to_librarian`].
+     */
+    func lookAtFlagAgain(target: String, model: ModelProvider?, memoryGb: UInt64?) throws  -> FlagRequestView
+    
+    /**
      * Flags the collection at `path` as needing work, with `note` saying what.
      *
      * # Errors
@@ -3792,6 +3877,168 @@ open func editableProposal(id: String)throws  -> EditableCard  {
     uniffi_carrel_ffi_fn_method_archivehandle_editable_proposal(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(id),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Accepts fix `number` (from 1, among those waiting) for the flag on `target`, as the
+     * owner's change, clearing the flag once no other fix waits.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such fix or it can't be made;
+     * [`CarrelError::Busy`] if another writer holds the archive.
+     */
+open func acceptFlagFix(target: String, number: UInt32)throws  -> FlagFixAccepted  {
+    return try  FfiConverterTypeFlagFixAccepted_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_accept_flag_fix(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(target),
+        FfiConverterUInt32.lower(number),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Answers what the librarian asked about the flag on `target`, and has it try again at
+     * once, as `carrel flagged TARGET --answer` does.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if it isn't asking anything or there's no model, or
+     * [`CarrelError::Failed`] if the librarian fails.
+     */
+open func answerFlag(target: String, answer: String, model: ModelProvider?, memoryGb: UInt64?)throws  -> FlagRequestView  {
+    return try  FfiConverterTypeFlagRequestView_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_answer_flag(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(target),
+        FfiConverterString.lower(answer),
+        FfiConverterOptionTypeModelProvider.lower(model),
+        FfiConverterOptionUInt64.lower(memoryGb),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Answers the flag question `id` from the question queue, and has the librarian try
+     * again at once.
+     *
+     * # Errors
+     *
+     * As [`ArchiveHandle::answer_flag`]; [`CarrelError::Invalid`] if it isn't a flag
+     * question.
+     */
+open func answerFlagQuestion(id: String, answer: String, model: ModelProvider?, memoryGb: UInt64?)throws  -> FlagRequestView  {
+    return try  FfiConverterTypeFlagRequestView_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_answer_flag_question(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(id),
+        FfiConverterString.lower(answer),
+        FfiConverterOptionTypeModelProvider.lower(model),
+        FfiConverterOptionUInt64.lower(memoryGb),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The flag on `target` (an item's identifier or card, or a collection's folder), with
+     * where the librarian is with it.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if it isn't flagged.
+     */
+open func flagRequest(target: String)throws  -> FlagRequestView  {
+    return try  FfiConverterTypeFlagRequestView_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_flag_request(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(target),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Everything flagged, each with where the librarian is with it, as `carrel flagged`
+     * lists them.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the archive or the queue can't be read.
+     */
+open func flagRequests()throws  -> [FlagRequestView]  {
+    return try  FfiConverterSequenceTypeFlagRequestView.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_flag_requests(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * When this device (idle for `idle_seconds`, on mains power when `on_power`; `None` when
+     * unknown) allows, as the crawler's pace says, takes up the oldest flag waiting for the
+     * librarian: what came of it, or `None` when nothing ran or there's no model. What the
+     * app's agent runs after the crawler.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the librarian fails or the request can't be saved.
+     */
+open func flagsWhenIdle(idleSeconds: UInt64?, onPower: Bool?, model: ModelProvider?, memoryGb: UInt64?)throws  -> FlagRequestView?  {
+    return try  FfiConverterOptionTypeFlagRequestView.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_flags_when_idle(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionUInt64.lower(idleSeconds),
+        FfiConverterOptionBool.lower(onPower),
+        FfiConverterOptionTypeModelProvider.lower(model),
+        FfiConverterOptionUInt64.lower(memoryGb),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Hands the flag on `target` to the librarian now, as `carrel flagged TARGET --ask`
+     * does, on `model` or the strongest model this device has that fits in `memory_gb`.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if it isn't flagged or there's no model, or
+     * [`CarrelError::Failed`] if the librarian fails.
+     */
+open func handFlagToLibrarian(target: String, model: ModelProvider?, memoryGb: UInt64?)throws  -> FlagRequestView  {
+    return try  FfiConverterTypeFlagRequestView_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_hand_flag_to_librarian(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(target),
+        FfiConverterOptionTypeModelProvider.lower(model),
+        FfiConverterOptionUInt64.lower(memoryGb),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Asks the librarian to look at the flag on `target` again, now.
+     *
+     * # Errors
+     *
+     * As [`ArchiveHandle::hand_flag_to_librarian`].
+     */
+open func lookAtFlagAgain(target: String, model: ModelProvider?, memoryGb: UInt64?)throws  -> FlagRequestView  {
+    return try  FfiConverterTypeFlagRequestView_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_look_at_flag_again(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(target),
+        FfiConverterOptionTypeModelProvider.lower(model),
+        FfiConverterOptionUInt64.lower(memoryGb),uniffiCallStatus
     )
 })
 }
@@ -13048,6 +13295,422 @@ public func FfiConverterTypeFlagChange_lift(_ buf: RustBuffer) throws -> FlagCha
 #endif
 public func FfiConverterTypeFlagChange_lower(_ value: FlagChange) -> RustBuffer {
     return FfiConverterTypeFlagChange.lower(value)
+}
+
+
+/**
+ * Something the librarian asked about a flag, and the owner's answer once given.
+ */
+public struct FlagExchange: Equatable, Hashable {
+    /**
+     * The librarian's question.
+     */
+    public var question: String
+    /**
+     * The owner's answer.
+     */
+    public var answer: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The librarian's question.
+         */question: String, 
+        /**
+         * The owner's answer.
+         */answer: String?) {
+        self.question = question
+        self.answer = answer
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FlagExchange: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFlagExchange: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FlagExchange {
+        return
+            try FlagExchange(
+                question: FfiConverterString.read(from: &buf), 
+                answer: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FlagExchange, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.question, into: &buf)
+        FfiConverterOptionString.write(value.answer, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagExchange_lift(_ buf: RustBuffer) throws -> FlagExchange {
+    return try FfiConverterTypeFlagExchange.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagExchange_lower(_ value: FlagExchange) -> RustBuffer {
+    return FfiConverterTypeFlagExchange.lower(value)
+}
+
+
+/**
+ * A fix the librarian suggested for a flag.
+ */
+public struct FlagFix: Equatable, Hashable {
+    /**
+     * Its number among the fixes waiting, from 1, to accept it by; none once it's made.
+     */
+    public var number: UInt32?
+    /**
+     * The change, in words.
+     */
+    public var change: String
+    /**
+     * Why, in the librarian's words.
+     */
+    public var why: String
+    /**
+     * How sure it was, from 0 to 1.
+     */
+    public var confidence: Double
+    /**
+     * Whether it's made: by the librarian, or the owner accepting it.
+     */
+    public var made: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its number among the fixes waiting, from 1, to accept it by; none once it's made.
+         */number: UInt32?, 
+        /**
+         * The change, in words.
+         */change: String, 
+        /**
+         * Why, in the librarian's words.
+         */why: String, 
+        /**
+         * How sure it was, from 0 to 1.
+         */confidence: Double, 
+        /**
+         * Whether it's made: by the librarian, or the owner accepting it.
+         */made: Bool) {
+        self.number = number
+        self.change = change
+        self.why = why
+        self.confidence = confidence
+        self.made = made
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FlagFix: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFlagFix: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FlagFix {
+        return
+            try FlagFix(
+                number: FfiConverterOptionUInt32.read(from: &buf), 
+                change: FfiConverterString.read(from: &buf), 
+                why: FfiConverterString.read(from: &buf), 
+                confidence: FfiConverterDouble.read(from: &buf), 
+                made: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FlagFix, into buf: inout [UInt8]) {
+        FfiConverterOptionUInt32.write(value.number, into: &buf)
+        FfiConverterString.write(value.change, into: &buf)
+        FfiConverterString.write(value.why, into: &buf)
+        FfiConverterDouble.write(value.confidence, into: &buf)
+        FfiConverterBool.write(value.made, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagFix_lift(_ buf: RustBuffer) throws -> FlagFix {
+    return try FfiConverterTypeFlagFix.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagFix_lower(_ value: FlagFix) -> RustBuffer {
+    return FfiConverterTypeFlagFix.lower(value)
+}
+
+
+/**
+ * What accepting a flag's fix did.
+ */
+public struct FlagFixAccepted: Equatable, Hashable {
+    /**
+     * The change, in words.
+     */
+    public var change: String
+    /**
+     * Its history change, when it changed anything.
+     */
+    public var commit: String?
+    /**
+     * Whether the flag was cleared: when no other fix waits.
+     */
+    public var cleared: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The change, in words.
+         */change: String, 
+        /**
+         * Its history change, when it changed anything.
+         */commit: String?, 
+        /**
+         * Whether the flag was cleared: when no other fix waits.
+         */cleared: Bool) {
+        self.change = change
+        self.commit = commit
+        self.cleared = cleared
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FlagFixAccepted: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFlagFixAccepted: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FlagFixAccepted {
+        return
+            try FlagFixAccepted(
+                change: FfiConverterString.read(from: &buf), 
+                commit: FfiConverterOptionString.read(from: &buf), 
+                cleared: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FlagFixAccepted, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.change, into: &buf)
+        FfiConverterOptionString.write(value.commit, into: &buf)
+        FfiConverterBool.write(value.cleared, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagFixAccepted_lift(_ buf: RustBuffer) throws -> FlagFixAccepted {
+    return try FfiConverterTypeFlagFixAccepted.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagFixAccepted_lower(_ value: FlagFixAccepted) -> RustBuffer {
+    return FfiConverterTypeFlagFixAccepted.lower(value)
+}
+
+
+/**
+ * A flag with its request to the librarian, as the Flagged screen and the inspector show it.
+ */
+public struct FlagRequestView: Equatable, Hashable {
+    /**
+     * The flag.
+     */
+    public var flagged: FlaggedThing
+    /**
+     * Where its request stands.
+     */
+    public var state: FlagState
+    /**
+     * Where it stands, in words: "waiting for your answer".
+     */
+    public var stateText: String
+    /**
+     * What the librarian last said about it.
+     */
+    public var said: String
+    /**
+     * The question it waits for the owner to answer.
+     */
+    public var asking: String?
+    /**
+     * That question in the queue, to answer from Questions too.
+     */
+    public var questionId: String?
+    /**
+     * What it asked and was told, oldest first.
+     */
+    public var exchanges: [FlagExchange]
+    /**
+     * Its fixes.
+     */
+    public var fixes: [FlagFix]
+    /**
+     * Why it couldn't help, when it couldn't.
+     */
+    public var cantHelp: String?
+    /**
+     * What Carrel would need, in Carrel's words.
+     */
+    public var missing: String?
+    /**
+     * The gap recorded for it, to report to development ([`ArchiveHandle::gap_issue_draft`]).
+     */
+    public var gap: UInt32?
+    /**
+     * The model the librarian last ran on.
+     */
+    public var model: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The flag.
+         */flagged: FlaggedThing, 
+        /**
+         * Where its request stands.
+         */state: FlagState, 
+        /**
+         * Where it stands, in words: "waiting for your answer".
+         */stateText: String, 
+        /**
+         * What the librarian last said about it.
+         */said: String, 
+        /**
+         * The question it waits for the owner to answer.
+         */asking: String?, 
+        /**
+         * That question in the queue, to answer from Questions too.
+         */questionId: String?, 
+        /**
+         * What it asked and was told, oldest first.
+         */exchanges: [FlagExchange], 
+        /**
+         * Its fixes.
+         */fixes: [FlagFix], 
+        /**
+         * Why it couldn't help, when it couldn't.
+         */cantHelp: String?, 
+        /**
+         * What Carrel would need, in Carrel's words.
+         */missing: String?, 
+        /**
+         * The gap recorded for it, to report to development ([`ArchiveHandle::gap_issue_draft`]).
+         */gap: UInt32?, 
+        /**
+         * The model the librarian last ran on.
+         */model: String?) {
+        self.flagged = flagged
+        self.state = state
+        self.stateText = stateText
+        self.said = said
+        self.asking = asking
+        self.questionId = questionId
+        self.exchanges = exchanges
+        self.fixes = fixes
+        self.cantHelp = cantHelp
+        self.missing = missing
+        self.gap = gap
+        self.model = model
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FlagRequestView: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFlagRequestView: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FlagRequestView {
+        return
+            try FlagRequestView(
+                flagged: FfiConverterTypeFlaggedThing.read(from: &buf), 
+                state: FfiConverterTypeFlagState.read(from: &buf), 
+                stateText: FfiConverterString.read(from: &buf), 
+                said: FfiConverterString.read(from: &buf), 
+                asking: FfiConverterOptionString.read(from: &buf), 
+                questionId: FfiConverterOptionString.read(from: &buf), 
+                exchanges: FfiConverterSequenceTypeFlagExchange.read(from: &buf), 
+                fixes: FfiConverterSequenceTypeFlagFix.read(from: &buf), 
+                cantHelp: FfiConverterOptionString.read(from: &buf), 
+                missing: FfiConverterOptionString.read(from: &buf), 
+                gap: FfiConverterOptionUInt32.read(from: &buf), 
+                model: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FlagRequestView, into buf: inout [UInt8]) {
+        FfiConverterTypeFlaggedThing.write(value.flagged, into: &buf)
+        FfiConverterTypeFlagState.write(value.state, into: &buf)
+        FfiConverterString.write(value.stateText, into: &buf)
+        FfiConverterString.write(value.said, into: &buf)
+        FfiConverterOptionString.write(value.asking, into: &buf)
+        FfiConverterOptionString.write(value.questionId, into: &buf)
+        FfiConverterSequenceTypeFlagExchange.write(value.exchanges, into: &buf)
+        FfiConverterSequenceTypeFlagFix.write(value.fixes, into: &buf)
+        FfiConverterOptionString.write(value.cantHelp, into: &buf)
+        FfiConverterOptionString.write(value.missing, into: &buf)
+        FfiConverterOptionUInt32.write(value.gap, into: &buf)
+        FfiConverterOptionString.write(value.model, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagRequestView_lift(_ buf: RustBuffer) throws -> FlagRequestView {
+    return try FfiConverterTypeFlagRequestView.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagRequestView_lower(_ value: FlagRequestView) -> RustBuffer {
+    return FfiConverterTypeFlagRequestView.lower(value)
 }
 
 
@@ -23829,6 +24492,111 @@ public func FfiConverterTypeFileDownloadState_lower(_ value: FileDownloadState) 
 
 
 /**
+ * Where a flag's request to the librarian stands.
+ */
+
+public enum FlagState: Equatable, Hashable {
+    
+    /**
+     * Waiting for the librarian to take it up.
+     */
+    case waiting
+    /**
+     * The librarian asked something, and waits for the answer.
+     */
+    case asked
+    /**
+     * A fix waits for the owner to accept it.
+     */
+    case suggested
+    /**
+     * The librarian couldn't help, and said why.
+     */
+    case cantHelp
+    /**
+     * The librarian made the fix itself.
+     */
+    case done
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension FlagState: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFlagState: FfiConverterRustBuffer {
+    typealias SwiftType = FlagState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FlagState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .waiting
+        
+        case 2: return .asked
+        
+        case 3: return .suggested
+        
+        case 4: return .cantHelp
+        
+        case 5: return .done
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FlagState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .waiting:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .asked:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .suggested:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .cantHelp:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .done:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagState_lift(_ buf: RustBuffer) throws -> FlagState {
+    return try FfiConverterTypeFlagState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFlagState_lower(_ value: FlagState) -> RustBuffer {
+    return FfiConverterTypeFlagState.lower(value)
+}
+
+
+
+/**
  * What a result is.
  */
 
@@ -24687,6 +25455,11 @@ public enum QuestionAsks: Equatable, Hashable {
      * Something about one item; the answer is a correction of its card.
      */
     case item
+    /**
+     * What the librarian needs to know to fix something flagged; the answer goes back to
+     * the librarian ([`ArchiveHandle::answer_flag_question`]).
+     */
+    case flag
 
 
 
@@ -24718,6 +25491,8 @@ public struct FfiConverterTypeQuestionAsks: FfiConverterRustBuffer {
         
         case 5: return .item
         
+        case 6: return .flag
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -24744,6 +25519,10 @@ public struct FfiConverterTypeQuestionAsks: FfiConverterRustBuffer {
         
         case .item:
             writeInt(&buf, Int32(5))
+        
+        
+        case .flag:
+            writeInt(&buf, Int32(6))
         
         }
     }
@@ -25918,6 +26697,30 @@ fileprivate struct FfiConverterOptionTypeFlag: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeFlagRequestView: FfiConverterRustBuffer {
+    typealias SwiftType = FlagRequestView?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeFlagRequestView.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeFlagRequestView.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeGlossaryFact: FfiConverterRustBuffer {
     typealias SwiftType = GlossaryFact?
 
@@ -26821,6 +27624,81 @@ fileprivate struct FfiConverterSequenceTypeFiledItem: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeFiledItem.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFlagExchange: FfiConverterRustBuffer {
+    typealias SwiftType = [FlagExchange]
+
+    public static func write(_ value: [FlagExchange], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFlagExchange.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FlagExchange] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FlagExchange]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFlagExchange.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFlagFix: FfiConverterRustBuffer {
+    typealias SwiftType = [FlagFix]
+
+    public static func write(_ value: [FlagFix], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFlagFix.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FlagFix] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FlagFix]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFlagFix.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFlagRequestView: FfiConverterRustBuffer {
+    typealias SwiftType = [FlagRequestView]
+
+    public static func write(_ value: [FlagRequestView], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFlagRequestView.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FlagRequestView] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FlagRequestView]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFlagRequestView.read(from: &buf))
         }
         return seq
     }
@@ -28656,6 +29534,30 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_editable_proposal() != 23041) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_accept_flag_fix() != 15270) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_answer_flag() != 61234) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_answer_flag_question() != 11729) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_flag_request() != 33175) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_flag_requests() != 25278) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_flags_when_idle() != 20457) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_hand_flag_to_librarian() != 50921) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_look_at_flag_again() != 58753) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_flag_collection() != 21397) {
