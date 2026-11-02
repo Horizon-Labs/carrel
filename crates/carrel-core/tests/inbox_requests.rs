@@ -622,3 +622,144 @@ fn old_or_large_holdings_warn() {
     assert!(waiting.oldest_days.unwrap() >= holding::OLD_DAYS);
     assert_eq!(waiting.warnings.len(), 1, "{:?}", waiting.warnings);
 }
+
+#[test]
+fn proposal_edits_apply_while_the_proposal_is_as_it_was() {
+    let s = setup();
+    let entry = s.proposal("draft.txt");
+    let mut edited = entry.clone();
+    let mut fields = actions::draft_fields(&entry);
+    fields.title = "A better title".into();
+    assert_eq!(
+        actions::apply_draft_fields(&s.archive, &mut edited, fields).unwrap(),
+        actions::Edited::Changed
+    );
+    inbox::send_proposal_edit(&s.archive, s.phone, &entry, &edited).unwrap();
+    // Sent twice: the second finds the proposal changed meanwhile, by the first.
+    inbox::send_proposal_edit(&s.archive, s.phone, &entry, &edited).unwrap();
+    let applied = s.apply();
+    assert_eq!(applied.entries, 1);
+    let saved = ReviewQueue::of(&s.archive)
+        .find(&entry.id.to_string())
+        .unwrap();
+    assert_eq!(saved.card.title, "A better title");
+    assert_eq!(
+        s.skipped(),
+        vec!["the proposal changed elsewhere meanwhile".to_owned()]
+    );
+}
+
+#[test]
+fn collections_and_renames_are_the_senders() {
+    let s = setup();
+    s.send(Request::CreateCollection {
+        path: "Projects/Garden".into(),
+        description: Some("Plans for the garden".into()),
+        tags: vec![("beds".into(), "raised beds".into())],
+    });
+    s.apply();
+    assert!(s.archive.root().join("Projects/Garden").is_dir());
+    assert!(s.last_change().1, "the collection is the phone's");
+
+    let item = s.item(PARTS);
+    s.send(Request::Rename {
+        item: item.id,
+        name: "parts.csv".into(),
+    });
+    s.send(Request::CreateCollection {
+        path: "Projects/Garden".into(),
+        description: None,
+        tags: Vec::new(),
+    });
+    let applied = s.apply();
+    assert_eq!(applied.entries, 1);
+    assert!(
+        s.archive
+            .root()
+            .join("Projects/Hardware/parts.csv")
+            .exists()
+    );
+    assert!(s.last_change().1, "the rename is the phone's");
+    assert_eq!(s.skipped().len(), 1, "the collection exists already");
+}
+
+#[test]
+fn session_entries_on_an_archived_card_go_to_the_writer() {
+    use carrel_core::entries::HistoryEntry;
+    use carrel_core::sessions::{self, Decision};
+    let s = setup();
+    let path = s.archive.root().join(PARTS);
+    let mut file = s.card(PARTS);
+    let mut log = file.history().unwrap();
+    log.add(HistoryEntry::pending(
+        "2026-11-01",
+        Some(45),
+        vec!["Priced the parts".into()],
+    ));
+    log.add(HistoryEntry::pending(
+        "2026-11-02",
+        Some(30),
+        vec!["Ordered the parts".into()],
+    ));
+    file.set_history(&log).unwrap();
+    std::fs::write(&path, file.to_text().unwrap()).unwrap();
+    let item = s.item(PARTS).id;
+
+    // While the Mac writes, the phone's decision goes to its inbox, leaving the card as it is.
+    let writing = DiskLock::for_archive(&s.archive)
+        .acquire(s.mac, "test", DEFAULT_LEASE)
+        .unwrap();
+    let decided =
+        sessions::decide(&s.archive, &path, item, &[1], Decision::Approve, s.phone).unwrap();
+    assert!(decided.sent.is_some());
+    assert_eq!(s.card(PARTS).history().unwrap().pending().len(), 2);
+    let was = s.card(PARTS).history().unwrap().entries[log.pending()[1]].clone();
+    let edited = sessions::edit_entry(&s.archive, &path, item, &was, "Ordered them", s.phone)
+        .unwrap()
+        .unwrap();
+    assert!(edited.sent.is_some());
+    writing.release().unwrap();
+
+    s.apply();
+    let log = s.card(PARTS).history().unwrap();
+    assert_eq!(log.pending().len(), 1, "one approved");
+    assert!(
+        log.entries.iter().any(|e| e.lines == ["Ordered them"]),
+        "{log:?}"
+    );
+    assert!(s.last_change().1);
+}
+
+#[test]
+fn questions_undo_and_decisions_of_things_gone_are_handled() {
+    let s = setup();
+    let entries = vec![
+        s.proposal("ABX-1 results.csv"),
+        s.proposal("ABX summary.pdf"),
+    ];
+    let collections = s.archive.collections().unwrap();
+    let questions = carrel_core::ingest::questions::ask(
+        &s.archive,
+        &collections,
+        &Glossary::of(&s.archive),
+        &entries,
+    );
+    assert!(!questions.is_empty());
+    let count = questions.len();
+    s.send(Request::Raise { questions });
+    s.send(Request::UndoSince {
+        by: carrel_core::librarian::changes::AGENT.into(),
+        since: 0,
+    });
+    s.send(Request::RejectRestructure {
+        proposal: Id::new_v7(),
+    });
+    s.send(Request::ApproveFindings {
+        findings: vec![Id::new_v7()],
+    });
+    let applied = s.apply();
+    assert_eq!(applied.entries, 2, "the questions, and an undo of nothing");
+    let (asked, _) = QuestionQueue::of(&s.archive).list().unwrap();
+    assert_eq!(asked.len(), count);
+    assert_eq!(s.skipped().len(), 2, "{:?}", s.skipped());
+}
