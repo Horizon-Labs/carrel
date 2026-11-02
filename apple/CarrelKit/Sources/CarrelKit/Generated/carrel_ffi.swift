@@ -1619,14 +1619,16 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
     /**
      * Runs the worker here, as `carrel worker` does: drafts every item waiting in the
      * intake queue on this device, then embeds what changed for search, reporting to
-     * `progress`. Does nothing when another worker, such as the agent's, is running. It
-     * takes as long as the models do, so call it off the main thread.
+     * `progress`. Drafts with the device's providers, and with `model` when the app gives
+     * one, as the iPad and iPhone do with the models they run in-process. Does nothing when
+     * another worker, such as the agent's, is running. It takes as long as the models do, so
+     * call it off the main thread.
      *
      * # Errors
      *
      * [`CarrelError::Failed`] if the queues can't be read or written.
      */
-    func draftQueued(progress: ProgressListener?) throws  -> Drafted
+    func draftQueued(model: ModelProvider?, progress: ProgressListener?) throws  -> Drafted
     
     /**
      * The intake queue on this device.
@@ -1838,6 +1840,26 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * can't be deleted.
      */
     func removeModel(name: String) throws  -> [String]
+    
+    /**
+     * Downloads the catalog model `name`'s MLX build into this device's models folder
+     * through `fetcher`, one file at a time, each checked against the catalog's size and
+     * SHA-256, and reports bytes of the whole to `progress`. For iPad and iPhone, where
+     * [`ArchiveHandle::download_model`]'s helper can't run. Call it only once the owner has
+     * confirmed, having seen the size. Returns the model's folder.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for a model that isn't in the catalog or has no MLX build, or
+     * [`CarrelError::Failed`] if a download stops or a file isn't the one expected.
+     */
+    func downloadMlxModel(name: String, fetcher: FileFetcher, progress: ProgressListener?) throws  -> String
+    
+    /**
+     * This device's models folder, where MLX models are in `mlx/`, as the catalog's
+     * downloads leave them.
+     */
+    func modelsFolder()  -> String?
     
     /**
      * Carrel's drawing of the item `id`, as a PNG: the one kept in the preview cache, or one
@@ -4048,18 +4070,21 @@ open func switchIndex(model: String, progress: ProgressListener?)throws  -> Inde
     /**
      * Runs the worker here, as `carrel worker` does: drafts every item waiting in the
      * intake queue on this device, then embeds what changed for search, reporting to
-     * `progress`. Does nothing when another worker, such as the agent's, is running. It
-     * takes as long as the models do, so call it off the main thread.
+     * `progress`. Drafts with the device's providers, and with `model` when the app gives
+     * one, as the iPad and iPhone do with the models they run in-process. Does nothing when
+     * another worker, such as the agent's, is running. It takes as long as the models do, so
+     * call it off the main thread.
      *
      * # Errors
      *
      * [`CarrelError::Failed`] if the queues can't be read or written.
      */
-open func draftQueued(progress: ProgressListener?)throws  -> Drafted  {
+open func draftQueued(model: ModelProvider?, progress: ProgressListener?)throws  -> Drafted  {
     return try  FfiConverterTypeDrafted_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
         uniffiCallStatus in
     uniffi_carrel_ffi_fn_method_archivehandle_draft_queued(
             self.uniffiCloneHandle(),
+        FfiConverterOptionTypeModelProvider.lower(model),
         FfiConverterOptionTypeProgressListener.lower(progress),uniffiCallStatus
     )
 })
@@ -4451,6 +4476,43 @@ open func removeModel(name: String)throws  -> [String]  {
     uniffi_carrel_ffi_fn_method_archivehandle_remove_model(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(name),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Downloads the catalog model `name`'s MLX build into this device's models folder
+     * through `fetcher`, one file at a time, each checked against the catalog's size and
+     * SHA-256, and reports bytes of the whole to `progress`. For iPad and iPhone, where
+     * [`ArchiveHandle::download_model`]'s helper can't run. Call it only once the owner has
+     * confirmed, having seen the size. Returns the model's folder.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for a model that isn't in the catalog or has no MLX build, or
+     * [`CarrelError::Failed`] if a download stops or a file isn't the one expected.
+     */
+open func downloadMlxModel(name: String, fetcher: FileFetcher, progress: ProgressListener?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_download_mlx_model(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(name),
+        FfiConverterTypeFileFetcher_lower(fetcher),
+        FfiConverterOptionTypeProgressListener.lower(progress),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * This device's models folder, where MLX models are in `mlx/`, as the catalog's
+     * downloads leave them.
+     */
+open func modelsFolder() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_models_folder(
+            self.uniffiCloneHandle(),uniffiCallStatus
     )
 })
 }
@@ -6354,6 +6416,230 @@ public func FfiConverterTypeCrawlStop_lift(_ handle: UInt64) throws -> CrawlStop
 #endif
 public func FfiConverterTypeCrawlStop_lower(_ value: CrawlStop) -> UInt64 {
     return FfiConverterTypeCrawlStop.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Downloads files for the core where it can't start `carrel-fetch`, implemented in Swift
+ * with the platform's own networking.
+ */
+public protocol FileFetcher: AnyObject, Sendable {
+    
+    /**
+     * Downloads `download`, telling `progress` the bytes written of the file's size.
+     *
+     * # Errors
+     *
+     * Why it stopped, as [`CarrelError::Callback`]. A partial file is kept, so it continues.
+     */
+    func fetch(download: FileDownload, progress: ProgressListener) throws 
+    
+}
+/**
+ * Downloads files for the core where it can't start `carrel-fetch`, implemented in Swift
+ * with the platform's own networking.
+ */
+open class FileFetcherImpl: FileFetcher, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_carrel_ffi_fn_clone_filefetcher(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_carrel_ffi_fn_free_filefetcher(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Downloads `download`, telling `progress` the bytes written of the file's size.
+     *
+     * # Errors
+     *
+     * Why it stopped, as [`CarrelError::Callback`]. A partial file is kept, so it continues.
+     */
+open func fetch(download: FileDownload, progress: ProgressListener)throws   {try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_filefetcher_fetch(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeFileDownload_lower(download),
+        FfiConverterTypeProgressListener_lower(progress),uniffiCallStatus
+    )
+}
+}
+    
+
+    
+}
+
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceFileFetcher {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // Store the vtable directly.
+    static let vtable: UniffiVTableCallbackInterfaceFileFetcher = UniffiVTableCallbackInterfaceFileFetcher(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterTypeFileFetcher.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface FileFetcher: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterTypeFileFetcher.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface FileFetcher: handle missing in uniffiClone")
+            }
+        },
+        fetch: { (
+            uniffiHandle: UInt64,
+            download: RustBuffer,
+            progress: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterTypeFileFetcher.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return try uniffiObj.fetch(
+                     download: try FfiConverterTypeFileDownload_lift(download),
+                     progress: try FfiConverterTypeProgressListener_lift(progress)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCallWithError(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn,
+                lowerError: FfiConverterTypeCarrelError_lower
+            )
+        }
+    )
+
+    // Rust stores this pointer for future callback invocations, so it must live
+    // for the process lifetime (not just for the init function call).
+    //
+    // `nonisolated(unsafe)` is needed under Swift 6 strict concurrency.
+    // This is safe because the pointee is initialized once during static init
+    // and never mutated by either side of the FFI.  Its fields are C function pointers.
+    nonisolated(unsafe) static let vtablePtr: UnsafePointer<UniffiVTableCallbackInterfaceFileFetcher> = {
+        let ptr = UnsafeMutablePointer<UniffiVTableCallbackInterfaceFileFetcher>.allocate(capacity: 1)
+        ptr.initialize(to: vtable)
+        return UnsafePointer(ptr)
+    }()
+}
+
+private func uniffiCallbackInitFileFetcher() {
+    uniffi_carrel_ffi_fn_init_callback_vtable_filefetcher(UniffiCallbackInterfaceFileFetcher.vtablePtr)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFileFetcher: FfiConverter {
+    fileprivate static let handleMap = UniffiHandleMap<FileFetcher>()
+
+    typealias FfiType = UInt64
+    typealias SwiftType = FileFetcher
+
+    public static func lift(_ handle: UInt64) throws -> FileFetcher {
+        if ((handle & 1) == 0) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return FileFetcherImpl(unsafeFromHandle: handle)
+        } else {
+            // Swift-generated handle, get the object from the handle map
+            return try handleMap.remove(handle: handle)
+        }
+    }
+
+    public static func lower(_ value: FileFetcher) -> UInt64 {
+         if let rustImpl = value as? FileFetcherImpl {
+             // Rust-implemented object.  Clone the handle and return it
+            return rustImpl.uniffiCloneHandle()
+         } else {
+            // Swift object, generate a new vtable handle and return that.
+            return handleMap.insert(obj: value)
+         }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FileFetcher {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: FileFetcher, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFileFetcher_lift(_ handle: UInt64) throws -> FileFetcher {
+    return try FfiConverterTypeFileFetcher.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFileFetcher_lower(_ value: FileFetcher) -> UInt64 {
+    return FfiConverterTypeFileFetcher.lower(value)
 }
 
 
@@ -11979,6 +12265,109 @@ public func FfiConverterTypeExpandedItem_lower(_ value: ExpandedItem) -> RustBuf
 
 
 /**
+ * One file to download, as the catalog pins it.
+ */
+public struct FileDownload: Equatable, Hashable {
+    /**
+     * The `https` URL.
+     */
+    public var url: String
+    /**
+     * The hosts it and any redirect may be on; one starting with `.` allows any host ending
+     * with it. Check a host with [`download_host_allowed`].
+     */
+    public var hosts: [String]
+    /**
+     * The size the file must have, in bytes.
+     */
+    public var size: UInt64
+    /**
+     * The SHA-256 it must have, in lowercase hexadecimal; the core checks it once the file
+     * is written.
+     */
+    public var sha256: String
+    /**
+     * The file to write. If it exists, the download continues from its end.
+     */
+    public var to: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The `https` URL.
+         */url: String, 
+        /**
+         * The hosts it and any redirect may be on; one starting with `.` allows any host ending
+         * with it. Check a host with [`download_host_allowed`].
+         */hosts: [String], 
+        /**
+         * The size the file must have, in bytes.
+         */size: UInt64, 
+        /**
+         * The SHA-256 it must have, in lowercase hexadecimal; the core checks it once the file
+         * is written.
+         */sha256: String, 
+        /**
+         * The file to write. If it exists, the download continues from its end.
+         */to: String) {
+        self.url = url
+        self.hosts = hosts
+        self.size = size
+        self.sha256 = sha256
+        self.to = to
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FileDownload: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFileDownload: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FileDownload {
+        return
+            try FileDownload(
+                url: FfiConverterString.read(from: &buf), 
+                hosts: FfiConverterSequenceString.read(from: &buf), 
+                size: FfiConverterUInt64.read(from: &buf), 
+                sha256: FfiConverterString.read(from: &buf), 
+                to: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FileDownload, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.url, into: &buf)
+        FfiConverterSequenceString.write(value.hosts, into: &buf)
+        FfiConverterUInt64.write(value.size, into: &buf)
+        FfiConverterString.write(value.sha256, into: &buf)
+        FfiConverterString.write(value.to, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFileDownload_lift(_ buf: RustBuffer) throws -> FileDownload {
+    return try FfiConverterTypeFileDownload.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFileDownload_lower(_ value: FileDownload) -> RustBuffer {
+    return FfiConverterTypeFileDownload.lower(value)
+}
+
+
+/**
  * An item filed.
  */
 public struct FiledItem: Equatable, Hashable {
@@ -13741,6 +14130,75 @@ public func FfiConverterTypeIndexSwitch_lift(_ buf: RustBuffer) throws -> IndexS
 #endif
 public func FfiConverterTypeIndexSwitch_lower(_ value: IndexSwitch) -> RustBuffer {
     return FfiConverterTypeIndexSwitch.lower(value)
+}
+
+
+/**
+ * An MLX model in this device's models folder, for [`interim_on_device_order`].
+ */
+public struct InstalledMlxModel: Equatable, Hashable {
+    /**
+     * Its folder's name.
+     */
+    public var name: String
+    /**
+     * Its files' size in bytes.
+     */
+    public var size: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its folder's name.
+         */name: String, 
+        /**
+         * Its files' size in bytes.
+         */size: UInt64) {
+        self.name = name
+        self.size = size
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension InstalledMlxModel: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeInstalledMlxModel: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> InstalledMlxModel {
+        return
+            try InstalledMlxModel(
+                name: FfiConverterString.read(from: &buf), 
+                size: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: InstalledMlxModel, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterUInt64.write(value.size, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInstalledMlxModel_lift(_ buf: RustBuffer) throws -> InstalledMlxModel {
+    return try FfiConverterTypeInstalledMlxModel.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInstalledMlxModel_lower(_ value: InstalledMlxModel) -> RustBuffer {
+    return FfiConverterTypeInstalledMlxModel.lower(value)
 }
 
 
@@ -15993,6 +16451,66 @@ public func FfiConverterTypeNotFiled_lift(_ buf: RustBuffer) throws -> NotFiled 
 #endif
 public func FfiConverterTypeNotFiled_lower(_ value: NotFiled) -> RustBuffer {
     return FfiConverterTypeNotFiled.lower(value)
+}
+
+
+/**
+ * A model to draft with on the device: Apple's when `mlx` is `None`, otherwise the MLX
+ * model with that name.
+ */
+public struct OnDeviceChoice: Equatable, Hashable {
+    /**
+     * The MLX model's name, or `None` for Apple's model.
+     */
+    public var mlx: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The MLX model's name, or `None` for Apple's model.
+         */mlx: String?) {
+        self.mlx = mlx
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension OnDeviceChoice: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOnDeviceChoice: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OnDeviceChoice {
+        return
+            try OnDeviceChoice(
+                mlx: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OnDeviceChoice, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.mlx, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOnDeviceChoice_lift(_ buf: RustBuffer) throws -> OnDeviceChoice {
+    return try FfiConverterTypeOnDeviceChoice.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOnDeviceChoice_lower(_ value: OnDeviceChoice) -> RustBuffer {
+    return FfiConverterTypeOnDeviceChoice.lower(value)
 }
 
 
@@ -25717,6 +26235,31 @@ fileprivate struct FfiConverterSequenceTypeHappened: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeInstalledMlxModel: FfiConverterRustBuffer {
+    typealias SwiftType = [InstalledMlxModel]
+
+    public static func write(_ value: [InstalledMlxModel], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeInstalledMlxModel.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [InstalledMlxModel] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [InstalledMlxModel]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeInstalledMlxModel.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeItemPreview: FfiConverterRustBuffer {
     typealias SwiftType = [ItemPreview]
 
@@ -26109,6 +26652,31 @@ fileprivate struct FfiConverterSequenceTypeNotFiled: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeNotFiled.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeOnDeviceChoice: FfiConverterRustBuffer {
+    typealias SwiftType = [OnDeviceChoice]
+
+    public static func write(_ value: [OnDeviceChoice], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeOnDeviceChoice.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [OnDeviceChoice] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [OnDeviceChoice]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeOnDeviceChoice.read(from: &buf))
         }
         return seq
     }
@@ -26968,6 +27536,33 @@ public func embeddingModelChoices() -> [String]  {
 })
 }
 /**
+ * Whether a download or a redirect may go to `host`, by [`FileDownload::hosts`].
+ */
+public func downloadHostAllowed(host: String, hosts: [String]) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_download_host_allowed(
+        FfiConverterString.lower(host),
+        FfiConverterSequenceString.lower(hosts),uniffiCallStatus
+    )
+})
+}
+/**
+ * The on-device models to draft with, best first: Apple's when `apple_available`, then the
+ * `installed` MLX models that fit in `available` bytes, largest first. An interim rule until
+ * the device's self-benchmark (#469) ranks them.
+ */
+public func interimOnDeviceOrder(appleAvailable: Bool, available: UInt64, installed: [InstalledMlxModel]) -> [OnDeviceChoice]  {
+    return try!  FfiConverterSequenceTypeOnDeviceChoice.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_interim_on_device_order(
+        FfiConverterBool.lower(appleAvailable),
+        FfiConverterUInt64.lower(available),
+        FfiConverterSequenceTypeInstalledMlxModel.lower(installed),uniffiCallStatus
+    )
+})
+}
+/**
  * The longest side of a thumbnail in the preview cache, in pixels.
  */
 public func thumbnailPixels() -> UInt32  {
@@ -27114,6 +27709,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_func_embedding_model_choices() != 15439) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_download_host_allowed() != 3219) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_interim_on_device_order() != 2403) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_func_thumbnail_pixels() != 32344) {
@@ -27374,7 +27975,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_switch_index() != 14260) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_draft_queued() != 58840) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_draft_queued() != 58671) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_intake() != 22448) {
@@ -27441,6 +28042,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_remove_model() != 48489) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_download_mlx_model() != 12894) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_models_folder() != 59424) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_draw_preview() != 27478) {
@@ -27656,6 +28263,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_librarianconversation_answers() != 19406) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_carrel_ffi_checksum_method_filefetcher_fetch() != 46354) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_carrel_ffi_checksum_constructor_archivehandle_create() != 24558) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -27674,6 +28284,7 @@ private let initializationResult: InitializationResult = {
 
     uniffiCallbackInitCloudLockStore()
     uniffiCallbackInitCrawlStop()
+    uniffiCallbackInitFileFetcher()
     uniffiCallbackInitModelProvider()
     uniffiCallbackInitProgressListener()
     uniffiCallbackInitTextModel()
