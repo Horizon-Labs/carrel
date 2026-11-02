@@ -530,8 +530,12 @@ fn background(app: &mut App, effect: Effect) -> Option<Done> {
             options,
             url,
             note,
+            written,
         } => {
-            let result = queue(&root, &paths, options, url.as_deref(), note.as_deref());
+            let result = match written {
+                Some(text) => intake::queue_written_note(&root, &text, note.as_deref()),
+                None => queue(&root, &paths, options, url.as_deref(), note.as_deref()),
+            };
             finished(app, result.map_err(|Failure(e)| e));
             return None;
         }
@@ -678,8 +682,13 @@ fn queue(
                 .len()
         }
     };
-    let started = crate::worker::start(&archive)?;
-    Ok(match (n, started || crate::worker::running(&archive)?) {
+    queued_line(&archive, n)
+}
+
+/// Starts a worker for the `n` items just queued, and says so in a line.
+fn queued_line(archive: &carrel_core::archive::Archive, n: usize) -> Result<String, Failure> {
+    let started = crate::worker::start(archive)?;
+    Ok(match (n, started || crate::worker::running(archive)?) {
         (0, _) => "Nothing new to queue".into(),
         (n, true) => format!(
             "Queued {n} item{}; the worker drafts them in the background",
@@ -2040,6 +2049,7 @@ mod tests {
                 options: carrel_core::ingest::IntakeOptions::default(),
                 url: None,
                 note: None,
+                written: None,
             })
         );
         assert_eq!(app.planned, None);
