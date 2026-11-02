@@ -1272,6 +1272,48 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
     func undoCrawlerChanges(since: Int64) throws  -> LibrarianUndone
     
     /**
+     * Every device's profile, newest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if this device's identity can't be read.
+     */
+    func deviceProfiles() throws  -> [DeviceProfileRecord]
+    
+    /**
+     * Re-checks up to `cards` cards weaker devices drafted, as this device measured with
+     * `facts`: claims them under the writer's lease, then redrafts each with `model` or the
+     * strongest this device has that fits in `memory_gb`, asking `stop` before each. Better
+     * drafts wait in Review.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no text model, [`CarrelError::Busy`] if another
+     * writer holds the archive, or [`CarrelError::Failed`] if the model failed.
+     */
+    func recheckNow(cards: UInt32, facts: DeviceFactsRecord, model: ModelProvider?, memoryGb: UInt64?, stop: CrawlStop?) throws  -> RecheckedRecord
+    
+    /**
+     * The cards waiting for a stronger device.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if this device's identity can't be read.
+     */
+    func rechecks() throws  -> RechecksRecord
+    
+    /**
+     * Measures this device, with what the app knows in `facts`, and writes its profile when
+     * it changed or is a day old; then brings the re-check queue up to date, unless another
+     * device is writing. What the app does when it opens an archive.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the profile or the queue can't be written.
+     */
+    func updateDeviceProfile(facts: DeviceFactsRecord) throws 
+    
+    /**
      * Filing and work sessions by day, from `from` to `to` (`YYYY-MM-DD`; the last year to
      * today when `None`).
      *
@@ -3429,6 +3471,81 @@ open func undoCrawlerChanges(since: Int64)throws  -> LibrarianUndone  {
         FfiConverterInt64.lower(since),uniffiCallStatus
     )
 })
+}
+    
+    /**
+     * Every device's profile, newest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if this device's identity can't be read.
+     */
+open func deviceProfiles()throws  -> [DeviceProfileRecord]  {
+    return try  FfiConverterSequenceTypeDeviceProfileRecord.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_device_profiles(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Re-checks up to `cards` cards weaker devices drafted, as this device measured with
+     * `facts`: claims them under the writer's lease, then redrafts each with `model` or the
+     * strongest this device has that fits in `memory_gb`, asking `stop` before each. Better
+     * drafts wait in Review.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no text model, [`CarrelError::Busy`] if another
+     * writer holds the archive, or [`CarrelError::Failed`] if the model failed.
+     */
+open func recheckNow(cards: UInt32, facts: DeviceFactsRecord, model: ModelProvider?, memoryGb: UInt64?, stop: CrawlStop?)throws  -> RecheckedRecord  {
+    return try  FfiConverterTypeRecheckedRecord_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_recheck_now(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(cards),
+        FfiConverterTypeDeviceFactsRecord_lower(facts),
+        FfiConverterOptionTypeModelProvider.lower(model),
+        FfiConverterOptionUInt64.lower(memoryGb),
+        FfiConverterOptionTypeCrawlStop.lower(stop),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The cards waiting for a stronger device.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if this device's identity can't be read.
+     */
+open func rechecks()throws  -> RechecksRecord  {
+    return try  FfiConverterTypeRechecksRecord_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_rechecks(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Measures this device, with what the app knows in `facts`, and writes its profile when
+     * it changed or is a day old; then brings the re-check queue up to date, unless another
+     * device is writing. What the app does when it opens an archive.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the profile or the queue can't be written.
+     */
+open func updateDeviceProfile(facts: DeviceFactsRecord)throws   {try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_update_device_profile(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeDeviceFactsRecord_lower(facts),uniffiCallStatus
+    )
+}
 }
     
     /**
@@ -10775,6 +10892,344 @@ public func FfiConverterTypeDeskItem_lower(_ value: DeskItem) -> RustBuffer {
 
 
 /**
+ * What the app knows about the device, for its profile. `None` is unknown.
+ */
+public struct DeviceFactsRecord: Equatable, Hashable {
+    /**
+     * The device's name, such as "Hannah's iPad".
+     */
+    public var name: String?
+    /**
+     * `mac`, `ipad` or `iphone`; the platform's own when unset.
+     */
+    public var kind: String?
+    /**
+     * The chip, such as "Apple M4 Pro".
+     */
+    public var chip: String?
+    /**
+     * Memory, in whole gigabytes.
+     */
+    public var memoryGb: UInt64?
+    /**
+     * Free storage where the archive is, in whole gigabytes.
+     */
+    public var freeGb: UInt64?
+    /**
+     * Whether it's on mains power rather than battery.
+     */
+    public var onPower: Bool?
+    /**
+     * Whether low-power mode is on.
+     */
+    public var lowPower: Bool?
+    /**
+     * `nominal`, `fair`, `serious` or `critical`.
+     */
+    public var thermal: String?
+    /**
+     * `unlimited`, `limited` or `none`.
+     */
+    public var background: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The device's name, such as "Hannah's iPad".
+         */name: String?, 
+        /**
+         * `mac`, `ipad` or `iphone`; the platform's own when unset.
+         */kind: String?, 
+        /**
+         * The chip, such as "Apple M4 Pro".
+         */chip: String?, 
+        /**
+         * Memory, in whole gigabytes.
+         */memoryGb: UInt64?, 
+        /**
+         * Free storage where the archive is, in whole gigabytes.
+         */freeGb: UInt64?, 
+        /**
+         * Whether it's on mains power rather than battery.
+         */onPower: Bool?, 
+        /**
+         * Whether low-power mode is on.
+         */lowPower: Bool?, 
+        /**
+         * `nominal`, `fair`, `serious` or `critical`.
+         */thermal: String?, 
+        /**
+         * `unlimited`, `limited` or `none`.
+         */background: String?) {
+        self.name = name
+        self.kind = kind
+        self.chip = chip
+        self.memoryGb = memoryGb
+        self.freeGb = freeGb
+        self.onPower = onPower
+        self.lowPower = lowPower
+        self.thermal = thermal
+        self.background = background
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension DeviceFactsRecord: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDeviceFactsRecord: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DeviceFactsRecord {
+        return
+            try DeviceFactsRecord(
+                name: FfiConverterOptionString.read(from: &buf), 
+                kind: FfiConverterOptionString.read(from: &buf), 
+                chip: FfiConverterOptionString.read(from: &buf), 
+                memoryGb: FfiConverterOptionUInt64.read(from: &buf), 
+                freeGb: FfiConverterOptionUInt64.read(from: &buf), 
+                onPower: FfiConverterOptionBool.read(from: &buf), 
+                lowPower: FfiConverterOptionBool.read(from: &buf), 
+                thermal: FfiConverterOptionString.read(from: &buf), 
+                background: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DeviceFactsRecord, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.name, into: &buf)
+        FfiConverterOptionString.write(value.kind, into: &buf)
+        FfiConverterOptionString.write(value.chip, into: &buf)
+        FfiConverterOptionUInt64.write(value.memoryGb, into: &buf)
+        FfiConverterOptionUInt64.write(value.freeGb, into: &buf)
+        FfiConverterOptionBool.write(value.onPower, into: &buf)
+        FfiConverterOptionBool.write(value.lowPower, into: &buf)
+        FfiConverterOptionString.write(value.thermal, into: &buf)
+        FfiConverterOptionString.write(value.background, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceFactsRecord_lift(_ buf: RustBuffer) throws -> DeviceFactsRecord {
+    return try FfiConverterTypeDeviceFactsRecord.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceFactsRecord_lower(_ value: DeviceFactsRecord) -> RustBuffer {
+    return FfiConverterTypeDeviceFactsRecord.lower(value)
+}
+
+
+/**
+ * One device's profile, for Status.
+ */
+public struct DeviceProfileRecord: Equatable, Hashable {
+    /**
+     * The device's identifier.
+     */
+    public var id: String
+    /**
+     * Its name.
+     */
+    public var name: String
+    /**
+     * What kind of device it is, for people: "Mac", "iPad", "iPhone" and so on.
+     */
+    public var kind: String
+    /**
+     * Whether it's this device.
+     */
+    public var thisDevice: Bool
+    /**
+     * When it was written, as RFC 3339.
+     */
+    public var updated: String?
+    /**
+     * The chip.
+     */
+    public var chip: String?
+    /**
+     * Memory, in gigabytes.
+     */
+    public var memoryGb: UInt64?
+    /**
+     * Free storage, in gigabytes.
+     */
+    public var freeGb: UInt64?
+    /**
+     * Its text models, best first, as `provider/offer`.
+     */
+    public var models: [String]
+    /**
+     * Its tools: `git`, `kopia`, `file-watching`.
+     */
+    public var tools: [String]
+    /**
+     * Whether it was on mains power.
+     */
+    public var onPower: Bool?
+    /**
+     * Whether low-power mode was on.
+     */
+    public var lowPower: Bool?
+    /**
+     * How warm it was running.
+     */
+    public var thermal: String?
+    /**
+     * How much background time it gets.
+     */
+    public var background: String?
+    /**
+     * How fast it hashed, in megabytes a second: its self-benchmark.
+     */
+    public var benchmarkMbPerSecond: UInt64?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The device's identifier.
+         */id: String, 
+        /**
+         * Its name.
+         */name: String, 
+        /**
+         * What kind of device it is, for people: "Mac", "iPad", "iPhone" and so on.
+         */kind: String, 
+        /**
+         * Whether it's this device.
+         */thisDevice: Bool, 
+        /**
+         * When it was written, as RFC 3339.
+         */updated: String?, 
+        /**
+         * The chip.
+         */chip: String?, 
+        /**
+         * Memory, in gigabytes.
+         */memoryGb: UInt64?, 
+        /**
+         * Free storage, in gigabytes.
+         */freeGb: UInt64?, 
+        /**
+         * Its text models, best first, as `provider/offer`.
+         */models: [String], 
+        /**
+         * Its tools: `git`, `kopia`, `file-watching`.
+         */tools: [String], 
+        /**
+         * Whether it was on mains power.
+         */onPower: Bool?, 
+        /**
+         * Whether low-power mode was on.
+         */lowPower: Bool?, 
+        /**
+         * How warm it was running.
+         */thermal: String?, 
+        /**
+         * How much background time it gets.
+         */background: String?, 
+        /**
+         * How fast it hashed, in megabytes a second: its self-benchmark.
+         */benchmarkMbPerSecond: UInt64?) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.thisDevice = thisDevice
+        self.updated = updated
+        self.chip = chip
+        self.memoryGb = memoryGb
+        self.freeGb = freeGb
+        self.models = models
+        self.tools = tools
+        self.onPower = onPower
+        self.lowPower = lowPower
+        self.thermal = thermal
+        self.background = background
+        self.benchmarkMbPerSecond = benchmarkMbPerSecond
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension DeviceProfileRecord: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDeviceProfileRecord: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DeviceProfileRecord {
+        return
+            try DeviceProfileRecord(
+                id: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                kind: FfiConverterString.read(from: &buf), 
+                thisDevice: FfiConverterBool.read(from: &buf), 
+                updated: FfiConverterOptionString.read(from: &buf), 
+                chip: FfiConverterOptionString.read(from: &buf), 
+                memoryGb: FfiConverterOptionUInt64.read(from: &buf), 
+                freeGb: FfiConverterOptionUInt64.read(from: &buf), 
+                models: FfiConverterSequenceString.read(from: &buf), 
+                tools: FfiConverterSequenceString.read(from: &buf), 
+                onPower: FfiConverterOptionBool.read(from: &buf), 
+                lowPower: FfiConverterOptionBool.read(from: &buf), 
+                thermal: FfiConverterOptionString.read(from: &buf), 
+                background: FfiConverterOptionString.read(from: &buf), 
+                benchmarkMbPerSecond: FfiConverterOptionUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DeviceProfileRecord, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterBool.write(value.thisDevice, into: &buf)
+        FfiConverterOptionString.write(value.updated, into: &buf)
+        FfiConverterOptionString.write(value.chip, into: &buf)
+        FfiConverterOptionUInt64.write(value.memoryGb, into: &buf)
+        FfiConverterOptionUInt64.write(value.freeGb, into: &buf)
+        FfiConverterSequenceString.write(value.models, into: &buf)
+        FfiConverterSequenceString.write(value.tools, into: &buf)
+        FfiConverterOptionBool.write(value.onPower, into: &buf)
+        FfiConverterOptionBool.write(value.lowPower, into: &buf)
+        FfiConverterOptionString.write(value.thermal, into: &buf)
+        FfiConverterOptionString.write(value.background, into: &buf)
+        FfiConverterOptionUInt64.write(value.benchmarkMbPerSecond, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceProfileRecord_lift(_ buf: RustBuffer) throws -> DeviceProfileRecord {
+    return try FfiConverterTypeDeviceProfileRecord.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceProfileRecord_lower(_ value: DeviceProfileRecord) -> RustBuffer {
+    return FfiConverterTypeDeviceProfileRecord.lower(value)
+}
+
+
+/**
  * This device's preferences for the command line and the interactive mode, which
  * `carrel settings set` changes too. `None` lets Carrel choose.
  */
@@ -18019,6 +18474,186 @@ public func FfiConverterTypeRecentEntry_lift(_ buf: RustBuffer) throws -> Recent
 #endif
 public func FfiConverterTypeRecentEntry_lower(_ value: RecentEntry) -> RustBuffer {
     return FfiConverterTypeRecentEntry.lower(value)
+}
+
+
+/**
+ * What re-checking did.
+ */
+public struct RecheckedRecord: Equatable, Hashable {
+    /**
+     * What it did, in a line, or `None` when nothing was waiting that this device can do
+     * better.
+     */
+    public var summary: String?
+    /**
+     * Better drafts proposed in Review.
+     */
+    public var proposed: UInt64
+    /**
+     * What went wrong with single cards.
+     */
+    public var failed: [String]
+    /**
+     * Whether it stopped before the end.
+     */
+    public var stopped: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * What it did, in a line, or `None` when nothing was waiting that this device can do
+         * better.
+         */summary: String?, 
+        /**
+         * Better drafts proposed in Review.
+         */proposed: UInt64, 
+        /**
+         * What went wrong with single cards.
+         */failed: [String], 
+        /**
+         * Whether it stopped before the end.
+         */stopped: Bool) {
+        self.summary = summary
+        self.proposed = proposed
+        self.failed = failed
+        self.stopped = stopped
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension RecheckedRecord: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRecheckedRecord: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RecheckedRecord {
+        return
+            try RecheckedRecord(
+                summary: FfiConverterOptionString.read(from: &buf), 
+                proposed: FfiConverterUInt64.read(from: &buf), 
+                failed: FfiConverterSequenceString.read(from: &buf), 
+                stopped: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RecheckedRecord, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.summary, into: &buf)
+        FfiConverterUInt64.write(value.proposed, into: &buf)
+        FfiConverterSequenceString.write(value.failed, into: &buf)
+        FfiConverterBool.write(value.stopped, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRecheckedRecord_lift(_ buf: RustBuffer) throws -> RecheckedRecord {
+    return try FfiConverterTypeRecheckedRecord.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRecheckedRecord_lower(_ value: RecheckedRecord) -> RustBuffer {
+    return FfiConverterTypeRecheckedRecord.lower(value)
+}
+
+
+/**
+ * The re-check queue, for Status.
+ */
+public struct RechecksRecord: Equatable, Hashable {
+    /**
+     * Cards waiting for a stronger device.
+     */
+    public var waiting: UInt64
+    /**
+     * Of those, the ones a device has claimed.
+     */
+    public var claimed: UInt64
+    /**
+     * Of those, the ones this device can take now.
+     */
+    public var here: UInt64
+    /**
+     * The waiting cards' paths, oldest first.
+     */
+    public var cards: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Cards waiting for a stronger device.
+         */waiting: UInt64, 
+        /**
+         * Of those, the ones a device has claimed.
+         */claimed: UInt64, 
+        /**
+         * Of those, the ones this device can take now.
+         */here: UInt64, 
+        /**
+         * The waiting cards' paths, oldest first.
+         */cards: [String]) {
+        self.waiting = waiting
+        self.claimed = claimed
+        self.here = here
+        self.cards = cards
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension RechecksRecord: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRechecksRecord: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RechecksRecord {
+        return
+            try RechecksRecord(
+                waiting: FfiConverterUInt64.read(from: &buf), 
+                claimed: FfiConverterUInt64.read(from: &buf), 
+                here: FfiConverterUInt64.read(from: &buf), 
+                cards: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RechecksRecord, into buf: inout [UInt8]) {
+        FfiConverterUInt64.write(value.waiting, into: &buf)
+        FfiConverterUInt64.write(value.claimed, into: &buf)
+        FfiConverterUInt64.write(value.here, into: &buf)
+        FfiConverterSequenceString.write(value.cards, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRechecksRecord_lift(_ buf: RustBuffer) throws -> RechecksRecord {
+    return try FfiConverterTypeRechecksRecord.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRechecksRecord_lower(_ value: RechecksRecord) -> RustBuffer {
+    return FfiConverterTypeRechecksRecord.lower(value)
 }
 
 
@@ -25417,6 +26052,31 @@ fileprivate struct FfiConverterSequenceTypeDayInYear: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeDeviceProfileRecord: FfiConverterRustBuffer {
+    typealias SwiftType = [DeviceProfileRecord]
+
+    public static func write(_ value: [DeviceProfileRecord], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDeviceProfileRecord.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DeviceProfileRecord] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DeviceProfileRecord]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDeviceProfileRecord.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeDiscoveredItem: FfiConverterRustBuffer {
     typealias SwiftType = [DiscoveredItem]
 
@@ -27273,6 +27933,18 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_crawler_changes() != 27024) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_device_profiles() != 12947) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_recheck_now() != 49142) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_rechecks() != 52002) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_update_device_profile() != 25173) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_activity() != 27389) {

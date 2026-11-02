@@ -350,6 +350,12 @@ pub fn all(archive: &Archive) -> Vec<DeviceProfile> {
 }
 
 /// The tools this device has.
+#[cfg(not(any(
+    target_os = "ios",
+    target_os = "tvos",
+    target_os = "watchos",
+    target_os = "visionos"
+)))]
 #[must_use]
 pub fn tools_here() -> Vec<String> {
     let folders = crate::providers::process::default_folders();
@@ -369,6 +375,18 @@ pub fn tools_here() -> Vec<String> {
         .filter(|(_, here)| *here)
         .map(|(name, _)| name.to_owned())
         .collect()
+}
+
+/// The tools this device has: none on iPad and iPhone, which run no programs of their own.
+#[cfg(any(
+    target_os = "ios",
+    target_os = "tvos",
+    target_os = "watchos",
+    target_os = "visionos"
+))]
+#[must_use]
+pub fn tools_here() -> Vec<String> {
+    Vec::new()
 }
 
 /// A short self-benchmark: hashing for a tenth of a second.
