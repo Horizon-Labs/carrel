@@ -454,6 +454,9 @@ pub enum Effect {
         /// The folder to restore into, as `--to` says; beside the archive when none.
         to: Option<std::path::PathBuf>,
     },
+    /// Restore this version from the holding folder beside the archive, as
+    /// `carrel backup restore ITEM --held ID` does.
+    RestoreHeld(Id),
     /// Create or connect to a backup repository.
     BackupSetup {
         /// Where it is or will be.
@@ -602,6 +605,8 @@ pub struct App {
     pub known_archives: Vec<std::path::PathBuf>,
     /// The chosen snapshot on the Backups screen.
     pub backup_chosen: usize,
+    /// The versions in the holding folder, under the Backups screen's snapshots.
+    pub held: super::held::HeldVersions,
     /// The built-in file browser, while it's open.
     pub browser: Option<super::browser::Browser>,
     /// The `picker` preference.
@@ -737,6 +742,7 @@ impl App {
             progress: super::embedding::Shared::default(),
             known_archives: Vec::new(),
             backup_chosen: 0,
+            held: super::held::HeldVersions::default(),
             browser: None,
             picker_preference: None,
             start_folder: std::path::PathBuf::from("."),
@@ -813,6 +819,7 @@ impl App {
         self.load_queue(entries);
         self.load_crawler_findings();
         self.load_restructures();
+        self.load_held();
         self.load_questions(ranked);
         self.load_browse()?;
         self.load_intake();
@@ -980,13 +987,16 @@ impl App {
                 ("r", "retry"),
             ]),
             Tab::History => keys.extend([("↑↓", "choose"), ("u", "undo")]),
-            Tab::Backups => keys.extend([
-                ("↑↓", "choose"),
-                ("n", "snapshot now"),
-                ("v", "verify"),
-                ("r", "restore"),
-                ("s", "set up"),
-            ]),
+            Tab::Backups => {
+                keys.extend([
+                    ("↑↓", "choose"),
+                    ("n", "snapshot now"),
+                    ("v", "verify"),
+                    ("r", "restore"),
+                    ("s", "set up"),
+                ]);
+                keys.extend(self.held_keys());
+            }
             Tab::Questions => {
                 keys.extend([("↑↓", "choose"), ("Enter", "answer"), ("d", "dismiss")]);
             }
@@ -1111,6 +1121,7 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
             KeyCode::Char('?') => self.help = true,
+            KeyCode::Char('!') => self.ask_feedback(),
             KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 // Providers may have come or gone too.
                 if self.here.is_some() {

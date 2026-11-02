@@ -318,6 +318,13 @@ pub fn undo(archive: Option<&Path>, since: &str) -> Result<Report, Failure> {
             "{since} isn't a time; give a span such as 24h or 7d, `today`, or a date such as 2026-11-01"
         ))
     })?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = carrel_core::inbox::Request::UndoSince {
+            by: carrel_core::crawl::AGENT.to_owned(),
+            since: at,
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "undo", DEFAULT_LEASE)?;

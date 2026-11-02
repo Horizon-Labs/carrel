@@ -354,6 +354,7 @@ fn new_card(
         placement: None,
         removed: None,
         expanded_from: None,
+        drawings: Vec::new(),
         needs_work: None,
         extra: Extra::new(),
     }

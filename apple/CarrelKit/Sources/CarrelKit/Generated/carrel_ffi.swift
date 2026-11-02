@@ -666,6 +666,24 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterData: FfiConverterRustBuffer {
+    typealias SwiftType = Data
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        let len: Int32 = try readInt(&buf)
+        return Data(try readBytes(&buf, count: Int(len)))
+    }
+
+    public static func write(_ value: Data, into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        writeBytes(&buf, value)
+    }
+}
+
 
 
 
@@ -916,8 +934,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] for an item that isn't active or an entry that isn't
-     * pending, [`CarrelError::Busy`] if another writer holds the archive, or
-     * [`CarrelError::Failed`].
+     * pending, [`CarrelError::SentToInbox`] when another device is the writer, which
+     * decides an archived item's entries, [`CarrelError::Busy`] if another writer holds the
+     * archive, or [`CarrelError::Failed`].
      */
     func decideEntries(item: String, numbers: [UInt32], decision: EntryDecision) throws  -> EntriesDecided
     
@@ -1090,6 +1109,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] for a path or tag that can't be used, or one that's taken,
+     * [`CarrelError::SentToInbox`] when another device is the writer, which creates it,
      * [`CarrelError::Busy`] if another writer holds the archive, or
      * [`CarrelError::Failed`] if it can't be written.
      */
@@ -1136,8 +1156,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] for an unknown item, a name that isn't portable or is taken,
-     * or an item that's checked out, [`CarrelError::Busy`] if another writer holds the
-     * archive, or [`CarrelError::Failed`] if it can't be renamed.
+     * or an item that's checked out, [`CarrelError::SentToInbox`] when another device is the
+     * writer, which renames it, [`CarrelError::Busy`] if another writer holds the archive, or
+     * [`CarrelError::Failed`] if it can't be renamed.
      */
     func renameItem(item: String, newName: String) throws  -> RenamedItem
     
@@ -1191,9 +1212,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-     * if it isn't found or the change can't be made, as when the item has gone; the finding
-     * is kept then.
+     * [`CarrelError::SentToInbox`] when another device is the writer, which approves it, or
+     * [`CarrelError::Failed`] if it isn't found or the change can't be made, as when the item
+     * has gone; the finding is kept then.
      */
     func approveCrawlerFinding(id: String, model: ModelProvider?) throws  -> String?
     
@@ -1256,6 +1277,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
+     * [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
      * [`CarrelError::Failed`] if it isn't found or can't be removed.
      */
     func rejectCrawlerFinding(id: String) throws 
@@ -1267,7 +1289,8 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`].
+     * [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+     * [`CarrelError::Failed`].
      */
     func undoCrawlerChanges(since: Int64) throws  -> LibrarianUndone
     
@@ -1398,6 +1421,37 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
     func wanderStep(walk: Wander) throws  -> WanderStep?
     
     /**
+     * The handwritten notes on the item `item`'s card, oldest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for an unknown item or a card that can't be read.
+     */
+    func cardDrawings(item: String) throws  -> [CardDrawingInfo]
+    
+    /**
+     * Removes the handwritten note `drawing` from the item `item`'s card.
+     *
+     * # Errors
+     *
+     * As [`ArchiveHandle::save_card_drawing`].
+     */
+    func removeCardDrawing(item: String, drawing: String) throws  -> CardDrawingChange
+    
+    /**
+     * Saves a handwritten note on the item `item`'s card: `data` is the `PKDrawing`'s data
+     * representation, `picture` a PNG of it, and `text` what was recognised in it. A new
+     * drawing when `drawing` is `None`, else a new version of that drawing.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for an unknown item or drawing, an empty drawing, a picture
+     * that isn't a PNG, or an item that's checked out; [`CarrelError::Busy`] if another
+     * writer holds the archive; or [`CarrelError::Failed`] if it can't be written.
+     */
+    func saveCardDrawing(item: String, drawing: String?, data: Data, picture: Data, text: String) throws  -> CardDrawingChange
+    
+    /**
      * The filed item `item`'s card body, its Notes and Carrel's sections, to edit.
      *
      * # Errors
@@ -1442,7 +1496,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] for a decided proposal, or [`CarrelError::Failed`].
+     * [`CarrelError::Invalid`] for a decided proposal, [`CarrelError::SentToInbox`] when the
+     * edit, checked here, went into this device's inbox for the writer, or
+     * [`CarrelError::Failed`].
      */
     func editProposal(id: String, fields: CardFields) throws  -> EditOutcome
     
@@ -1464,6 +1520,63 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * [`CarrelError::Failed`] if it isn't found.
      */
     func editableProposal(id: String) throws  -> EditableCard
+    
+    /**
+     * Every device's feedback, oldest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+    func feedbackEntries() throws  -> [FeedbackEntry]
+    
+    /**
+     * A Markdown bundle of every entry (or only the unsent), grouped by screen.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+    func feedbackExport(unsentOnly: Bool) throws  -> String
+    
+    /**
+     * The issue draft for the entry `name`. Nothing is sent: the app opens its address.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such entry.
+     */
+    func feedbackIssueDraft(name: String) throws  -> FeedbackIssueDraft
+    
+    /**
+     * Marks the entry `name` sent, as the issue at `address` (or none when empty); `-`
+     * unmarks it. It's recorded in this device's own folder.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such entry or the address isn't one.
+     */
+    func markFeedbackSent(name: String, address: String) throws  -> FeedbackEntry
+    
+    /**
+     * Saves the owner's feedback in this device's feedback folder, with the screenshot
+     * beside it. No writer lease is needed.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if the words are empty or the kind isn't one;
+     * [`CarrelError::Failed`] if it can't be saved.
+     */
+    func sendFeedback(sending: FeedbackSending) throws  -> FeedbackEntry
+    
+    /**
+     * How many entries haven't been marked sent, for Status.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+    func unsentFeedback() throws  -> UInt32
     
     /**
      * Flags the collection at `path` as needing work, with `note` saying what.
@@ -1850,8 +1963,8 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-     * if the history can't be read.
+     * [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+     * [`CarrelError::Failed`] if the history can't be read.
      */
     func undoLibrarianChanges(since: Int64) throws  -> LibrarianUndone
     
@@ -1985,7 +2098,8 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] if there's no such item or the question isn't open about it
-     * any more, or [`CarrelError::Failed`].
+     * any more, [`CarrelError::SentToInbox`] when another device is the writer, which puts
+     * it in the queue, or [`CarrelError::Failed`].
      */
     func askAboutItem(item: String, question: String) throws  -> Question
     
@@ -2086,8 +2200,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] when there's no text model, saying what to download, or when
-     * none could be drafted again, saying why; [`CarrelError::Failed`] if the queue can't be
-     * read.
+     * none could be drafted again, saying why; [`CarrelError::SentToInbox`] when another
+     * device is the writer, which drafts them again with its models; [`CarrelError::Failed`]
+     * if the queue can't be read.
      */
     func redraftProposals(ids: [String], model: ModelProvider?, memoryGb: UInt64?, progress: ProgressListener?) throws  -> RedraftOutcome
     
@@ -2131,8 +2246,8 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] for an unknown change, [`CarrelError::Busy`] if another
-     * writer holds the archive, or [`CarrelError::Failed`].
+     * [`CarrelError::Invalid`] for an unknown change, [`CarrelError::SentToInbox`] when
+     * another device is the writer, which approves it, or [`CarrelError::Failed`].
      */
     func approveRestructure(id: String, only: [String]?) throws  -> RestructureApproved
     
@@ -2177,6 +2292,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
+     * [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
      * [`CarrelError::Failed`] if there's no such proposal or the queue can't be written.
      */
     func rejectRestructure(id: String) throws 
@@ -2980,8 +3096,9 @@ open func checkOut(item: String, to: String?, due: String?)throws  -> CheckedOut
      * # Errors
      *
      * [`CarrelError::Invalid`] for an item that isn't active or an entry that isn't
-     * pending, [`CarrelError::Busy`] if another writer holds the archive, or
-     * [`CarrelError::Failed`].
+     * pending, [`CarrelError::SentToInbox`] when another device is the writer, which
+     * decides an archived item's entries, [`CarrelError::Busy`] if another writer holds the
+     * archive, or [`CarrelError::Failed`].
      */
 open func decideEntries(item: String, numbers: [UInt32], decision: EntryDecision)throws  -> EntriesDecided  {
     return try  FfiConverterTypeEntriesDecided_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3291,6 +3408,7 @@ open func verifyBackups(percent: UInt8, password: String?)throws  -> String  {
      * # Errors
      *
      * [`CarrelError::Invalid`] for a path or tag that can't be used, or one that's taken,
+     * [`CarrelError::SentToInbox`] when another device is the writer, which creates it,
      * [`CarrelError::Busy`] if another writer holds the archive, or
      * [`CarrelError::Failed`] if it can't be written.
      */
@@ -3372,8 +3490,9 @@ open func nameSuggestion(item: String)throws  -> NameSuggestion  {
      * # Errors
      *
      * [`CarrelError::Invalid`] for an unknown item, a name that isn't portable or is taken,
-     * or an item that's checked out, [`CarrelError::Busy`] if another writer holds the
-     * archive, or [`CarrelError::Failed`] if it can't be renamed.
+     * or an item that's checked out, [`CarrelError::SentToInbox`] when another device is the
+     * writer, which renames it, [`CarrelError::Busy`] if another writer holds the archive, or
+     * [`CarrelError::Failed`] if it can't be renamed.
      */
 open func renameItem(item: String, newName: String)throws  -> RenamedItem  {
     return try  FfiConverterTypeRenamedItem_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3472,9 +3591,9 @@ open func saveCorrection(correction: Correction)throws  -> SavedCorrection  {
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-     * if it isn't found or the change can't be made, as when the item has gone; the finding
-     * is kept then.
+     * [`CarrelError::SentToInbox`] when another device is the writer, which approves it, or
+     * [`CarrelError::Failed`] if it isn't found or the change can't be made, as when the item
+     * has gone; the finding is kept then.
      */
 open func approveCrawlerFinding(id: String, model: ModelProvider?)throws  -> String?  {
     return try  FfiConverterOptionString.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3590,6 +3709,7 @@ open func crawlerStatus()throws  -> CrawlerStatus  {
      *
      * # Errors
      *
+     * [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
      * [`CarrelError::Failed`] if it isn't found or can't be removed.
      */
 open func rejectCrawlerFinding(id: String)throws   {try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3608,7 +3728,8 @@ open func rejectCrawlerFinding(id: String)throws   {try rustCallWithError(FfiCon
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`].
+     * [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+     * [`CarrelError::Failed`].
      */
 open func undoCrawlerChanges(since: Int64)throws  -> LibrarianUndone  {
     return try  FfiConverterTypeLibrarianUndone_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3845,6 +3966,66 @@ open func wanderStep(walk: Wander)throws  -> WanderStep?  {
 }
     
     /**
+     * The handwritten notes on the item `item`'s card, oldest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for an unknown item or a card that can't be read.
+     */
+open func cardDrawings(item: String)throws  -> [CardDrawingInfo]  {
+    return try  FfiConverterSequenceTypeCardDrawingInfo.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_card_drawings(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(item),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Removes the handwritten note `drawing` from the item `item`'s card.
+     *
+     * # Errors
+     *
+     * As [`ArchiveHandle::save_card_drawing`].
+     */
+open func removeCardDrawing(item: String, drawing: String)throws  -> CardDrawingChange  {
+    return try  FfiConverterTypeCardDrawingChange_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_remove_card_drawing(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(item),
+        FfiConverterString.lower(drawing),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Saves a handwritten note on the item `item`'s card: `data` is the `PKDrawing`'s data
+     * representation, `picture` a PNG of it, and `text` what was recognised in it. A new
+     * drawing when `drawing` is `None`, else a new version of that drawing.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for an unknown item or drawing, an empty drawing, a picture
+     * that isn't a PNG, or an item that's checked out; [`CarrelError::Busy`] if another
+     * writer holds the archive; or [`CarrelError::Failed`] if it can't be written.
+     */
+open func saveCardDrawing(item: String, drawing: String?, data: Data, picture: Data, text: String)throws  -> CardDrawingChange  {
+    return try  FfiConverterTypeCardDrawingChange_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_save_card_drawing(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(item),
+        FfiConverterOptionString.lower(drawing),
+        FfiConverterData.lower(data),
+        FfiConverterData.lower(picture),
+        FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * The filed item `item`'s card body, its Notes and Carrel's sections, to edit.
      *
      * # Errors
@@ -3917,7 +4098,9 @@ open func editCardBody(item: String, base: String, body: String)throws  -> EditO
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] for a decided proposal, or [`CarrelError::Failed`].
+     * [`CarrelError::Invalid`] for a decided proposal, [`CarrelError::SentToInbox`] when the
+     * edit, checked here, went into this device's inbox for the writer, or
+     * [`CarrelError::Failed`].
      */
 open func editProposal(id: String, fields: CardFields)throws  -> EditOutcome  {
     return try  FfiConverterTypeEditOutcome_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3961,6 +4144,110 @@ open func editableProposal(id: String)throws  -> EditableCard  {
     uniffi_carrel_ffi_fn_method_archivehandle_editable_proposal(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(id),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Every device's feedback, oldest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+open func feedbackEntries()throws  -> [FeedbackEntry]  {
+    return try  FfiConverterSequenceTypeFeedbackEntry.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_feedback_entries(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * A Markdown bundle of every entry (or only the unsent), grouped by screen.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+open func feedbackExport(unsentOnly: Bool)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_feedback_export(
+            self.uniffiCloneHandle(),
+        FfiConverterBool.lower(unsentOnly),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The issue draft for the entry `name`. Nothing is sent: the app opens its address.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such entry.
+     */
+open func feedbackIssueDraft(name: String)throws  -> FeedbackIssueDraft  {
+    return try  FfiConverterTypeFeedbackIssueDraft_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_feedback_issue_draft(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(name),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Marks the entry `name` sent, as the issue at `address` (or none when empty); `-`
+     * unmarks it. It's recorded in this device's own folder.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if there's no such entry or the address isn't one.
+     */
+open func markFeedbackSent(name: String, address: String)throws  -> FeedbackEntry  {
+    return try  FfiConverterTypeFeedbackEntry_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_mark_feedback_sent(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(name),
+        FfiConverterString.lower(address),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Saves the owner's feedback in this device's feedback folder, with the screenshot
+     * beside it. No writer lease is needed.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] if the words are empty or the kind isn't one;
+     * [`CarrelError::Failed`] if it can't be saved.
+     */
+open func sendFeedback(sending: FeedbackSending)throws  -> FeedbackEntry  {
+    return try  FfiConverterTypeFeedbackEntry_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_send_feedback(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeFeedbackSending_lower(sending),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * How many entries haven't been marked sent, for Status.
+     *
+     * # Errors
+     *
+     * [`CarrelError`] if the archive can't be read.
+     */
+open func unsentFeedback()throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_unsent_feedback(
+            self.uniffiCloneHandle(),uniffiCallStatus
     )
 })
 }
@@ -4646,8 +4933,8 @@ open func saveConversation(conversation: LibrarianConversation)throws  -> SavedC
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-     * if the history can't be read.
+     * [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+     * [`CarrelError::Failed`] if the history can't be read.
      */
 open func undoLibrarianChanges(since: Int64)throws  -> LibrarianUndone  {
     return try  FfiConverterTypeLibrarianUndone_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -4893,7 +5180,8 @@ open func addQuestionRule(subject: String, collection: String)throws  -> String?
      * # Errors
      *
      * [`CarrelError::Invalid`] if there's no such item or the question isn't open about it
-     * any more, or [`CarrelError::Failed`].
+     * any more, [`CarrelError::SentToInbox`] when another device is the writer, which puts
+     * it in the queue, or [`CarrelError::Failed`].
      */
 open func askAboutItem(item: String, question: String)throws  -> Question  {
     return try  FfiConverterTypeQuestion_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -5065,8 +5353,9 @@ open func failedDrafts()throws  -> [String]  {
      * # Errors
      *
      * [`CarrelError::Invalid`] when there's no text model, saying what to download, or when
-     * none could be drafted again, saying why; [`CarrelError::Failed`] if the queue can't be
-     * read.
+     * none could be drafted again, saying why; [`CarrelError::SentToInbox`] when another
+     * device is the writer, which drafts them again with its models; [`CarrelError::Failed`]
+     * if the queue can't be read.
      */
 open func redraftProposals(ids: [String], model: ModelProvider?, memoryGb: UInt64?, progress: ProgressListener?)throws  -> RedraftOutcome  {
     return try  FfiConverterTypeRedraftOutcome_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -5149,8 +5438,8 @@ open func showsMenuBar() -> Bool  {
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] for an unknown change, [`CarrelError::Busy`] if another
-     * writer holds the archive, or [`CarrelError::Failed`].
+     * [`CarrelError::Invalid`] for an unknown change, [`CarrelError::SentToInbox`] when
+     * another device is the writer, which approves it, or [`CarrelError::Failed`].
      */
 open func approveRestructure(id: String, only: [String]?)throws  -> RestructureApproved  {
     return try  FfiConverterTypeRestructureApproved_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -5228,6 +5517,7 @@ open func proposeTagRestructure()throws  -> RestructureProposal?  {
      *
      * # Errors
      *
+     * [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
      * [`CarrelError::Failed`] if there's no such proposal or the queue can't be written.
      */
 open func rejectRestructure(id: String)throws   {try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -9211,6 +9501,204 @@ public func FfiConverterTypeCardDates_lift(_ buf: RustBuffer) throws -> CardDate
 #endif
 public func FfiConverterTypeCardDates_lower(_ value: CardDates) -> RustBuffer {
     return FfiConverterTypeCardDates.lower(value)
+}
+
+
+/**
+ * What saving or removing a drawing did.
+ */
+public struct CardDrawingChange: Equatable, Hashable {
+    /**
+     * The drawing's identifier: a new drawing's is made when it's saved.
+     */
+    public var id: String
+    /**
+     * Whether anything changed.
+     */
+    public var changed: Bool
+    /**
+     * The change, as History shows it.
+     */
+    public var summary: String
+    /**
+     * The history commit, when one was made.
+     */
+    public var commit: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The drawing's identifier: a new drawing's is made when it's saved.
+         */id: String, 
+        /**
+         * Whether anything changed.
+         */changed: Bool, 
+        /**
+         * The change, as History shows it.
+         */summary: String, 
+        /**
+         * The history commit, when one was made.
+         */commit: String?) {
+        self.id = id
+        self.changed = changed
+        self.summary = summary
+        self.commit = commit
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension CardDrawingChange: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCardDrawingChange: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CardDrawingChange {
+        return
+            try CardDrawingChange(
+                id: FfiConverterString.read(from: &buf), 
+                changed: FfiConverterBool.read(from: &buf), 
+                summary: FfiConverterString.read(from: &buf), 
+                commit: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CardDrawingChange, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterBool.write(value.changed, into: &buf)
+        FfiConverterString.write(value.summary, into: &buf)
+        FfiConverterOptionString.write(value.commit, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCardDrawingChange_lift(_ buf: RustBuffer) throws -> CardDrawingChange {
+    return try FfiConverterTypeCardDrawingChange.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCardDrawingChange_lower(_ value: CardDrawingChange) -> RustBuffer {
+    return FfiConverterTypeCardDrawingChange.lower(value)
+}
+
+
+/**
+ * A handwritten note on a card.
+ */
+public struct CardDrawingInfo: Equatable, Hashable {
+    /**
+     * Its identifier.
+     */
+    public var id: String
+    /**
+     * The text recognised in it, if any.
+     */
+    public var text: String?
+    /**
+     * When it was first drawn, as written (FORMAT.md §2.4).
+     */
+    public var at: String?
+    /**
+     * When it was last changed, if it has been since.
+     */
+    public var modified: String?
+    /**
+     * Its `PencilKit` data, as a full path.
+     */
+    public var dataPath: String
+    /**
+     * Its PNG picture, as a full path.
+     */
+    public var picturePath: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its identifier.
+         */id: String, 
+        /**
+         * The text recognised in it, if any.
+         */text: String?, 
+        /**
+         * When it was first drawn, as written (FORMAT.md §2.4).
+         */at: String?, 
+        /**
+         * When it was last changed, if it has been since.
+         */modified: String?, 
+        /**
+         * Its `PencilKit` data, as a full path.
+         */dataPath: String, 
+        /**
+         * Its PNG picture, as a full path.
+         */picturePath: String) {
+        self.id = id
+        self.text = text
+        self.at = at
+        self.modified = modified
+        self.dataPath = dataPath
+        self.picturePath = picturePath
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension CardDrawingInfo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCardDrawingInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CardDrawingInfo {
+        return
+            try CardDrawingInfo(
+                id: FfiConverterString.read(from: &buf), 
+                text: FfiConverterOptionString.read(from: &buf), 
+                at: FfiConverterOptionString.read(from: &buf), 
+                modified: FfiConverterOptionString.read(from: &buf), 
+                dataPath: FfiConverterString.read(from: &buf), 
+                picturePath: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CardDrawingInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterOptionString.write(value.text, into: &buf)
+        FfiConverterOptionString.write(value.at, into: &buf)
+        FfiConverterOptionString.write(value.modified, into: &buf)
+        FfiConverterString.write(value.dataPath, into: &buf)
+        FfiConverterString.write(value.picturePath, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCardDrawingInfo_lift(_ buf: RustBuffer) throws -> CardDrawingInfo {
+    return try FfiConverterTypeCardDrawingInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCardDrawingInfo_lower(_ value: CardDrawingInfo) -> RustBuffer {
+    return FfiConverterTypeCardDrawingInfo.lower(value)
 }
 
 
@@ -13301,6 +13789,511 @@ public func FfiConverterTypeExpandedItem_lift(_ buf: RustBuffer) throws -> Expan
 #endif
 public func FfiConverterTypeExpandedItem_lower(_ value: ExpandedItem) -> RustBuffer {
     return FfiConverterTypeExpandedItem.lower(value)
+}
+
+
+/**
+ * One entry, as listed.
+ */
+public struct FeedbackEntry: Equatable, Hashable {
+    /**
+     * Its number in the list, oldest first; 0 for one just sent.
+     */
+    public var number: UInt32
+    /**
+     * Its name, which `feedback_issue_draft` and `mark_feedback_sent` take.
+     */
+    public var name: String
+    /**
+     * `bug`, `idea` or `confusing`.
+     */
+    public var kind: String
+    /**
+     * The owner's words.
+     */
+    public var words: String
+    /**
+     * The screen and step in one line: `Review → proposal 2`.
+     */
+    public var screenPath: String
+    /**
+     * The screen alone.
+     */
+    public var screen: String
+    /**
+     * The interface it was sent from.
+     */
+    public var interface: String
+    /**
+     * When it was sent (RFC 3339).
+     */
+    public var at: String
+    /**
+     * The screenshot's file, if there is one.
+     */
+    public var screenshotPath: String?
+    /**
+     * The issue it was sent as (empty when marked sent without one), or `None` if unsent.
+     */
+    public var sent: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its number in the list, oldest first; 0 for one just sent.
+         */number: UInt32, 
+        /**
+         * Its name, which `feedback_issue_draft` and `mark_feedback_sent` take.
+         */name: String, 
+        /**
+         * `bug`, `idea` or `confusing`.
+         */kind: String, 
+        /**
+         * The owner's words.
+         */words: String, 
+        /**
+         * The screen and step in one line: `Review → proposal 2`.
+         */screenPath: String, 
+        /**
+         * The screen alone.
+         */screen: String, 
+        /**
+         * The interface it was sent from.
+         */interface: String, 
+        /**
+         * When it was sent (RFC 3339).
+         */at: String, 
+        /**
+         * The screenshot's file, if there is one.
+         */screenshotPath: String?, 
+        /**
+         * The issue it was sent as (empty when marked sent without one), or `None` if unsent.
+         */sent: String?) {
+        self.number = number
+        self.name = name
+        self.kind = kind
+        self.words = words
+        self.screenPath = screenPath
+        self.screen = screen
+        self.interface = interface
+        self.at = at
+        self.screenshotPath = screenshotPath
+        self.sent = sent
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackEntry: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackEntry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackEntry {
+        return
+            try FeedbackEntry(
+                number: FfiConverterUInt32.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                kind: FfiConverterString.read(from: &buf), 
+                words: FfiConverterString.read(from: &buf), 
+                screenPath: FfiConverterString.read(from: &buf), 
+                screen: FfiConverterString.read(from: &buf), 
+                interface: FfiConverterString.read(from: &buf), 
+                at: FfiConverterString.read(from: &buf), 
+                screenshotPath: FfiConverterOptionString.read(from: &buf), 
+                sent: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackEntry, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.number, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterString.write(value.words, into: &buf)
+        FfiConverterString.write(value.screenPath, into: &buf)
+        FfiConverterString.write(value.screen, into: &buf)
+        FfiConverterString.write(value.interface, into: &buf)
+        FfiConverterString.write(value.at, into: &buf)
+        FfiConverterOptionString.write(value.screenshotPath, into: &buf)
+        FfiConverterOptionString.write(value.sent, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackEntry_lift(_ buf: RustBuffer) throws -> FeedbackEntry {
+    return try FfiConverterTypeFeedbackEntry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackEntry_lower(_ value: FeedbackEntry) -> RustBuffer {
+    return FfiConverterTypeFeedbackEntry.lower(value)
+}
+
+
+/**
+ * An item or collection in view, by identifier and title, never its contents.
+ */
+public struct FeedbackInView: Equatable, Hashable {
+    /**
+     * `item`, `collection`, `proposal` or `question`.
+     */
+    public var kind: String
+    /**
+     * Its identifier.
+     */
+    public var id: String
+    /**
+     * Its title, or empty.
+     */
+    public var title: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * `item`, `collection`, `proposal` or `question`.
+         */kind: String, 
+        /**
+         * Its identifier.
+         */id: String, 
+        /**
+         * Its title, or empty.
+         */title: String) {
+        self.kind = kind
+        self.id = id
+        self.title = title
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackInView: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackInView: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackInView {
+        return
+            try FeedbackInView(
+                kind: FfiConverterString.read(from: &buf), 
+                id: FfiConverterString.read(from: &buf), 
+                title: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackInView, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.title, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackInView_lift(_ buf: RustBuffer) throws -> FeedbackInView {
+    return try FfiConverterTypeFeedbackInView.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackInView_lower(_ value: FeedbackInView) -> RustBuffer {
+    return FfiConverterTypeFeedbackInView.lower(value)
+}
+
+
+/**
+ * An entry's issue draft, for the owner to read before it opens in the browser.
+ */
+public struct FeedbackIssueDraft: Equatable, Hashable {
+    /**
+     * The issue's title.
+     */
+    public var title: String
+    /**
+     * Its body, in Markdown.
+     */
+    public var body: String
+    /**
+     * The prefilled new-issue address on GitHub, which the app opens.
+     */
+    public var url: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The issue's title.
+         */title: String, 
+        /**
+         * Its body, in Markdown.
+         */body: String, 
+        /**
+         * The prefilled new-issue address on GitHub, which the app opens.
+         */url: String) {
+        self.title = title
+        self.body = body
+        self.url = url
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackIssueDraft: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackIssueDraft: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackIssueDraft {
+        return
+            try FeedbackIssueDraft(
+                title: FfiConverterString.read(from: &buf), 
+                body: FfiConverterString.read(from: &buf), 
+                url: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackIssueDraft, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterString.write(value.body, into: &buf)
+        FfiConverterString.write(value.url, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackIssueDraft_lift(_ buf: RustBuffer) throws -> FeedbackIssueDraft {
+    return try FfiConverterTypeFeedbackIssueDraft.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackIssueDraft_lower(_ value: FeedbackIssueDraft) -> RustBuffer {
+    return FfiConverterTypeFeedbackIssueDraft.lower(value)
+}
+
+
+/**
+ * Where the owner is: what each screen declares.
+ */
+public struct FeedbackScreen: Equatable, Hashable {
+    /**
+     * The screen, such as `Review`.
+     */
+    public var screen: String
+    /**
+     * The step in its workflow, such as `proposal → question 2`, or empty.
+     */
+    public var step: String
+    /**
+     * What's in view.
+     */
+    public var inView: [FeedbackInView]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The screen, such as `Review`.
+         */screen: String, 
+        /**
+         * The step in its workflow, such as `proposal → question 2`, or empty.
+         */step: String, 
+        /**
+         * What's in view.
+         */inView: [FeedbackInView]) {
+        self.screen = screen
+        self.step = step
+        self.inView = inView
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackScreen: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackScreen: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackScreen {
+        return
+            try FeedbackScreen(
+                screen: FfiConverterString.read(from: &buf), 
+                step: FfiConverterString.read(from: &buf), 
+                inView: FfiConverterSequenceTypeFeedbackInView.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackScreen, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.screen, into: &buf)
+        FfiConverterString.write(value.step, into: &buf)
+        FfiConverterSequenceTypeFeedbackInView.write(value.inView, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackScreen_lift(_ buf: RustBuffer) throws -> FeedbackScreen {
+    return try FfiConverterTypeFeedbackScreen.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackScreen_lower(_ value: FeedbackScreen) -> RustBuffer {
+    return FfiConverterTypeFeedbackScreen.lower(value)
+}
+
+
+/**
+ * What the owner sends from the app.
+ */
+public struct FeedbackSending: Equatable, Hashable {
+    /**
+     * `bug`, `idea` or `confusing`.
+     */
+    public var kind: String
+    /**
+     * Their words.
+     */
+    public var words: String
+    /**
+     * Where they were.
+     */
+    public var screen: FeedbackScreen
+    /**
+     * `mac app`, `ipad app` or `iphone app`.
+     */
+    public var interface: String
+    /**
+     * The device in words, such as `iPad Pro 13-inch (M5)`.
+     */
+    public var deviceName: String
+    /**
+     * The app's version and build.
+     */
+    public var appVersion: String?
+    /**
+     * The window's screenshot as PNG, when kept.
+     */
+    public var screenshot: Data?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * `bug`, `idea` or `confusing`.
+         */kind: String, 
+        /**
+         * Their words.
+         */words: String, 
+        /**
+         * Where they were.
+         */screen: FeedbackScreen, 
+        /**
+         * `mac app`, `ipad app` or `iphone app`.
+         */interface: String, 
+        /**
+         * The device in words, such as `iPad Pro 13-inch (M5)`.
+         */deviceName: String, 
+        /**
+         * The app's version and build.
+         */appVersion: String?, 
+        /**
+         * The window's screenshot as PNG, when kept.
+         */screenshot: Data?) {
+        self.kind = kind
+        self.words = words
+        self.screen = screen
+        self.interface = interface
+        self.deviceName = deviceName
+        self.appVersion = appVersion
+        self.screenshot = screenshot
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension FeedbackSending: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeedbackSending: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeedbackSending {
+        return
+            try FeedbackSending(
+                kind: FfiConverterString.read(from: &buf), 
+                words: FfiConverterString.read(from: &buf), 
+                screen: FfiConverterTypeFeedbackScreen.read(from: &buf), 
+                interface: FfiConverterString.read(from: &buf), 
+                deviceName: FfiConverterString.read(from: &buf), 
+                appVersion: FfiConverterOptionString.read(from: &buf), 
+                screenshot: FfiConverterOptionData.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeedbackSending, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterString.write(value.words, into: &buf)
+        FfiConverterTypeFeedbackScreen.write(value.screen, into: &buf)
+        FfiConverterString.write(value.interface, into: &buf)
+        FfiConverterString.write(value.deviceName, into: &buf)
+        FfiConverterOptionString.write(value.appVersion, into: &buf)
+        FfiConverterOptionData.write(value.screenshot, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackSending_lift(_ buf: RustBuffer) throws -> FeedbackSending {
+    return try FfiConverterTypeFeedbackSending.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeedbackSending_lower(_ value: FeedbackSending) -> RustBuffer {
+    return FfiConverterTypeFeedbackSending.lower(value)
 }
 
 
@@ -27022,6 +28015,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeAgentClaim: FfiConverterRustBuffer {
     typealias SwiftType = AgentClaim?
 
@@ -27770,6 +28787,31 @@ fileprivate struct FfiConverterSequenceTypeActivityDay: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeCardDrawingInfo: FfiConverterRustBuffer {
+    typealias SwiftType = [CardDrawingInfo]
+
+    public static func write(_ value: [CardDrawingInfo], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeCardDrawingInfo.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [CardDrawingInfo] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [CardDrawingInfo]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeCardDrawingInfo.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeCardHistoryEntry: FfiConverterRustBuffer {
     typealias SwiftType = [CardHistoryEntry]
 
@@ -28237,6 +29279,56 @@ fileprivate struct FfiConverterSequenceTypeEmbeddingElsewhere: FfiConverterRustB
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeEmbeddingElsewhere.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFeedbackEntry: FfiConverterRustBuffer {
+    typealias SwiftType = [FeedbackEntry]
+
+    public static func write(_ value: [FeedbackEntry], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFeedbackEntry.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FeedbackEntry] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FeedbackEntry]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFeedbackEntry.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFeedbackInView: FfiConverterRustBuffer {
+    typealias SwiftType = [FeedbackInView]
+
+    public static func write(_ value: [FeedbackInView], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFeedbackInView.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FeedbackInView] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FeedbackInView]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFeedbackInView.read(from: &buf))
         }
         return seq
     }
@@ -30033,7 +31125,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_check_out() != 36547) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_decide_entries() != 46758) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_decide_entries() != 51103) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_edit_entry() != 60485) {
@@ -30081,7 +31173,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_verify_backups() != 19455) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_create_collection() != 22333) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_create_collection() != 26420) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_expand_item() != 63940) {
@@ -30093,7 +31185,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_name_suggestion() != 21639) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_rename_item() != 34041) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_rename_item() != 7065) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_learn() != 5796) {
@@ -30108,7 +31200,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_save_correction() != 27213) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_approve_crawler_finding() != 13073) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_approve_crawler_finding() != 5019) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_crawl_now() != 7047) {
@@ -30126,10 +31218,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_crawler_status() != 47333) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_reject_crawler_finding() != 48650) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_reject_crawler_finding() != 58814) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_crawler_changes() != 27024) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_crawler_changes() != 51515) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_device_profiles() != 12947) {
@@ -30168,6 +31260,15 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_wander_step() != 8914) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_card_drawings() != 49458) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_remove_card_drawing() != 64806) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_save_card_drawing() != 17731) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_card_body() != 37529) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -30177,13 +31278,31 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_edit_card_body() != 45058) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_edit_proposal() != 65356) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_edit_proposal() != 42973) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_editable_card() != 40584) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_editable_proposal() != 23041) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_feedback_entries() != 28090) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_feedback_export() != 34893) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_feedback_issue_draft() != 16452) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_mark_feedback_sent() != 34830) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_send_feedback() != 28205) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_unsent_feedback() != 24198) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_flag_collection() != 21397) {
@@ -30297,7 +31416,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_save_conversation() != 58546) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_librarian_changes() != 45212) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_librarian_changes() != 41153) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_download_model_in() != 6836) {
@@ -30339,7 +31458,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_add_question_rule() != 28398) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_ask_about_item() != 4573) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_ask_about_item() != 45153) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_prepare_question_correction() != 37415) {
@@ -30366,7 +31485,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_failed_drafts() != 63838) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_redraft_proposals() != 44640) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_redraft_proposals() != 1419) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_mark_reminders_shown() != 62460) {
@@ -30381,7 +31500,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_shows_menu_bar() != 252) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_approve_restructure() != 42869) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_approve_restructure() != 27910) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_eagerness_at() != 33767) {
@@ -30393,7 +31512,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_propose_tag_restructure() != 48551) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_reject_restructure() != 43460) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_reject_restructure() != 63330) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_restructure_preview() != 31031) {

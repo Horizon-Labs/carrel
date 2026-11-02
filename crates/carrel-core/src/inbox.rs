@@ -232,6 +232,93 @@ pub enum Request {
         /// The change's commit.
         change: String,
     },
+    /// An edit of a proposal's card, checked on the device that sent it: applied while the
+    /// proposal is still as the editor opened it.
+    EditProposal {
+        /// The proposal.
+        proposal: Id,
+        /// The card's fields as the editor opened them.
+        base: Box<CardFields>,
+        /// The fields as edited.
+        fields: Box<CardFields>,
+    },
+    /// Draft proposals again, with the models the writer has, keeping what the owner set.
+    Redraft {
+        /// The proposals.
+        proposals: Vec<Id>,
+    },
+    /// Approve the crawler's findings: their changes are made.
+    ApproveFindings {
+        /// The findings.
+        findings: Vec<Id>,
+    },
+    /// Reject the crawler's findings, so it doesn't propose them again.
+    RejectFindings {
+        /// The findings.
+        findings: Vec<Id>,
+    },
+    /// Approve a restructure proposal, all of it or only some of its changes.
+    ApproveRestructure {
+        /// The proposal.
+        proposal: Id,
+        /// The changes approved, when only some are; none means all of them.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        only: Vec<String>,
+    },
+    /// Reject a restructure proposal, changing nothing.
+    RejectRestructure {
+        /// The proposal.
+        proposal: Id,
+    },
+    /// Undo every change an agent, such as the librarian or the crawler, made on its own
+    /// since a moment.
+    UndoSince {
+        /// The agent, as the history names it, such as `Librarian`.
+        by: String,
+        /// The moment, in seconds since the Unix epoch.
+        since: i64,
+    },
+    /// Create a collection, with its design document.
+    CreateCollection {
+        /// The collection's path.
+        path: String,
+        /// One line saying what belongs in it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        /// Its tag vocabulary: each tag and what it means.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        tags: Vec<(String, String)>,
+    },
+    /// Rename an item and its card together.
+    Rename {
+        /// The item.
+        item: Id,
+        /// The new name.
+        name: String,
+    },
+    /// Approve, drop or combine pending work-session entries on an archived item's card.
+    SessionEntries {
+        /// The item.
+        item: Id,
+        /// The entries, as they were when chosen; they must still be pending as they were.
+        entries: Vec<crate::entries::HistoryEntry>,
+        /// What to do with them.
+        decision: crate::sessions::Decision,
+    },
+    /// Replace the text of a pending work-session entry on an archived item's card.
+    EditSessionEntry {
+        /// The item.
+        item: Id,
+        /// The entry as it was when edited; it must still be pending as it was.
+        was: crate::entries::HistoryEntry,
+        /// Its new text.
+        text: String,
+    },
+    /// Add questions, worked out on the device that sent them, to the question queue.
+    Raise {
+        /// The questions.
+        questions: Vec<crate::questions::QuestionEntry>,
+    },
     /// Record a change already made in this device's own files, such as its desk.
     Record {
         /// The operation (FORMAT.md §8.2).
@@ -279,6 +366,36 @@ impl Request {
             Self::Unflag { .. } => "clear a flag".into(),
             Self::Expand { .. } => "expand a compressed file".into(),
             Self::Undo { .. } => "undo a change".into(),
+            Self::EditProposal { .. } => "edit a proposal".into(),
+            Self::Redraft { proposals } => {
+                format!("draft {} again", count(proposals.len(), "proposal"))
+            }
+            Self::ApproveFindings { findings } => {
+                format!("approve {}", count(findings.len(), "crawler finding"))
+            }
+            Self::RejectFindings { findings } => {
+                format!("reject {}", count(findings.len(), "crawler finding"))
+            }
+            Self::ApproveRestructure { only, .. } if only.is_empty() => {
+                "approve a restructure proposal".into()
+            }
+            Self::ApproveRestructure { only, .. } => format!(
+                "approve {} of a restructure proposal",
+                count(only.len(), "change")
+            ),
+            Self::RejectRestructure { .. } => "reject a restructure proposal".into(),
+            Self::UndoSince { by, .. } => format!("undo the {by}'s changes"),
+            Self::CreateCollection { path, .. } => format!("create the collection {path}"),
+            Self::Rename { name, .. } => format!("rename an item to {name}"),
+            Self::SessionEntries {
+                entries, decision, ..
+            } => format!(
+                "{} {}",
+                decision.verb(),
+                crate::sessions::entries(entries.len())
+            ),
+            Self::EditSessionEntry { .. } => "edit a history entry".into(),
+            Self::Raise { questions } => format!("ask {}", count(questions.len(), "question")),
             Self::Record { summary, .. } => summary.clone(),
         }
     }
@@ -623,6 +740,26 @@ pub fn send_desk_item(
     })
 }
 
+/// Puts the owner's edit of a proposal, `before` as the editor opened it and `after` as
+/// edited and checked ([`crate::actions::apply_draft_fields`]), in `holder`'s inbox.
+///
+/// # Errors
+///
+/// [`ActionError::Io`] if the entry can't be written.
+pub fn send_proposal_edit(
+    archive: &Archive,
+    holder: Holder,
+    before: &crate::review::ReviewEntry,
+    after: &crate::review::ReviewEntry,
+) -> Result<PathBuf, ActionError> {
+    let request = Request::EditProposal {
+        proposal: before.id,
+        base: Box::new(crate::actions::draft_fields(before)),
+        fields: Box::new(crate::actions::draft_fields(after)),
+    };
+    send(archive, holder, request)
+}
+
 /// Puts `change`, already made in `holder`'s own files, in their inbox, for the writer to
 /// record in history.
 ///
@@ -795,7 +932,7 @@ fn copy(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 /// Takes the writer lease as `holder` for `purpose`.
-fn lease_as(
+pub(crate) fn lease_as(
     archive: &Archive,
     holder: Holder,
     purpose: &str,

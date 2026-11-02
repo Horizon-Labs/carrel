@@ -107,6 +107,8 @@ final class BrowseActionsModel {
             creating = nil
             await didChange()
             created(new.path)
+        } catch let error where wentToInbox(error) {
+            creating = nil
         } catch {
             var draft = draft
             draft.problem = take(error)
@@ -136,6 +138,8 @@ final class BrowseActionsModel {
                 draft.item, to: draft.name.trimmingCharacters(in: .whitespaces))
             renaming = nil
             await didChange()
+        } catch let error where wentToInbox(error) {
+            renaming = nil
         } catch {
             var draft = draft
             draft.problem = take(error)

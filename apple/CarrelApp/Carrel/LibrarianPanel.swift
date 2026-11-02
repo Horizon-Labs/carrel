@@ -25,6 +25,7 @@ private struct LibrarianPanelModifier: ViewModifier {
             ) {
                 if let librarian = model.librarian {
                     LibrarianPanel(librarian: librarian, window: model)
+                        .feedbackScreen(step: "librarian panel")
                         .inspectorColumnWidth(min: 300, ideal: 380, max: 560)
                 }
             }

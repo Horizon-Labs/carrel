@@ -211,3 +211,173 @@ fn a_return_without_backups_keeps_the_version_it_replaced_to_restore() {
         String::from_utf8_lossy(&missing.stderr)
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn proposal_edits_and_redrafts_go_into_the_inbox_while_another_device_writes() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let sandbox = InboxSandbox::new();
+    let root = sandbox.sample();
+    let editor = sandbox.path("editor.sh");
+    std::fs::write(
+        &editor,
+        "#!/bin/sh\nawk '{sub(/^title: .*/, \"title: Edited by hand\")}1' \"$1\" > \"$1.new\" && mv \"$1.new\" \"$1\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&editor, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let before = sandbox.json(&root, &["review", "show", "00000001"]);
+    another_device_writes(&root);
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_carrel"))
+        .args(["review", "edit", "00000001", "--json"])
+        .current_dir(&root)
+        .env("CARREL_CONFIG_DIR", sandbox.path("config"))
+        .env("CARREL_WORKER", "off")
+        .env_remove("CARREL_SYNCED")
+        .env_remove("VISUAL")
+        .env("EDITOR", &editor)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let sent: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(sent_action(&root, &sent), "edit-proposal");
+    let after = sandbox.json(&root, &["review", "show", "00000001"]);
+    assert_eq!(
+        after["card"]["title"], before["card"]["title"],
+        "not edited here"
+    );
+
+    let sent = sandbox.json(&root, &["review", "redraft", "00000001"]);
+    assert_eq!(sent_action(&root, &sent), "redraft");
+    let out = sandbox.ok(&root, &["review", "redraft", "00000001"]);
+    assert!(out.contains("Sent: draft 1 proposal again."), "{out}");
+}
+
+#[test]
+fn agents_undos_collections_and_renames_go_into_the_inbox_while_another_device_writes() {
+    let sandbox = InboxSandbox::new();
+    let root = sandbox.sample();
+    let changes = sandbox.json(&root, &["log"]).as_array().unwrap().len();
+    another_device_writes(&root);
+
+    let sent = sandbox.json(&root, &["crawl", "undo", "7d"]);
+    assert_eq!(sent_action(&root, &sent), "undo-since");
+    let out = sandbox.ok(&root, &["undo", "--librarian", "7d"]);
+    assert!(out.contains("Sent: undo the librarian's changes."), "{out}");
+
+    let sent = sandbox.json(
+        &root,
+        &[
+            "collection",
+            "new",
+            "Projects/Garden",
+            "--description",
+            "Plans for the garden",
+        ],
+    );
+    assert_eq!(sent_action(&root, &sent), "create-collection");
+    assert!(!root.join("Projects/Garden").exists(), "not created here");
+
+    let item = "Projects/Hardware/parts-list.csv";
+    let sent = sandbox.json(&root, &["rename", item, "parts.csv"]);
+    assert_eq!(sent_action(&root, &sent), "rename");
+    assert!(root.join(item).exists(), "not renamed here");
+    let bad = sandbox.run_in(&root, &["rename", item, "parts:list.csv"]);
+    assert!(!bad.status.success());
+    assert!(
+        String::from_utf8_lossy(&bad.stderr).contains("the new name"),
+        "{}",
+        String::from_utf8_lossy(&bad.stderr)
+    );
+
+    let log = sandbox.json(&root, &["log"]);
+    assert_eq!(
+        log.as_array().unwrap().len(),
+        changes,
+        "nothing changed here"
+    );
+}
+
+#[test]
+fn restructure_decisions_go_into_the_inbox_while_another_device_writes() {
+    let sandbox = InboxSandbox::new();
+    let root = sandbox.sample();
+    let generated = "generated:\n  fields: [tags]\n  by: \"carrel test\"\n  at: \"2026-11-01\"";
+    for (card, with) in [
+        (
+            "Projects/Hardware/parts-list.csv.md",
+            format!("tags: [Electronics, gadgetry]\n{generated}"),
+        ),
+        (
+            "Projects/Hardware/notes.card.md",
+            "tags: [Electronics]".to_owned(),
+        ),
+    ] {
+        let path = root.join(card);
+        let text = std::fs::read_to_string(&path).unwrap();
+        std::fs::write(&path, text.replacen("tags: [electronics]", &with, 1)).unwrap();
+    }
+    sandbox.ok(&root, &["restructure", "tags"]);
+    let shown = sandbox.json(&root, &["restructure", "tags", "show"]);
+    let proposal = shown["proposal"]["id"].as_str().unwrap().to_owned();
+    another_device_writes(&root);
+
+    let sent = sandbox.json(&root, &["restructure", "tags", "approve", "--only", "1"]);
+    assert_eq!(sent_action(&root, &sent), "approve-restructure");
+    let sent = sandbox.json(&root, &["restructure", "reject", &proposal]);
+    assert_eq!(sent_action(&root, &sent), "reject-restructure");
+    // The proposal is still waiting here, for the writer to decide.
+    let shown = sandbox.json(&root, &["restructure", "show", &proposal]);
+    assert_eq!(shown["proposal"]["id"], proposal.as_str());
+}
+
+#[test]
+fn questions_and_session_decisions_go_into_the_inbox_while_another_device_writes() {
+    let sandbox = InboxSandbox::new();
+    let root = sandbox.sample();
+    let card = root.join("Projects/Hardware/lamp-build.md");
+    let text = std::fs::read_to_string(&card).unwrap().replace(
+        "summary: \"Notes and a sketch for a 3D-printed desk lamp with a dimmable LED strip.\"\n",
+        "",
+    );
+    let text = text.replace("added: \"2026-10-26\"", "added: \"2019-05-01\"");
+    std::fs::write(&card, text).unwrap();
+    let questions = sandbox.json(&root, &["questions"])["questions"]
+        .as_array()
+        .unwrap()
+        .len();
+    another_device_writes(&root);
+
+    let sent = sandbox.json(
+        &root,
+        &["questions", "about", "Projects/Hardware/lamp-build.md"],
+    );
+    assert_eq!(sent_action(&root, &sent), "raise");
+    assert_eq!(sent["raised"].as_array().unwrap().len(), 2, "{sent}");
+    let out = sandbox.ok(
+        &root,
+        &["questions", "about", "Projects/Hardware/lamp-build.md"],
+    );
+    assert!(out.contains("Sent: ask 2 questions."), "{out}");
+    assert!(out.contains("What was this project for?"), "{out}");
+    assert_eq!(
+        sandbox.json(&root, &["questions"])["questions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        questions,
+        "not raised here"
+    );
+
+    let oscillator = root.join("Projects/oscillator-sim.md");
+    let before = std::fs::read_to_string(&oscillator).unwrap();
+    let sent = sandbox.json(&root, &["sessions", "approve", "Projects/oscillator-sim"]);
+    assert_eq!(sent_action(&root, &sent), "session-entries");
+    let out = sandbox.ok(&root, &["sessions", "drop", "Projects/oscillator-sim", "1"]);
+    assert!(out.contains("is the writer now"), "{out}");
+    assert_eq!(std::fs::read_to_string(&oscillator).unwrap(), before);
+}

@@ -196,6 +196,13 @@
         }
       ]
     },
+    "drawings": {
+      "description": "Handwritten notes drawn on the card, such as with Apple Pencil (FORMAT.md §5.10).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CardDrawing"
+      }
+    },
     "needs_work": {
       "description": "The owner's mark that the item or its card needs work (FORMAT.md §5.9).",
       "anyOf": [
@@ -699,6 +706,70 @@
         "name",
         "size",
         "checksum"
+      ]
+    },
+    "CardDrawing": {
+      "description": "A handwritten note drawn on a card (FORMAT.md §5.10): its drawing and a picture of it are\nkept in `_System/drawings/<item-id>/`, named by `id`.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The drawing's permanent identifier, which names its files.",
+          "$ref": "#/$defs/Id"
+        },
+        "text": {
+          "description": "The text recognised in the handwriting, so search and the librarian find it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "description": "When it was first drawn.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DateOrTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modified": {
+          "description": "When it was last changed, if it has been since.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DateOrTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "person": {
+          "description": "The person who drew it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "device": {
+          "description": "The device it was last drawn on.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id"
       ]
     },
     "NeedsWorkForm": {

@@ -68,8 +68,9 @@ impl ArchiveHandle {
     /// # Errors
     ///
     /// [`CarrelError::Invalid`] when there's no text model, saying what to download, or when
-    /// none could be drafted again, saying why; [`CarrelError::Failed`] if the queue can't be
-    /// read.
+    /// none could be drafted again, saying why; [`CarrelError::SentToInbox`] when another
+    /// device is the writer, which drafts them again with its models; [`CarrelError::Failed`]
+    /// if the queue can't be read.
     pub fn redraft_proposals(
         &self,
         ids: Vec<String>,
@@ -78,6 +79,14 @@ impl ArchiveHandle {
         progress: Option<Arc<dyn ProgressListener>>,
     ) -> Result<RedraftOutcome, CarrelError> {
         let archive = self.fresh()?;
+        self.through_inbox(&archive, || {
+            Ok(carrel_core::inbox::Request::Redraft {
+                proposals: carrel_core::actions::proposals(&archive, &ids)?
+                    .iter()
+                    .map(|e| e.id)
+                    .collect(),
+            })
+        })?;
         let device = self.holder()?.device;
         let registry = self.drafting_registry(model);
         let total = ids.len() as u64;

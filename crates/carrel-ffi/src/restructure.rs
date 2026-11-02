@@ -443,8 +443,8 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
-    /// [`CarrelError::Invalid`] for an unknown change, [`CarrelError::Busy`] if another
-    /// writer holds the archive, or [`CarrelError::Failed`].
+    /// [`CarrelError::Invalid`] for an unknown change, [`CarrelError::SentToInbox`] when
+    /// another device is the writer, which approves it, or [`CarrelError::Failed`].
     pub fn approve_restructure(
         &self,
         id: String,
@@ -452,6 +452,12 @@ impl ArchiveHandle {
     ) -> Result<RestructureApproved, CarrelError> {
         let archive = self.fresh()?;
         let proposal = ProposalQueue::of(&archive).find(&id)?;
+        self.through_inbox(&archive, || {
+            Ok(carrel_core::inbox::Request::ApproveRestructure {
+                proposal: proposal.id,
+                only: only.clone().unwrap_or_default(),
+            })
+        })?;
         let approved = restructure::approve(&archive, &proposal, only.as_deref(), self.holder()?)?;
         Ok(RestructureApproved {
             summary: approved.summary,
@@ -485,10 +491,16 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
+    /// [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
     /// [`CarrelError::Failed`] if there's no such proposal or the queue can't be written.
     pub fn reject_restructure(&self, id: String) -> Result<(), CarrelError> {
         let archive = self.fresh()?;
         let proposal = ProposalQueue::of(&archive).find(&id)?;
+        self.through_inbox(&archive, || {
+            Ok(carrel_core::inbox::Request::RejectRestructure {
+                proposal: proposal.id,
+            })
+        })?;
         restructure::reject(&archive, &proposal)?;
         Ok(())
     }
@@ -604,6 +616,27 @@ mod tests {
         sample.handle.reject_restructure(id.clone()).unwrap();
         assert_eq!(sample.handle.restructure_proposals().unwrap(), []);
         assert!(sample.handle.approve_restructure(id, None).is_err());
+    }
+
+    #[test]
+    fn a_decision_while_another_device_writes_goes_into_the_inbox() {
+        use crate::inbox::tests::{another_writer, sent};
+        let sample = Sample::new();
+        let id = queued(&sample);
+        let lease = another_writer(&sample);
+        sent(sample.handle.reject_restructure(id.clone()));
+        sent(
+            sample
+                .handle
+                .approve_restructure(id.clone(), Some(vec!["1".into()])),
+        );
+        assert_eq!(
+            sample.handle.restructure_proposals().unwrap().len(),
+            1,
+            "it waits here for the writer"
+        );
+        assert_eq!(sample.handle.inbox_status().unwrap().waiting.len(), 2);
+        lease.release().unwrap();
     }
 
     #[test]
