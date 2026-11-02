@@ -82,6 +82,11 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Background work: sessions as they happen, the queue, the index, scheduled snapshots | `agent`, `agent install` (#269) | ✓ Settings (#279) | ✓ agent (#237) | ✓ background tasks draft the queue and apply inboxes; an iPhone only while charging; no snapshots (Kopia) |
 | Reminders: entries waiting, checkouts due back, the week's sum, as notifications and on Status | `reminders`, `status`; `agent` notifies through `notify-send` or a PowerShell toast | ✓ Status (`Enter` goes to the item) | ✓ Status; the agent's notifications; `menu-bar` hides its menu bar list | ✓ Status; notifications: #479 |
 | What's checked out, at a glance | `checkouts` | ✓ Active | ✓ menu bar (#237) | ✓ Active |
+| Sync status: the writer lock and its expiry, each device's inbox backlog, the holding folder, re-checks, files not downloaded, kept collections (#472) | `sync status`, a line in `status` | ✓ `s` on Status | ✓ Status → Sync | ✓ Status → Sync |
+| Download an item's or a collection's contents iCloud evicted; done by itself to open, preview, check out, draft or snapshot (#468) | `sync download` | ✓ `d` in Browse | ✓ Download from iCloud on an item, Download Now on a collection; Quick Look downloads first | ✓ as on the Mac |
+| Keep a collection downloaded on every device, `sync.keep_downloaded` (#468) | `sync keep COLLECTION on\|off\|default` | ✓ `K` on a collection in Browse (on, off, default) | ✓ the collection inspector's Keep Downloaded (on or off; default: #482) | ✓ as on the Mac (default: #482) |
+| Conflicted copies: reported, and settled as the owner chooses (#468) | `sync status`, `sync resolve --keep` | ✓ Sync on Status, `o` or `c` | ✓ Status → Sync, Keep Original or Keep Copy | ✓ Status → Sync |
+| Move the archive into iCloud Drive: room, copy, verify, switch over, the old copy kept (#472) | `sync move [--to]` | ✓ `m` on Sync | ✓ File → Move to iCloud Drive… | ✓ Status → Sync, choosing the folder in iCloud Drive |
 
 ## Settings
 
@@ -119,3 +124,4 @@ These stay in one interface, for the reason given:
 - **Backups on iPad and iPhone:** Kopia runs only on a Mac, so the iPad and iPhone app can't set up, take, verify or restore snapshots. What a change there replaces or removes is kept in the archive's holding folder until a Mac snapshots it (`docs/design/sync-and-mobile.md`, decision 5), and Status says how much is waiting.
 - **The agent, its menu bar list, and the Finder and Quick Look extensions** are how macOS runs things in the background and in Finder, so only the Mac has them. On iPad and iPhone, background tasks drain the intake queue and apply inboxes when the system gives the app time, and the share extension stands in for Send to Archive.
 - **The iPhone's battery:** drafting and rebuilding the index wait until an iPhone is charging, and an iPad's wait in Low Power Mode; reviewing, answering, browsing and searching work at any time.
+- **Downloading iCloud's evicted files** goes through file coordination in the Mac app, its agent and the iPad and iPhone app, and through the core in the command line and the interactive mode (reading a dataless file, or `brctl download` for a `.icloud` placeholder). On Linux and Windows the platform's sync client downloads them; Carrel only recognizes the placeholders and never treats them as missing.
