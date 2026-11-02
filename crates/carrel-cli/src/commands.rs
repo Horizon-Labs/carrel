@@ -398,6 +398,8 @@ pub fn status_on(
     text.push_str(&librarian_text);
     let (crawler_text, crawler) = crate::crawl::status_section(&archive, this_device, history);
     text.push_str(&crawler_text);
+    let (devices_text, devices) = crate::devices::status_section(&archive, this_device);
+    text.push_str(&devices_text);
     if !summary.problems.is_empty() {
         writeln!(
             text,
@@ -445,6 +447,7 @@ pub fn status_on(
         "flagged": summary.flagged,
         "librarian": librarian,
         "crawler": crawler,
+        "devices": devices,
         "reminders": reminders,
         "desk": desk,
         "resurfaced": resurfaced,

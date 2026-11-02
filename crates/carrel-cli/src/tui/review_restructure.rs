@@ -43,6 +43,8 @@ pub enum RestructureAction {
     CrawlNow,
     /// Undo the crawler's changes this week, as `carrel crawl undo 7d` does.
     UndoCrawler,
+    /// Re-check cards weaker devices drafted, as `carrel devices recheck` does.
+    RecheckNow,
     /// Set this collection's own eagerness, or clear it with `default`.
     Eagerness {
         /// The collection, by path.
@@ -279,6 +281,7 @@ pub(super) fn restructure_work(
     match action {
         RestructureAction::CrawlNow => super::review_crawler::crawler_work(root, false),
         RestructureAction::UndoCrawler => super::review_crawler::crawler_work(root, true),
+        RestructureAction::RecheckNow => super::devices::recheck_work(root),
         RestructureAction::Approve { id, only } => (
             "Restructuring…".into(),
             Box::new(move || {

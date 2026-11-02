@@ -4578,3 +4578,55 @@ fn ingest_text_files_a_written_note_as_an_item_from_the_flag_or_standard_input()
         "{path}"
     );
 }
+
+#[test]
+fn devices_update_writes_this_devices_profile_and_status_shows_the_rechecks_waiting() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let updated = sandbox.json(&root, &["devices", "update"]);
+    let devices = updated["devices"].as_array().unwrap();
+    assert_eq!(devices.len(), 2, "{updated}");
+    let this_device = updated["this_device"].as_str().unwrap();
+    let mine = devices.iter().find(|d| d["id"] == this_device).unwrap();
+    assert!(
+        mine["capabilities"]["benchmark"]["mb_per_second"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert!(
+        root.join(format!("_System/devices/{this_device}/device.json"))
+            .is_file()
+    );
+
+    // The sample's two cards drafted below the preferred level now wait for a stronger
+    // device, one file each in _System/tasks.
+    let rechecks = sandbox.json(&root, &["devices", "rechecks"]);
+    assert_eq!(rechecks["summary"]["waiting"], 2, "{rechecks}");
+    assert_eq!(
+        std::fs::read_dir(root.join("_System/tasks"))
+            .unwrap()
+            .count(),
+        2
+    );
+    let text = sandbox.ok(&root, &["devices", "rechecks"]);
+    assert!(text.contains("Holding/untitled scan.txt.md"), "{text}");
+
+    // Status, with a home of its own so it doesn't look for active work in the real one.
+    let status = |args: &[&str]| {
+        let out = sandbox.agent_command(&root, args).output().unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let json: Value = serde_json::from_str(&status(&["status", "--json"])).unwrap();
+    assert_eq!(json["devices"]["rechecks"]["waiting"], 2, "{json}");
+    assert_eq!(
+        json["devices"]["devices"].as_array().unwrap().len(),
+        2,
+        "{json}"
+    );
+}

@@ -23,7 +23,9 @@ use serde::{Deserialize, Serialize};
 use crate::archive::{Archive, ArchiveError, ItemRef};
 use crate::card::{Card, Extra, Id, QualityLevel};
 use crate::card_file::CardFile;
-use crate::coordinator::{Coordinator as _, CoordinatorError, DEFAULT_LEASE, DiskLock, WriterLease};
+use crate::coordinator::{
+    Coordinator as _, CoordinatorError, DEFAULT_LEASE, DiskLock, Holder, WriterLease,
+};
 use crate::crawl::verdicts::{self, Verdict};
 use crate::crawl::{CrawlError, Crawler};
 use crate::device_profile::{self, DeviceProfile, model_strength};
@@ -288,6 +290,31 @@ pub fn gather(archive: &Archive, lease: &WriterLease) -> Result<Gathered, Rechec
     Ok(gathered)
 }
 
+/// Writes `profile` as `holder`'s device's ([`device_profile::save`]), then brings the queue
+/// up to date under a lease of `holder`'s: what a device does when it opens an archive and now
+/// and then after. Returns what gathering changed, or `None` when another device is writing,
+/// which gathers next time instead.
+///
+/// # Errors
+///
+/// [`RecheckError`] if the profile or the queue can't be written, or the lease can't be taken
+/// for another reason than another writer's.
+pub fn update_and_gather(
+    archive: &Archive,
+    holder: Holder,
+    profile: &DeviceProfile,
+) -> Result<Option<Gathered>, RecheckError> {
+    device_profile::save(archive, profile)?;
+    let lease = match DiskLock::for_archive(archive).acquire(holder, "re-check", DEFAULT_LEASE) {
+        Ok(lease) => lease,
+        Err(CoordinatorError::Held(_)) => return Ok(None),
+        Err(e) => return Err(e.into()),
+    };
+    let gathered = gather(archive, &lease);
+    lease.release()?;
+    gathered.map(Some)
+}
+
 /// Claims up to `limit` tasks for the device with `profile`, as the writer holding `lease`:
 /// those it's strong enough for and no other device holds, oldest first, including any it
 /// claimed before. Returns them, claimed.
@@ -386,7 +413,8 @@ pub fn run(
     stop: &dyn Fn() -> bool,
 ) -> Result<Rechecked, RecheckError> {
     let archive = crawler.archive;
-    let lease = DiskLock::for_archive(archive).acquire(crawler.holder, "re-check", DEFAULT_LEASE)?;
+    let lease =
+        DiskLock::for_archive(archive).acquire(crawler.holder, "re-check", DEFAULT_LEASE)?;
     let claimed = gather(archive, &lease).and_then(|_| claim(archive, &lease, profile, limit));
     lease.release()?;
     let by_id: BTreeMap<Id, ItemRef> = archive.items()?.into_iter().map(|i| (i.id, i)).collect();

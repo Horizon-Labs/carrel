@@ -194,7 +194,12 @@ fn below_preferred_cards_wait_and_a_stronger_device_elsewhere_queues_a_phones_ca
     // Say a phone drafted the scan at the best level it could: it leaves the queue while no
     // device is stronger, and comes back once a Mac with a stronger model writes its profile.
     let phone = Id::new_v7();
-    profile(&archive, phone, DeviceType::Iphone, &["apple/afm-3-core-advanced"]);
+    profile(
+        &archive,
+        phone,
+        DeviceType::Iphone,
+        &["apple/afm-3-core-advanced"],
+    );
     drafted_on(&archive, SCAN, "apple/afm-3-core-advanced", phone);
     assert_eq!(gather(&archive, writer).removed, 1);
     assert!(!queued(&archive).contains(&SCAN.to_owned()));
@@ -222,7 +227,12 @@ fn below_preferred_cards_wait_and_a_stronger_device_elsewhere_queues_a_phones_ca
 fn a_claim_keeps_other_devices_off_until_it_lapses_and_weaker_ones_never_claim() {
     let (_dir, archive) = sample();
     let (phone, mac, other_mac) = (holder(), holder(), holder());
-    let phone_profile = profile(&archive, phone.device, DeviceType::Iphone, &["apple/afm-3-core-advanced"]);
+    let phone_profile = profile(
+        &archive,
+        phone.device,
+        DeviceType::Iphone,
+        &["apple/afm-3-core-advanced"],
+    );
     let mac_profile = profile(&archive, mac.device, DeviceType::Mac, &[STRONG]);
     let other_profile = profile(&archive, other_mac.device, DeviceType::Mac, &[STRONG]);
     gather(&archive, mac);
@@ -261,7 +271,11 @@ fn a_claim_keeps_other_devices_off_until_it_lapses_and_weaker_ones_never_claim()
     std::fs::write(&path, task.to_string()).unwrap();
     let theirs = claim(&archive, other_mac, &other_profile);
     assert_eq!(theirs.len(), 2);
-    assert!(theirs.iter().all(|t| t.claim.as_ref().unwrap().device == other_mac.device));
+    assert!(
+        theirs
+            .iter()
+            .all(|t| t.claim.as_ref().unwrap().device == other_mac.device)
+    );
 }
 
 /// A registry whose only text model is the catalog's strongest, giving `answers`.
@@ -282,7 +296,12 @@ fn strong_registry(answers: Vec<Value>) -> (Registry, AvailableModel) {
 fn a_mac_rechecks_a_phones_card_and_proposes_a_better_draft_for_approval() {
     let (_dir, archive) = sample();
     let (phone, mac) = (holder(), holder());
-    profile(&archive, phone.device, DeviceType::Iphone, &["apple/afm-3-core-advanced"]);
+    profile(
+        &archive,
+        phone.device,
+        DeviceType::Iphone,
+        &["apple/afm-3-core-advanced"],
+    );
     let mac_profile = profile(&archive, mac.device, DeviceType::Mac, &[STRONG]);
     drafted_on(&archive, SCAN, "apple/afm-3-core-advanced", phone.device);
     let answer = json!({

@@ -310,7 +310,9 @@ pub fn save(archive: &Archive, profile: &DeviceProfile) -> std::io::Result<bool>
             .updated
             .as_deref()
             .and_then(|t| t.parse::<jiff::Timestamp>().ok())
-            .is_some_and(|at| jiff::Timestamp::now().as_second() - at.as_second() < REFRESH_SECONDS);
+            .is_some_and(|at| {
+                jiff::Timestamp::now().as_second() - at.as_second() < REFRESH_SECONDS
+            });
         let mut kept = was.extra.clone();
         kept.extend(profile.extra.drain(..));
         profile.extra = kept;
@@ -381,7 +383,9 @@ pub fn self_benchmark() -> SelfBenchmark {
         hashed += 1;
     }
     std::hint::black_box(hasher.finalize());
-    let millis = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX).max(1);
+    let millis = u64::try_from(started.elapsed().as_millis())
+        .unwrap_or(u64::MAX)
+        .max(1);
     SelfBenchmark {
         mb_per_second: hashed * 1000 / millis,
     }

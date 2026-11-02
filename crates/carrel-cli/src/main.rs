@@ -19,6 +19,7 @@ mod config;
 mod correct;
 mod crawl;
 mod desk;
+mod devices;
 mod discover;
 mod edit;
 mod expand;
@@ -353,6 +354,13 @@ enum Command {
     Crawl {
         #[command(subcommand)]
         action: Option<crawl::CrawlAction>,
+    },
+    /// Each device's capability profile (`list`, the default), measuring this one again
+    /// (`update`), and the cards waiting for a stronger device to re-check them (`rechecks`,
+    /// and `recheck` to take some now).
+    Devices {
+        #[command(subcommand)]
+        action: Option<devices::DevicesAction>,
     },
     /// Measure text models on the benchmark's test set, for choosing defaults
     /// (`docs/design/benchmark.md`).
@@ -1242,6 +1250,7 @@ fn main() -> ExitCode {
         Command::Discover { action } => discover_command(cli.archive.as_deref(), action, cli.json),
         Command::Restructure { action } => restructure_command(cli.archive.as_deref(), action),
         Command::Crawl { action } => crawl::command(cli.archive.as_deref(), action),
+        Command::Devices { action } => devices::command(cli.archive.as_deref(), action),
         Command::Reminders => reminders::list(cli.archive.as_deref()),
         Command::Bench(args) => bench::bench(&args, cli.json),
         Command::Models { action } => models_command(action, cli.archive.as_deref(), cli.json),
@@ -1474,6 +1483,10 @@ fn changes_archive(command: &Command) -> bool {
         ),
         Command::Desk { action } => !matches!(action, None | Some(DeskAction::List)),
         Command::Crawl { action } => !matches!(action, None | Some(crawl::CrawlAction::Status)),
+        Command::Devices { action } => matches!(
+            action,
+            Some(devices::DevicesAction::Update | devices::DevicesAction::Recheck { .. })
+        ),
         Command::Backup { action } => {
             matches!(action, BackupAction::Setup { .. } | BackupAction::Now)
         }

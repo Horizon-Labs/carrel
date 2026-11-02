@@ -63,10 +63,18 @@ impl CliJobs {
         Ok((!done.is_empty()).then(|| done.join(", ")))
     }
 
-    /// A crawler pass, when its pace says one is due and the device is idle and on power.
+    /// A crawler pass, when its pace says one is due and the device is idle and on power,
+    /// then this device's profile brought up to date and weaker devices' cards re-checked.
     fn crawl(archive: &Archive) -> Result<Option<String>, JobError> {
         let crawled = crate::crawl::when_idle(archive).map_err(|Failure(e)| JobError::Failed(e))?;
-        Ok(crawled.and_then(|c| c.summary()))
+        let rechecked =
+            crate::devices::for_agent(archive).map_err(|Failure(e)| JobError::Failed(e))?;
+        let done: Vec<String> = crawled
+            .and_then(|c| c.summary())
+            .into_iter()
+            .chain(rechecked)
+            .collect();
+        Ok((!done.is_empty()).then(|| done.join("; ")))
     }
 
     fn sessions(&self, archive: &Archive) -> Result<Option<String>, JobError> {

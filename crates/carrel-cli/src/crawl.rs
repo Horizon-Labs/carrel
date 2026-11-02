@@ -94,7 +94,10 @@ fn on_power() -> Option<bool> {
 
 /// The crawler for `archive` here, on the strongest model the device has, or why there's
 /// none.
-fn crawler<'a>(archive: &'a Archive, registry: &'a Registry) -> Result<Crawler<'a>, Failure> {
+pub(crate) fn crawler<'a>(
+    archive: &'a Archive,
+    registry: &'a Registry,
+) -> Result<Crawler<'a>, Failure> {
     let model =
         carrel_core::crawl::model::choose(registry, crate::ask::memory_gb()).ok_or_else(|| {
             Failure::new(
