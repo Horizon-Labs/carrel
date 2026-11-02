@@ -69,6 +69,19 @@ final class QuestionsModel {
         let answer = given ?? answer(for: id)
         guard !answer.isEmpty else { return }
         report = nil
+        if question.kind == .flag {
+            do {
+                let view = try await archive.answerFlagQuestion(
+                    id, answer: answer, memoryGB: LibrarianModel.thisMac)
+                answers[id] = nil
+                if selection == id { selection = nil }
+                report = "The librarian tried again: \(view.stateText)."
+            } catch {
+                archive.lastError = nil
+                report = (error as? CarrelError)?.message ?? error.localizedDescription
+            }
+            return
+        }
         if question.kind == .item {
             let picked = question.picked(answer)
             if picked?.noChange != true {

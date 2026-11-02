@@ -410,6 +410,12 @@ public final class Agent {
         {
             archives[index].crawled = "The crawler \(summary)"
         }
+        // Flags waiting for the librarian use the same idle time (#454).
+        activity = "The librarian is looking at what’s flagged in “\(name)”"
+        _ = try? await Task.detached(priority: .background) {
+            try handle.flagsWhenIdle(
+                idleSeconds: device.idle, onPower: device.onPower, model: nil, memoryGb: memory)
+        }.value
     }
 
     /// Posts the reminders due that this Mac hasn't shown yet, and marks those posted shown.

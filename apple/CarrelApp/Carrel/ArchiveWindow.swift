@@ -317,6 +317,7 @@ private struct Inspector: View {
                     ) {
                         ItemActions(model: model, item: item)
                     } below: {
+                        ItemFlagSection(item: item, window: model)
                         ItemQuestionsSection(item: item, window: model)
                     }
                 }

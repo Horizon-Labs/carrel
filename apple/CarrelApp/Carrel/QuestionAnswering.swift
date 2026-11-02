@@ -54,7 +54,7 @@ struct QuestionAnswerer: View {
                     .help("Leave them where they are; Carrel won’t ask again")
             }
             collectionPicker
-        case .item:
+        case .item, .flag:
             TextField("Answer", text: $answer, prompt: Text("Your answer"), axis: .vertical)
                 .lineLimit(1...4)
                 .onSubmit { submit(answer) }
@@ -87,6 +87,7 @@ extension Question {
         case .group: "Where “\(subject)” go together"
         case .sender: "A collection for “\(subject)”?"
         case .item: "About “\(subject)”"
+        case .flag: "The librarian, about flagged “\(subject)”"
         }
     }
 
@@ -98,6 +99,7 @@ extension Question {
         case .group: "Group"
         case .sender: "Sender or project"
         case .item: "Item"
+        case .flag: "Flag"
         }
     }
 

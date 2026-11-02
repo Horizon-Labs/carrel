@@ -615,7 +615,7 @@ The writer records what it applied as one `inbox` change (§8.2), and removes th
 
 ### 7.9 Queues
 
-`_System/queue/` holds pending work as one JSON file per entry, in subfolders `intake/` (items waiting to be ingested), `review/` (ingest and change proposals), `questions/` (questions for the owner), `tasks/` (work for a more capable device), `proposals/` (restructure proposals) and `crawler/` (the crawler's findings). Entry schemas are defined alongside the features that use them and are versioned with this specification. Programs **must** preserve unknown keys in entries.
+`_System/queue/` holds pending work as one JSON file per entry, in subfolders `intake/` (items waiting to be ingested), `review/` (ingest and change proposals), `questions/` (questions for the owner), `tasks/` (work for a more capable device), `proposals/` (restructure proposals), `crawler/` (the crawler's findings) and `flags/` (the librarian's work on flags). Entry schemas are defined alongside the features that use them and are versioned with this specification. Programs **must** preserve unknown keys in entries.
 
 #### Review entries
 
@@ -732,7 +732,7 @@ When several items depend on the same unknown, a program asks the owner one ques
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `term` (what a recurring term means; the answer becomes a glossary fact, §7.3), `collection` (which collection items about a term belong in), `group` (where a group of items that belong together goes, such as a collection they're split across or a new one), `sender` (whether a sender or project that recurs deserves its own collection) or `item` (something about one item, such as what a photo shows or who someone named in it is; the answer is a correction of its card). For `collection`, `group` and `sender`, the answer is a collection's path, or for `sender`, no |
+| `kind` | `term` (what a recurring term means; the answer becomes a glossary fact, §7.3), `collection` (which collection items about a term belong in), `group` (where a group of items that belong together goes, such as a collection they're split across or a new one), `sender` (whether a sender or project that recurs deserves its own collection) `item` (something about one item, such as what a photo shows or who someone named in it is; the answer is a correction of its card) or `flag` (what the librarian needs to know to fix something the owner flagged; the answer goes back to the librarian, which tries again). For `collection`, `group` and `sender`, the answer is a collection's path, or for `sender`, no |
 | `batch` | Optional. The ingest batch that raised it; questions raised outside ingest have none |
 | `subject` | What the question is about: the term as it appears in the items' names, the sender or project, or for `item`, the item's title or the name asked about |
 | `question` | The question in words |
@@ -742,10 +742,45 @@ When several items depend on the same unknown, a program asks the owner one ques
 | `suggestions` | Optional. Likely answers to offer, most likely first. Each has an `answer`, optionally `why` it's likely, `new_collection: true` when picking it creates that collection, and `no_change: true` when picking it settles the question without changing anything |
 | `skipped`, `skips` | Optional. When the owner last skipped it, and how many times. It isn't asked again until `questions.skip_days` (§7.2) after `skipped` |
 | `declined` | Optional. When the owner answered it with no change, such as "no, it doesn't need its own collection". Programs keep the entry so the question isn't asked again, and don't show it |
+| `flag` | For `flag`, the flag request (`flags/<id>.json`) it asks for. Programs ask flag questions before others, since the owner asked for the work |
 
 Programs **should** ask the questions whose answers would settle the most items they're least sure of first, **should not** ask a question the glossary or a routing rule already answers, and **should** merge a new question into one already waiting that asks the same about the same subject. An answer becomes a glossary fact or a routing rule only with the owner's agreement.
 
 Once a question is answered or dismissed, programs remove it and clear the problem from its items, except a declined question, which stays with `declined` set. Items waiting on a term are drafted again with the new fact. Question files without the optional fields, as earlier programs wrote them, remain valid.
+
+#### Flag requests
+
+When the owner flags an item or a collection (§5.9), the librarian takes a look, with the flag's note as the request, and records what it came to in `flags/<id>.json`, named for the flag's `id` (or, for a flag written by hand without one, the item's identifier, or for a collection, an identifier derived from its folder):
+
+```json
+{
+  "carrel": "flag-request",
+  "format": "1.0",
+  "id": "019a3f00-1c2d-7e3f-8a4b-5c6d7e8f9a0b",
+  "what": {"kind": "collection", "path": "Finances/Receipts 2023"},
+  "title": "Receipts 2023",
+  "note": "messy",
+  "state": "asked",
+  "updated": "2026-11-02T10:15:00-08:00",
+  "model": "llama/qwen3.5-9b",
+  "said": "what's wrong with it: too mixed, or the wrong year?",
+  "exchanges": [{"question": "what's wrong with it: too mixed, or the wrong year?"}],
+  "question": "019a3f10-0000-7000-8000-000000000001"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `what` | The flagged item (`{"kind": "item", "id", "card"}`) or collection (`{"kind": "collection", "path"}`) |
+| `note` | The flag's note when the librarian took it up. A flag whose note has changed since is a new request, and programs remove the old one |
+| `state` | `waiting` (for the librarian), `asked` (waiting for the owner's answer), `suggested` (a fix waiting for the owner), `cant-help` or `done` (the librarian made the fix itself). A flag with no request is `waiting` |
+| `said` | What the librarian last said about it |
+| `exchanges` | Optional. What the librarian asked (`question`) and the owner answered (`answer`), oldest first; each is told to the librarian when it tries again |
+| `question` | Optional. The question entry asking the last one, while it waits |
+| `suggestions` | Optional. The librarian's fixes, each a change (`change`: `refile`, `correct`, `rename` or `collection`, with its item and value), `why`, `confidence`, and `outcome` (`proposed`, `made` with its `commit`, `refused` or `failed`, with a `reason`) |
+| `cant_help` | Optional. Why it couldn't help (`why`), what Carrel would need in Carrel's own words (`missing`), and the gap recorded on the device that found it (`gap`), to report to development |
+
+Accepting a fix makes it as the owner's change; once none waits, programs clear the flag (the owner's action) and remove the request. Programs remove a request, and its question, when its flag is cleared. A flag stays until the owner clears it, even when the librarian made the fix itself.
 
 #### Proposal entries
 

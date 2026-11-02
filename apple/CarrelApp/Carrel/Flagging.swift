@@ -184,9 +184,13 @@ struct CollectionFlagSection: View {
                 Label(flag.described, systemImage: "flag.fill")
                     .foregroundStyle(.orange)
                     .textSelection(.enabled)
+                if let view = model.flagRequest(for: collection.path) {
+                    FlagRequestDetail(window: model, view: view)
+                }
             }
             HStack { CollectionFlagButtons(model: model, collection: collection) }
         }
+        .task(id: collection.flag?.described) { await model.refreshFlags() }
     }
 }
 
@@ -273,7 +277,8 @@ struct FlaggedView: View {
                             model.screen = .collection(collection.path)
                         } label: {
                             FlaggedRow(
-                                title: collection.title, symbol: "folder", flag: collection.flag)
+                                title: collection.title, symbol: "folder", flag: collection.flag,
+                                request: model.flagRequest(for: collection.path))
                         }
                         .buttonStyle(.plain)
                         .contextMenu { CollectionFlagButtons(model: model, collection: collection) }
@@ -283,8 +288,11 @@ struct FlaggedView: View {
             if !model.flaggedItems.isEmpty {
                 Section("Items") {
                     ForEach(model.flaggedItems) { item in
-                        FlaggedRow(title: item.title, symbol: item.kind.symbol, flag: item.flag)
-                            .tag(item.id)
+                        FlaggedRow(
+                            title: item.title, symbol: item.kind.symbol, flag: item.flag,
+                            request: model.flagRequest(for: item.id)
+                        )
+                        .tag(item.id)
                     }
                 }
             }
@@ -292,12 +300,15 @@ struct FlaggedView: View {
         .contextMenu(forSelectionType: ItemSummary.ID.self) { ids in
             BrowseActions(model: model, ids: ids)
         }
+        .task(id: model.flaggedCollections.count + model.flaggedItems.count) {
+            await model.refreshFlags()
+        }
         .overlay {
             if model.flaggedCollections.isEmpty, model.flaggedItems.isEmpty {
                 ContentUnavailableView(
                     "Nothing Flagged", systemImage: "flag",
                     description: Text(
-                        "Flag an item or a collection that needs work from its context menu or the inspector."
+                        "Flag an item or a collection that needs work from its context menu or the inspector, and the librarian takes a look."
                     ))
             }
         }
@@ -308,12 +319,21 @@ private struct FlaggedRow: View {
     let title: String
     let symbol: String
     let flag: Flag?
+    /// Where the librarian is with it.
+    var request: FlagRequestView?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Label(title, systemImage: symbol)
             if let flag {
                 Text(flag.described).font(.caption).foregroundStyle(.secondary)
+            }
+            if let request {
+                Label(
+                    request.asking ?? request.stateText.capitalizedFirst,
+                    systemImage: request.state.symbol
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -337,11 +357,13 @@ struct StatusFlaggedSection: View {
                     } label: {
                         FlaggedRow(
                             title: thing.title, symbol: thing.isCollection ? "folder" : "doc",
-                            flag: thing.flag)
+                            flag: thing.flag,
+                            request: model.flagRequest(for: thing.id ?? thing.path))
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .task(id: flagged.count) { await model.refreshFlags() }
         }
     }
 }

@@ -105,6 +105,8 @@ final class ArchiveWindowModel {
     var correction: CorrectionModel?
     /// Report a Missing Feature's sheet, while it's open (#455).
     var missingFeature: MissingFeatureModel?
+    /// Everything flagged, with where the librarian is with each (`FlagLibrarian.swift`).
+    var flagRequests: [FlagRequestView] = []
     /// The filed item whose card the inspector is editing (⌘E).
     var editing: CardEditModel?
 
