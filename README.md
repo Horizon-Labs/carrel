@@ -6,7 +6,7 @@ Carrel is a personal archivist with native apps for macOS, iPadOS and iOS and a 
 
 Every document is analyzed on your own devices. Nothing is sent anywhere unless you explicitly opt in.
 
-> **Status:** [v0.6.0](https://github.com/Horizon-Labs/carrel/releases/tag/v0.6.0) is the latest release: the librarian, which answers questions about your archive in your own words, and discovery, over the Mac app, the `carrel` command line and its interactive mode, each fully capable on macOS, Linux and Windows. Filing, checking out and returning work, corrections and edits, search in your own words, previews, history, backups and settings, all on your computer. New here? Start with [Getting started](docs/guide/getting-started.md), or [the Mac app](docs/guide/mac-app.md).
+> **Status:** [1.0.0-rc.1](https://github.com/Horizon-Labs/carrel/releases/tag/v1.0.0-rc.1) is the first release candidate for 1.0: one archive across your Mac, iPad and iPhone through iCloud Drive, macOS system integration, and feedback from any screen. It builds on [v0.6.0](https://github.com/Horizon-Labs/carrel/releases/tag/v0.6.0): the librarian, which answers questions about your archive in your own words, and discovery, over the Mac app, the `carrel` command line and its interactive mode, each fully capable on macOS, Linux and Windows. Filing, checking out and returning work, corrections and edits, search in your own words, previews, history, backups and settings, all on your computer. New here? Start with [Getting started](docs/guide/getting-started.md), or [the Mac app](docs/guide/mac-app.md).
 
 ## Principles
 
@@ -35,7 +35,7 @@ From v0.2, each [release](https://github.com/Horizon-Labs/carrel/releases) has a
 To check a download came from this repository's release workflow:
 
 ```bash
-gh attestation verify carrel-0.6.0-linux-x86_64.tar.gz --repo Horizon-Labs/carrel
+gh attestation verify carrel-1.0.0-rc.1-linux-x86_64.tar.gz --repo Horizon-Labs/carrel
 ```
 
 That works from v0.6, the first release since the repository moved to Horizon-Labs. GitHub's lookup doesn't find the attestations made before the move, so check v0.5.1 and earlier against their `SHA256SUMS` instead.
@@ -49,7 +49,7 @@ Until then, build from source as [Getting started](docs/guide/getting-started.md
 - **Core:** Rust, shared by the apps and the CLI; builds on macOS, Linux and Windows.
 - **Apps:** SwiftUI for macOS, iPadOS and iOS, using the core through generated Swift bindings (UniFFI).
 - **Providers:** models and text extraction come from separate provider programs: Apple's Foundation Models, MLX, PDFKit and Vision on Apple devices, and portable ones (llama.cpp, a Rust PDF reader, Tesseract) elsewhere.
-- **Sync (planned, v0.8):** iCloud Drive, with a CloudKit lock so only one device writes history at a time.
+- **Sync:** iCloud Drive, with a CloudKit lock so only one device writes history at a time.
 
 [docs/dev/architecture.md](docs/dev/architecture.md) explains how it's built today, with diagrams.
 
@@ -63,9 +63,9 @@ Until then, build from source as [Getting started](docs/guide/getting-started.md
 | 0.4 | Explorer and search, in the CLI | Released |
 | 0.5 | The Mac app, with a background agent, and every interface fully capable | Released (0.5.1) |
 | 0.6 | The librarian and discovery, reminders, and restructure proposals with crawlers | Released |
-| 0.7 | macOS system integration: Finder, Share, Quick Look, Spotlight, App Intents | In progress |
-| 0.8 | iCloud, iPad and iPhone: one archive across devices | Next |
-| **1.0** | **First working release:** the Mac, iPad and iPhone apps and the CLI, fully on-device and signed | Planned |
+| 0.7 | macOS system integration: Finder, Share, Quick Look, Spotlight, App Intents | In 1.0.0-rc.1 |
+| 0.8 | iCloud, iPad and iPhone: one archive across devices | In 1.0.0-rc.1 |
+| **1.0** | **First working release:** the Mac, iPad and iPhone apps and the CLI, fully on-device and signed | Release candidates |
 | 1.1 – 1.3 | Optional remote models through a privacy filter; offline collections and sharing; encryption and web snapshots | Planned |
 | **2.0** | **Linux and Windows apps** | Planned |
 
