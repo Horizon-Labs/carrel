@@ -66,7 +66,15 @@ impl CliJobs {
     /// A crawler pass, when its pace says one is due and the device is idle and on power.
     fn crawl(archive: &Archive) -> Result<Option<String>, JobError> {
         let crawled = crate::crawl::when_idle(archive).map_err(|Failure(e)| JobError::Failed(e))?;
-        Ok(crawled.and_then(|c| c.summary()))
+        // Flags waiting for the librarian use the same idle time.
+        let looked =
+            crate::flag_librarian::when_idle(archive).map_err(|Failure(e)| JobError::Failed(e))?;
+        let did: Vec<String> = crawled
+            .and_then(|c| c.summary())
+            .into_iter()
+            .chain(looked)
+            .collect();
+        Ok((!did.is_empty()).then(|| did.join("; ")))
     }
 
     fn sessions(&self, archive: &Archive) -> Result<Option<String>, JobError> {

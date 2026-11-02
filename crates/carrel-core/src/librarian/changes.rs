@@ -11,7 +11,7 @@
 //! It never acts on restricted items, never changes a field the owner wrote, and has no way to
 //! delete anything, edit a file's contents, change settings or rules, or send anything.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::archive::{Archive, ItemRef};
 use crate::card::Sensitivity;
@@ -36,7 +36,7 @@ const FIELDS: [(&str, &str); 4] = [
 ];
 
 /// A change the librarian suggests.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "change", rename_all = "kebab-case")]
 pub enum Change {
     /// Move an item to another collection.
@@ -124,7 +124,7 @@ impl Change {
 }
 
 /// What became of a suggestion.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "outcome", rename_all = "kebab-case")]
 pub enum Outcome {
     /// The librarian made it, as the history change `commit`.
@@ -150,7 +150,7 @@ pub enum Outcome {
 }
 
 /// A change the librarian suggested, why, how sure it is, and what became of it.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Suggestion {
     /// The change.
     #[serde(flatten)]
@@ -165,7 +165,7 @@ pub struct Suggestion {
 }
 
 /// A suggestion as the model gave it, before it's checked.
-#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Suggested {
     /// `refile`, `correct`, `rename` or `collection`.

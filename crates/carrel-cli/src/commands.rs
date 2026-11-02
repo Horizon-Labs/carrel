@@ -414,7 +414,7 @@ pub fn status_on(
     }
     text.push_str(&names_section(&summary.names));
     text.push_str(&signals_section(&summary.signals));
-    text.push_str(&crate::flag::status_section(&summary.flagged));
+    text.push_str(&crate::flag_librarian::status_section(&archive));
     let (desk_text, desk) = crate::desk::suggestions_section(&summary.desk);
     text.push_str(&desk_text);
     let (resurfaced_text, resurfaced) = crate::discover::resurfaced(&archive, records);

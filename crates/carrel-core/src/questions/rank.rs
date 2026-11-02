@@ -99,6 +99,8 @@ impl Context {
         let subject = question.subject.trim();
         let lower = subject.to_lowercase();
         match question.kind {
+            // The flag's request settles its own question (`flags::request`).
+            QuestionKind::Flag => return None,
             QuestionKind::Term if self.glossary.contains(&lower) => {
                 return Some(format!("the glossary explains “{subject}”"));
             }
@@ -130,6 +132,10 @@ impl Context {
     /// worth: each item counts by how unsure Carrel is about it.
     #[must_use]
     pub fn settles(&self, question: &QuestionEntry) -> (usize, f64) {
+        if question.kind == QuestionKind::Flag {
+            // The owner asked for this one, by flagging it: it comes first.
+            return (1, FLAG_VALUE);
+        }
         let mut count = 0;
         let mut value = 0.0;
         for id in &question.items {
@@ -147,6 +153,10 @@ impl Context {
         (count, value)
     }
 }
+
+/// What answering a flag question is worth: more than any other question, since the owner
+/// asked for the work by flagging it.
+const FLAG_VALUE: f64 = 100.0;
 
 /// Whether the routing rule `rule` already files items about `subject`: its name mentions the
 /// subject, or its name pattern matches it.
@@ -280,6 +290,7 @@ fn family(kind: QuestionKind) -> u8 {
         QuestionKind::Collection | QuestionKind::Group => 1,
         QuestionKind::Sender => 2,
         QuestionKind::Item => 3,
+        QuestionKind::Flag => 4,
     }
 }
 
@@ -321,6 +332,9 @@ fn distance(a: &str, b: &str) -> usize {
 pub fn same(a: &QuestionEntry, b: &QuestionEntry) -> bool {
     if family(a.kind) != family(b.kind) {
         return false;
+    }
+    if a.kind == QuestionKind::Flag {
+        return a.flag == b.flag;
     }
     if a.kind == QuestionKind::Item {
         let target = |q: &QuestionEntry| q.items.first().or(q.about.first()).copied();

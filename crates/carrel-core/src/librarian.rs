@@ -70,7 +70,7 @@ impl Default for Limits {
 const DEFAULT_CONTEXT: u64 = 4_096;
 
 /// An item, as an answer links to it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemLink {
     /// Its identifier.
     pub id: Id,

@@ -59,6 +59,9 @@ pub enum QuestionKind {
     /// Whether a sender or project that recurs deserves its own collection. The answer is yes,
     /// with the collection's path, or no.
     Sender,
+    /// What the librarian needs to know to fix something the owner flagged
+    /// ([`crate::flags::request`]). The answer goes back to the librarian, which tries again.
+    Flag,
 }
 
 impl QuestionKind {
@@ -71,6 +74,7 @@ impl QuestionKind {
             Self::Item => "item",
             Self::Group => "group",
             Self::Sender => "sender",
+            Self::Flag => "flag",
         }
     }
 
@@ -173,6 +177,10 @@ pub struct QuestionEntry {
     /// sender that doesn't need its own collection). It's never asked again, and isn't shown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub declined: Option<DateOrTime>,
+    /// For a flag question, the request to the librarian it asks for
+    /// ([`crate::flags::request::FlagRequest::id`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flag: Option<Id>,
     /// Keys this version doesn't know.
     #[serde(flatten)]
     pub extra: Extra,
@@ -192,6 +200,9 @@ impl QueueEntry for QuestionEntry {
         }
         if self.kind == QuestionKind::Item && self.items.len() + self.about.len() != 1 {
             return Err("an item question is about exactly one item".into());
+        }
+        if self.kind == QuestionKind::Flag && self.flag.is_none() {
+            return Err("a flag question names its flag".into());
         }
         Ok(())
     }
@@ -221,6 +232,7 @@ impl QuestionEntry {
             skipped: None,
             skips: 0,
             declined: None,
+            flag: None,
             extra: Extra::new(),
         }
     }

@@ -503,6 +503,8 @@ pub struct App {
     pub crawler: super::review_crawler::CrawlerReview,
     /// The Gaps view on Status: what Carrel couldn't do on this device.
     pub gaps: super::gaps::GapsView,
+    /// The Flags view on Status.
+    pub flags: super::flag_requests::FlagsView,
     /// Restructure proposals waiting in Review.
     pub restructure: super::review_restructure::RestructureReview,
     /// The chosen proposal.
@@ -679,6 +681,7 @@ impl App {
             review_list: super::review_crawler::ReviewList::default(),
             crawler: super::review_crawler::CrawlerReview::default(),
             gaps: super::gaps::GapsView::default(),
+            flags: super::flag_requests::FlagsView::default(),
             restructure: super::review_restructure::RestructureReview::default(),
             chosen: 0,
             marked: BTreeSet::new(),
@@ -785,6 +788,9 @@ impl App {
             .extend(crate::usage_report::status_lines(&self.archive));
         self.load_gaps();
         self.status.extend(self.gaps_status_lines());
+        if self.flags.shown {
+            self.load_flags();
+        }
         self.history = match History::open(&self.archive) {
             Ok(history) => history.log()?,
             Err(HistoryError::NotInitialized) => Vec::new(),
@@ -978,14 +984,15 @@ impl App {
                 keys.extend([("↑↓", "choose"), ("Enter", "answer"), ("d", "dismiss")]);
             }
             Tab::Browse => return self.browse_keys(),
+            Tab::Status if self.flags.shown => keys.extend(self.flags_keys()),
             Tab::Status if self.gaps.shown => keys.extend(self.gaps_keys()),
             Tab::Status if self.reminder_has_item() => {
                 keys.extend([("↑↓", "scroll"), ("Enter", "reminder's item")]);
             }
             _ => keys.push(("↑↓", "scroll")),
         }
-        if self.tab == Tab::Status && !self.gaps.shown {
-            keys.push(("g", "gaps"));
+        if self.tab == Tab::Status && !self.gaps.shown && !self.flags.shown {
+            keys.extend([("f", "flags"), ("g", "gaps")]);
         }
         keys.extend([("^R", "refresh"), ("?", "help"), ("q", "quit")]);
         keys
@@ -1085,7 +1092,9 @@ impl App {
             Tab::Backups => self.backups_key(key),
             Tab::Librarian => self.talk_key(key),
             Tab::Discover => self.discover_key(key),
-            Tab::Status => self.status_or_gaps_key(key),
+            Tab::Status => self
+                .flags_key(key)
+                .unwrap_or_else(|| self.status_or_gaps_key(key)),
             Tab::History => Handled::No,
         };
         if let Handled::Yes(effect) = handled {

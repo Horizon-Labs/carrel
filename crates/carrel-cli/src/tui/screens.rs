@@ -110,6 +110,13 @@ pub enum InputPurpose {
     },
     /// Something about the gaps in Carrel (`super::gaps`).
     Gap(super::gaps::GapInput),
+    /// The owner's answer to what the librarian asked about a flag (`super::flag_requests`).
+    FlagAnswer {
+        /// The item's card or the collection's folder.
+        target: String,
+        /// The librarian's question.
+        question: String,
+    },
 }
 
 /// What a correction is for.
@@ -158,6 +165,7 @@ impl Input {
             InputPurpose::Option(line) => line.prompt(),
             InputPurpose::FlagNote { .. } => "what needs work, or nothing",
             InputPurpose::Gap(gap) => gap.prompt(),
+            InputPurpose::FlagAnswer { .. } => "your answer for the librarian",
         }
     }
 

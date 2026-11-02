@@ -9,9 +9,11 @@
 //! librarian can list them. When a correction or an edit is saved on a flagged card, the
 //! interfaces offer to clear its flag ([`of_item`]).
 
+pub mod request;
+
 use std::fmt::Write as _;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::actions::ActionError;
 use crate::archive::{Archive, ArchiveError, ItemRef};
@@ -25,7 +27,7 @@ use crate::history::{Change, History, Operation};
 pub const NOTE_CHARS: usize = 200;
 
 /// What can be flagged: an item, by its card, or a collection, by its folder.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Flaggable {
     /// An item.

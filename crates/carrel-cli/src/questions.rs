@@ -294,6 +294,7 @@ pub fn answer(
         }
         QuestionKind::Sender => sender(&archive, &question, &answer, picked.as_ref(), options),
         QuestionKind::Item => item(&archive, &question, &answer, options),
+        QuestionKind::Flag => crate::flag_librarian::answer_question(&archive, &question, &answer),
     }
 }
 

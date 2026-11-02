@@ -24,6 +24,7 @@ mod edit;
 mod expand;
 mod findability;
 mod flag;
+mod flag_librarian;
 mod formats;
 mod gui;
 mod index;
@@ -255,14 +256,19 @@ enum Command {
         /// What needs doing, in a few words, such as "wrong title" or "split this folder".
         #[arg(long, value_name = "TEXT")]
         note: Option<String>,
+        /// Hand it to the librarian now, rather than when the device is idle: it suggests a
+        /// fix, asks what it needs to know, or says why it can't help.
+        #[arg(long)]
+        ask: bool,
     },
     /// Clear an item's or a collection's flag.
     Unflag {
         /// The item or the collection, as for `carrel flag`.
         target: String,
     },
-    /// List what's flagged as needing work.
-    Flagged,
+    /// List what's flagged as needing work, by where the librarian is with each; with an
+    /// item or collection, what it suggested or asked, and what to do about it.
+    Flagged(flag_librarian::FlaggedArgs),
     /// Check an item out to work on: a copy goes to a working folder, and the archive copy is
     /// read-only until it's returned.
     Checkout {
@@ -1214,7 +1220,7 @@ fn main() -> ExitCode {
         command @ (Command::Rename { .. }
         | Command::Flag { .. }
         | Command::Unflag { .. }
-        | Command::Flagged) => rename_or_flag_command(cli.archive.as_deref(), command),
+        | Command::Flagged(_)) => rename_or_flag_command(cli.archive.as_deref(), command),
         Command::Checkout { item, to, due } => {
             checkout::checkout(cli.archive.as_deref(), &item, to.as_deref(), due.as_deref())
         }
@@ -1438,9 +1444,10 @@ fn models_command(
 fn rename_or_flag_command(archive: Option<&Path>, command: Command) -> Result<Report, Failure> {
     match command {
         Command::Rename { item, new_name } => commands::rename(archive, &item, new_name.as_deref()),
-        Command::Flag { target, note } => flag::flag(archive, &target, note.as_deref()),
+        Command::Flag { target, note, ask } => flag::flag(archive, &target, note.as_deref(), ask),
         Command::Unflag { target } => flag::unflag(archive, &target),
-        _ => flag::list(archive),
+        Command::Flagged(args) => flag_librarian::flagged(archive, &args),
+        _ => unreachable!("only rename and the flag commands come here"),
     }
 }
 

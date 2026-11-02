@@ -68,6 +68,7 @@ pub fn input_text(purpose: &InputPurpose) -> Option<(&'static str, String)> {
             ),
         ),
         InputPurpose::FlagNote { title, .. } => super::flagging::input_text(title),
+        InputPurpose::FlagAnswer { question, .. } => super::flag_requests::input_text(question),
         _ => return None,
     })
 }
@@ -278,6 +279,9 @@ impl App {
             }
             InputPurpose::FlagNote { target, .. } => {
                 return Some(super::flagging::flag_note(target, &text));
+            }
+            InputPurpose::FlagAnswer { target, .. } => {
+                return super::flag_requests::flag_answer(target, &text);
             }
             InputPurpose::Rename { card, from } => {
                 if text.is_empty() || text == from {

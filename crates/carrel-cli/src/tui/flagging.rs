@@ -8,6 +8,8 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use carrel_core::card_file::CardFile;
+
+use crate::flag_librarian::FlaggedArgs;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 use super::app::{App, Confirm, Effect};
@@ -30,6 +32,30 @@ pub enum Flagging {
     },
     /// Clear its flag.
     Clear {
+        /// The item's card or the collection's folder.
+        target: String,
+    },
+    /// Hand it to the librarian now (`super::flag_requests`).
+    Ask {
+        /// The item's card or the collection's folder.
+        target: String,
+    },
+    /// Answer what the librarian asked about it; it tries again.
+    Answer {
+        /// The item's card or the collection's folder.
+        target: String,
+        /// The answer.
+        words: String,
+    },
+    /// Accept the librarian's fix `n`, counting from 1.
+    Accept {
+        /// The item's card or the collection's folder.
+        target: String,
+        /// The fix.
+        n: usize,
+    },
+    /// Ask the librarian to look again.
+    Again {
         /// The item's card or the collection's folder.
         target: String,
     },
@@ -181,13 +207,55 @@ pub(super) fn flag_work(flagging: Flagging) -> (&'static str, super::ArchiveWork
     match flagging {
         Flagging::Set { target, note } => (
             "Flagging it…",
-            Box::new(move |root: &Path| crate::flag::flag(Some(root), &target, note.as_deref())),
+            Box::new(move |root: &Path| {
+                crate::flag::flag(Some(root), &target, note.as_deref(), false)
+            }),
         ),
         Flagging::Clear { target } => (
             "Clearing its flag…",
             Box::new(move |root: &Path| crate::flag::unflag(Some(root), &target)),
         ),
+        Flagging::Ask { target } => librarian_work(
+            "The librarian is looking at it…",
+            FlaggedArgs {
+                target: Some(target),
+                ask: true,
+                ..FlaggedArgs::default()
+            },
+        ),
+        Flagging::Answer { target, words } => librarian_work(
+            "The librarian is trying again with your answer…",
+            FlaggedArgs {
+                target: Some(target),
+                answer: Some(words),
+                ..FlaggedArgs::default()
+            },
+        ),
+        Flagging::Accept { target, n } => librarian_work(
+            "Making the fix…",
+            FlaggedArgs {
+                target: Some(target),
+                accept: Some(n),
+                ..FlaggedArgs::default()
+            },
+        ),
+        Flagging::Again { target } => librarian_work(
+            "The librarian is looking again…",
+            FlaggedArgs {
+                target: Some(target),
+                again: true,
+                ..FlaggedArgs::default()
+            },
+        ),
     }
+}
+
+/// The work for `carrel flagged` with `args`.
+fn librarian_work(busy: &'static str, args: FlaggedArgs) -> (&'static str, super::ArchiveWork) {
+    (
+        busy,
+        Box::new(move |root: &Path| crate::flag_librarian::flagged(Some(root), &args)),
+    )
 }
 
 #[cfg(test)]
