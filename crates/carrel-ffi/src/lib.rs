@@ -61,6 +61,7 @@ pub mod crawl;
 pub mod creating;
 pub mod discover;
 pub mod edit;
+pub mod flag_requests;
 pub mod flags;
 pub mod gaps;
 pub mod graph;
