@@ -68,8 +68,8 @@ struct IntakeSection: View {
             if intake.queue.waiting.isEmpty, intake.worker == nil, !isReadOnly {
                 Text(
                     isMac
-                        ? "Drop files or folders on the window, or choose File → Add to Archive…"
-                        : "Add photos, scans and files with the + button, or share them to Carrel."
+                        ? "Drop or paste files, folders, web addresses or text on the window, or choose File → Add to Archive…, Add Web Address… or Add Note…"
+                        : "Add photos, scans, files, web addresses and notes with the + button, or share them to Carrel."
                 )
                 .foregroundStyle(.secondary)
             }

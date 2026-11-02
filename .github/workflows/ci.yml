@@ -47,6 +47,8 @@ on:
     # Hourly, dev's check on every platform: until the first stable release, only this run and
     # a pull request into main run macOS and Windows, so this finds what breaks there after the
     # fact. It does nothing when dev hasn't moved since the last one that passed.
+    # A schedule registers when this file changes on the default branch: after the repository
+    # moved to Horizon-Labs no scheduled run fired until it did.
     - cron: "7 * * * *"
     # Weekly, so new security advisories against existing dependencies show up even when
     # nothing changes, and every link in the docs is checked, not only those within the
