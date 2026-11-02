@@ -64,13 +64,13 @@ impl App {
                 }
             }
             Tab::Browse => {
-                context.step = match (&self.search, self.browse_pane) {
+                let step = match (&self.search, self.browse_pane) {
                     (Some(_), _) => "search results",
                     (None, Pane::Collections) => "collections",
                     (None, Pane::Items) => "collection's items",
                     (None, Pane::Item) => "item",
-                }
-                .to_owned();
+                };
+                step.clone_into(&mut context.step);
                 if self.search.is_none()
                     && let Some(collection) = self.collections.get(self.browse_collection)
                 {

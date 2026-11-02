@@ -4603,8 +4603,11 @@ fn feedback_is_saved_per_device_listed_exported_and_marked_sent() {
     assert_eq!(entry["in_view"][0]["title"], "oscillator-sim", "{sent}");
     assert_eq!(entry["interface"], "command line");
     assert!(
-        std::path::Path::new(entry["path"].as_str().unwrap())
-            .starts_with(root.join("_System/feedback")),
+        std::path::Path::new(entry["path"].as_str().unwrap()).starts_with(
+            std::fs::canonicalize(&root)
+                .unwrap()
+                .join("_System/feedback")
+        ),
         "{sent}"
     );
     sandbox.ok(&root, &["feedback", "Status is slow"]);

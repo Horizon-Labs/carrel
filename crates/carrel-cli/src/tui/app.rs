@@ -1075,10 +1075,6 @@ impl App {
             self.archive_picker();
             return None;
         }
-        if key.code == KeyCode::Char('!') {
-            self.ask_feedback();
-            return None;
-        }
         let handled = match self.tab {
             Tab::Review => self.review_key(key),
             Tab::Active => self.active_key(key),
@@ -1098,6 +1094,7 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
             KeyCode::Char('?') => self.help = true,
+            KeyCode::Char('!') => self.ask_feedback(),
             KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 // Providers may have come or gone too.
                 if self.here.is_some() {

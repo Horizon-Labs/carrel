@@ -1151,11 +1151,16 @@ fn without_command(archive: Option<&std::path::Path>, json: bool) -> ExitCode {
         .exit();
 }
 
-fn main() -> ExitCode {
-    let cli = Cli::parse();
-    if !matches!(cli.command, Some(Command::Bench(_))) {
+/// Starts the decision log for every command but `bench`, which times the models alone.
+fn start_decision_log(command: Option<&Command>) {
+    if !matches!(command, Some(Command::Bench(_))) {
         carrel_core::decisions::start();
     }
+}
+
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    start_decision_log(cli.command.as_ref());
     let Some(command) = cli.command else {
         return without_command(cli.archive.as_deref(), cli.json);
     };
