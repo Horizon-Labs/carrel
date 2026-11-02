@@ -471,8 +471,8 @@ _System/
   inbox-skipped/<device-id>/  inbox entries the writer skipped, and why (§7.8)
   holding/              replaced content waiting for a snapshot (§7.14)
   queue/                pending proposals, questions and tasks (§7.9)
-  devices/<device-id>/  device profiles and desk-item registries (§7.10)
   tasks/                cards waiting for a stronger device to re-check them (§7.9)
+  devices/<device-id>/  device profiles and desk-item registries (§7.10)
   index/                search index (§7.11)
   cache.nosync/         rebuildable caches, excluded from iCloud sync
   holding/              replaced content waiting for a snapshot, from devices without backups
