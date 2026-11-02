@@ -250,6 +250,8 @@ pub enum Confirm {
         /// The flag's note.
         note: Option<String>,
     },
+    /// Settling a conflicted copy, or moving the archive into iCloud Drive.
+    Sync(super::sync::SyncConfirm),
 }
 
 /// A step of a correction, which the run loop does itself.
@@ -477,6 +479,9 @@ pub enum Effect {
     SaveConversation,
     /// Undo the librarian's changes this week, as `carrel undo --librarian 7d` does.
     UndoLibrarian,
+    /// Download, keep downloaded, settle a conflicted copy or move the archive, as
+    /// `carrel sync` does.
+    Sync(super::sync::SyncWork),
 }
 
 /// The interactive mode's state.
@@ -503,6 +508,8 @@ pub struct App {
     pub crawler: super::review_crawler::CrawlerReview,
     /// The Gaps view on Status: what Carrel couldn't do on this device.
     pub gaps: super::gaps::GapsView,
+    /// The Sync view on Status: the archive shared between devices.
+    pub sync: super::sync::SyncView,
     /// Restructure proposals waiting in Review.
     pub restructure: super::review_restructure::RestructureReview,
     /// The chosen proposal.
@@ -681,6 +688,7 @@ impl App {
             review_list: super::review_crawler::ReviewList::default(),
             crawler: super::review_crawler::CrawlerReview::default(),
             gaps: super::gaps::GapsView::default(),
+            sync: super::sync::SyncView::default(),
             restructure: super::review_restructure::RestructureReview::default(),
             chosen: 0,
             marked: BTreeSet::new(),
@@ -788,6 +796,7 @@ impl App {
             .extend(crate::usage_report::status_lines(&self.archive));
         self.load_gaps();
         self.status.extend(self.gaps_status_lines());
+        self.load_sync_if_shown();
         self.history = match History::open(&self.archive) {
             Ok(history) => history.log()?,
             Err(HistoryError::NotInitialized) => Vec::new(),
@@ -982,14 +991,15 @@ impl App {
                 keys.extend([("↑↓", "choose"), ("Enter", "answer"), ("d", "dismiss")]);
             }
             Tab::Browse => return self.browse_keys(),
+            Tab::Status if self.sync.shown => keys.extend(self.sync_keys()),
             Tab::Status if self.gaps.shown => keys.extend(self.gaps_keys()),
             Tab::Status if self.reminder_has_item() => {
                 keys.extend([("↑↓", "scroll"), ("Enter", "reminder's item")]);
             }
             _ => keys.push(("↑↓", "scroll")),
         }
-        if self.tab == Tab::Status && !self.gaps.shown {
-            keys.push(("g", "gaps"));
+        if self.tab == Tab::Status && !self.gaps.shown && !self.sync.shown {
+            keys.extend([("g", "gaps"), ("s", "sync")]);
             if self.rechecks_here > 0 {
                 keys.push(("c", "re-check cards"));
             }
@@ -1092,7 +1102,7 @@ impl App {
             Tab::Backups => self.backups_key(key),
             Tab::Librarian => self.talk_key(key),
             Tab::Discover => self.discover_key(key),
-            Tab::Status => self.status_or_gaps_key(key),
+            Tab::Status => self.status_or_sync_key(key),
             Tab::History => Handled::No,
         };
         if let Handled::Yes(effect) = handled {
@@ -1294,6 +1304,7 @@ fn confirmed(confirm: Confirm, key: KeyCode) -> Option<Effect> {
         },
         Confirm::UndoLibrarian(_) => Effect::UndoLibrarian,
         Confirm::Unflag { target, .. } => Effect::Flag(super::flagging::Flagging::Clear { target }),
+        Confirm::Sync(sync) => Effect::Sync(sync.work()),
     })
 }
 

@@ -10,8 +10,8 @@ use carrel_core::crawl::Crawler;
 use carrel_core::device_profile::{self, Background, DeviceProfile, DeviceType, Facts, Thermal};
 use carrel_core::recheck;
 
-use crate::crawl::CrawlStop;
 use crate::correct::ModelProvider;
+use crate::crawl::CrawlStop;
 use crate::{ArchiveHandle, CarrelError};
 
 /// What the app knows about the device, for its profile. `None` is unknown.
@@ -276,12 +276,13 @@ impl ArchiveHandle {
             holder: self.holder()?,
         };
         let should_stop = || stop.as_ref().is_some_and(|s| s.should_stop());
-        let done = recheck::run(&crawler, &profile, cards as usize, &should_stop).map_err(
-            |e| match e {
-                recheck::RecheckError::Lease(e) => e.into(),
-                e => CarrelError::failed(e),
-            },
-        )?;
+        let done =
+            recheck::run(&crawler, &profile, cards as usize, &should_stop).map_err(
+                |e| match e {
+                    recheck::RecheckError::Lease(e) => e.into(),
+                    e => CarrelError::failed(e),
+                },
+            )?;
         Ok(RecheckedRecord {
             summary: done.summary(),
             proposed: done.proposed as u64,

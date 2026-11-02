@@ -64,17 +64,34 @@ impl CliJobs {
     }
 
     /// A crawler pass, when its pace says one is due and the device is idle and on power,
-    /// then this device's profile brought up to date and weaker devices' cards re-checked.
+    /// after downloading what collections kept downloaded need, in a synced archive; then
+    /// this device's profile brought up to date and weaker devices' cards re-checked.
     fn crawl(archive: &Archive) -> Result<Option<String>, JobError> {
+        let kept = Self::keep_downloaded(archive);
         let crawled = crate::crawl::when_idle(archive).map_err(|Failure(e)| JobError::Failed(e))?;
         let rechecked =
             crate::devices::for_agent(archive).map_err(|Failure(e)| JobError::Failed(e))?;
-        let done: Vec<String> = crawled
-            .and_then(|c| c.summary())
+        let done: Vec<String> = kept
             .into_iter()
+            .chain(crawled.and_then(|c| c.summary()))
             .chain(rechecked)
             .collect();
         Ok((!done.is_empty()).then(|| done.join("; ")))
+    }
+
+    /// Downloads the evicted files of collections that keep their items downloaded
+    /// (`sync.keep_downloaded`), when the archive is in a synced folder.
+    fn keep_downloaded(archive: &Archive) -> Option<String> {
+        if !DiskLock::is_synced_folder(archive.root()) {
+            return None;
+        }
+        let pass = carrel_core::cloud_files::keep_downloaded_pass(archive).ok()?;
+        (!pass.downloaded.is_empty()).then(|| {
+            format!(
+                "downloaded {} kept on this device",
+                plural(pass.downloaded.len(), "file")
+            )
+        })
     }
 
     fn sessions(&self, archive: &Archive) -> Result<Option<String>, JobError> {
