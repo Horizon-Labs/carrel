@@ -1,14 +1,13 @@
-// Status's parts about syncing (FORMAT.md §7.8 and §7.12): this Mac's inbox, where changes
+// Status's parts about syncing (FORMAT.md §7.8 and §7.13): this device's inbox, where changes
 // go while another device is the writer, with what the writer skipped and why; and the
 // holding folder, where a device without backups keeps the versions its changes replace
 // until a snapshot has them, each of which can be restored to a folder.
 
-import AppKit
 import CarrelKit
 import SwiftUI
 
 /// A problem alert's title: `title`, or, when what it shows is a change that went into this
-/// Mac's inbox for the writer instead of being made, a title saying so.
+/// device's inbox for the writer instead of being made, a title saying so.
 func problemTitle(_ title: String, _ archive: ArchiveModel?, showing problem: String? = nil)
     -> String
 {
@@ -18,7 +17,7 @@ func problemTitle(_ title: String, _ archive: ArchiveModel?, showing problem: St
     return "Sent to the Writer"
 }
 
-/// This Mac's inbox, then the holding folder, when there's anything to say about them.
+/// This device's inbox, then the holding folder, when there's anything to say about them.
 struct InboxStatusSection: View {
     let model: ArchiveWindowModel
 
@@ -38,7 +37,7 @@ private struct InboxSection: View {
 
     var body: some View {
         if inbox.sending != nil || !inbox.waiting.isEmpty || !inbox.skipped.isEmpty {
-            Section("This Mac’s Inbox") {
+            Section("\(thisDevice.capitalizedFirst)’s Inbox") {
                 if let sending = inbox.sending {
                     Label(sending, systemImage: "tray.and.arrow.up")
                 }
@@ -83,7 +82,7 @@ private struct HoldingSection: View {
                         fromByteCount: Int64(holding.size), countStyle: .file))
             ForEach(held, id: \.id) { version in
                 LabeledContent {
-                    Button("Restore…") { Task { await restore(version) } }
+                    Button("Restore…") { restore(version) }
                 } label: {
                     Text(version.title)
                     Text(
@@ -108,7 +107,7 @@ private struct HoldingSection: View {
             isPresented: Binding(get: { restored != nil }, set: { if !$0 { restored = nil } }),
             presenting: restored
         ) { url in
-            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+            Button("Show in \(fileBrowser)") { revealInFiles([url]) }
             Button("OK", role: .cancel) {}
         } message: { url in
             Text("A copy is at \(url.path(percentEncoded: false)). The archive is unchanged.")
@@ -124,14 +123,13 @@ private struct HoldingSection: View {
     }
 
     /// Asks for a folder, then copies `version` into it under its own name.
-    private func restore(_ version: HeldVersion) async {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Restore Here"
-        panel.message = "Choose a folder for a copy of “\(version.name)”."
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
+    private func restore(_ version: HeldVersion) {
+        pickFolder(
+            prompt: "Restore Here", message: "Choose a folder for a copy of “\(version.name)”."
+        ) { folder in Task { await restore(version, into: folder) } }
+    }
+
+    private func restore(_ version: HeldVersion, into folder: URL) async {
         let to = folder.appending(path: version.name).path(percentEncoded: false)
         do {
             let path = try await archive.call { try $0.restoreHeld(id: version.id, to: to) }
