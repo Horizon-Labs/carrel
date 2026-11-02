@@ -290,7 +290,7 @@ mod tests {
         ));
         assert_eq!(
             handle.models_folder(),
-            Some(text(&sample.dir.path().join("config/models")))
+            Some(text(&sample.dir.path().join("config").join("models")))
         );
     }
 
