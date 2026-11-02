@@ -4492,6 +4492,71 @@ fn sync_status_keep_resolve_and_move_into_icloud_drive() {
 }
 
 #[test]
+fn ask_about_an_item_or_collection_loads_it_so_this_means_it() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    sandbox.ok(sandbox.dir.path(), &["init", root.to_str().unwrap()]);
+    let parts = "01a18701-0500-776a-9867-080d24773181";
+    let script = [
+        // Its card was loaded up front, so asking for it again isn't a step.
+        librarian_tool("show", parts),
+        librarian_answer("Yes, Hardware is for builds.", &[PARTS_LIST], json!([])),
+    ];
+    let out = with_script(
+        &sandbox,
+        &root,
+        &script,
+        &[
+            "ask",
+            "Is this in the right place?",
+            "--about",
+            PARTS_LIST,
+            "--json",
+        ],
+        "",
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let answer: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(
+        answer["about"],
+        format!("the item “Desk lamp parts list” ({PARTS_LIST})")
+    );
+    assert_eq!(answer["steps"], json!([]), "{answer}");
+
+    let script = [librarian_answer("It's tidy.", &[], json!([]))];
+    let out = with_script(
+        &sandbox,
+        &root,
+        &script,
+        &["ask", "Anything missing?", "--about", "Hardware", "--json"],
+        "",
+    );
+    let answer: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(
+        answer["about"],
+        "the collection “Hardware” (Projects/Hardware)"
+    );
+
+    let out = with_script(
+        &sandbox,
+        &root,
+        &script,
+        &["ask", "What?", "--about", "nowhere at all"],
+        "",
+    );
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("no item or collection is nowhere at all"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
 fn ingest_text_files_a_written_note_as_an_item_from_the_flag_or_standard_input() {
     use std::io::Write as _;
     let sandbox = Sandbox::new();

@@ -74,7 +74,7 @@ pub fn sync_status(archive: &Archive) -> SyncStatus {
     let collections = archive.collections().unwrap_or_default();
     SyncStatus {
         synced: DiskLock::is_synced_folder(root),
-        // The disk lock until the CloudKit coordinator arrives (#466).
+        // The CloudKit record when this process can reach it, else the lock file.
         writer: DiskLock::for_archive(archive).current().ok().flatten(),
         inboxes: inboxes(archive),
         holding: holding(&root.join(HOLDING_DIR)),

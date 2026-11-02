@@ -677,6 +677,7 @@ The writer records what it applied as one `inbox` change (§8.2), and removes th
 | `attempts` | Every provider call made for the entry: `stage`, `provider`, `offer`, `result` (`ok`, `unsupported`, `unavailable`, `declined` (a model's safety refusal) or `failed`) and an optional `message` |
 | `sensitivity_reasons` | Why `card.sensitivity` is `sensitive` or `restricted`, in words that never quote what was found; absent otherwise |
 | `owner_fields` | Optional. The card fields the owner set by editing or correcting the entry (`title`, `summary`, `tags`, `dates`, `sensitivity`), which drafting the entry again keeps |
+| `readings` | Optional. When the drafting model wasn't sure what the item is, two or three readings of it, each with a `title`, `summary`, `tags` and the model's `reason`, and `against`: what about the item (its file name, folder or text) doesn't fit that reading. The one the card was drafted from comes first. Picking another is a correction of the card's title, summary and tags; the readings stay, and their `against` is cleared once the owner has picked |
 | `desk_card` | Optional. For a desk item being archived (§9.4), its desk card's absolute path: the filed card keeps that card's `id` and body |
 | `url` | For `kind: url`, the web address the card's `url` gets when it's filed |
 | `note` | Optional. The owner's note from adding it (the intake entry's `note`), which the filed card keeps at the start of its body |
@@ -947,7 +948,17 @@ On a local or external disk, the writer is whoever holds `_System/writer.lock`, 
 - **Before each commit** the writer re-reads the lock and commits only if it still holds its own `token` and has not expired. A writer whose lease was lost stops and does not commit.
 - **Expired locks** may be taken over: rename the lock to `writer.lock.expired-<token>` (only one program's rename succeeds), delete it, and take the lock as usual. A lock that is not valid JSON is never taken over automatically; a person must confirm no writer is running before it is removed.
 - **Releasing:** the writer deletes the lock when it finishes, but only while it still holds its own `token`.
-- **Synced folders:** a lock file is only safe while a single device uses the archive. Sync services such as iCloud Drive can let two devices each create the file before either sees the other's, so archives shared between devices use a coordinator the sync service supports instead (to be specified with iCloud support). Programs should warn when the lock is used inside a synced folder. `carrel sync status` shows the lock's holder and expiry, each device's inbox backlog, and what waits in `holding/` and `tasks/`.
+- **Synced folders:** a lock file is only safe while a single device uses the archive. Sync services can let two devices each create the file before either sees the other's, so programs should warn when the lock file is used inside a synced folder. `carrel sync status` shows the lock's holder and expiry, each device's inbox backlog, and what waits in `holding/` and `tasks/`.
+
+#### iCloud Drive
+
+In iCloud Drive, the writing device is chosen through a record in the owner's private CloudKit database, one per archive, holding the lease's `token`, `person`, `device`, `purpose`, `program`, `acquired` and `expires` as above, and `head`, the history commit the last writer recorded. It never holds file contents.
+
+- **Taking the lock:** a device saves its lease into the record only if the lease there has expired or was released, and only if the record hasn't changed since it read it (CloudKit's record change tag), so of several devices trying at once exactly one succeeds. It keeps `head`.
+- **Before writing,** it waits until iCloud Drive has delivered `head`: the history's `HEAD` is that commit or descends from it. A device that gives up waiting releases the lock unchanged.
+- **Renewing and releasing** record the history's `HEAD` in `head`. Releasing sets `expires` to the time of release.
+- **On the device,** its programs take turns with the lock file above, kept at `_System/cache.nosync/writer.lock` so it never syncs.
+- **`_System/coordinator.json`,** `{"coordinator": "cloudkit"}`, is written when the CloudKit lock is first taken. Once it exists, a program that can't reach CloudKit **must not** write the archive's history; it acts through its device's inbox (§7.8) instead.
 
 ## 9. Active items and the Journal
 

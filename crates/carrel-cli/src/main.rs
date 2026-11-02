@@ -138,6 +138,10 @@ enum Command {
         /// The question; without one, a conversation, a question per line.
         #[arg(value_name = "QUESTION")]
         question: Vec<String>,
+        /// What the questions are about, so "this" and "here" mean it: an item (its
+        /// identifier, card, path or title) or a collection (its path or title).
+        #[arg(long, value_name = "ITEM|COLLECTION")]
+        about: Option<String>,
         /// Save the conversation to this month's Journal.
         #[arg(long)]
         save: bool,
@@ -922,6 +926,18 @@ enum ReviewAction {
         #[arg(long)]
         learn: bool,
     },
+    /// Pick another reading of what the item is, when the model offered several (`carrel
+    /// review show` lists them): its title, summary and tags replace the card's, as one
+    /// correction, shown before it's saved.
+    Pick {
+        /// The proposal's identifier, or its start or end.
+        id: String,
+        /// The reading's number, as `carrel review show` lists it.
+        n: usize,
+        /// Save without asking.
+        #[arg(long)]
+        yes: bool,
+    },
     /// Propose another collection for an item. It's filed there when approved.
     MoveTo {
         /// The proposal's identifier, or its start or end.
@@ -1071,6 +1087,7 @@ fn review_command(
             yes,
             learn,
         } => correct::review(archive, &id, &words, yes, learn),
+        ReviewAction::Pick { id, n, yes } => review::pick(archive, &id, n, yes),
         ReviewAction::MoveTo { id, collection } => review::move_to(archive, &id, &collection),
         ReviewAction::Expand { ids } => review::choose_compressed(archive, &ids, Choice::Expand),
         ReviewAction::KeepCompressed { ids } => {
@@ -1158,9 +1175,11 @@ fn main() -> ExitCode {
         Command::Undo { change, librarian } => {
             undo_command(cli.archive.as_deref(), change, librarian)
         }
-        Command::Ask { question, save } => {
-            ask::ask(cli.archive.as_deref(), &question.join(" "), save, cli.json)
-        }
+        Command::Ask {
+            question,
+            about,
+            save,
+        } => ask::ask(cli.archive.as_deref(), &question, about, save, cli.json),
         Command::Init {
             path,
             name,
@@ -1211,21 +1230,7 @@ fn main() -> ExitCode {
         Command::Checkouts => checkout::list(cli.archive.as_deref()),
         Command::Desk { action } => desk_command(cli.archive.as_deref(), action),
         Command::Sessions { action } => sessions_command(cli.archive.as_deref(), action),
-        Command::Return {
-            item,
-            from,
-            yes,
-            discard,
-            trim_snapshots,
-            working_copy,
-        } => checkout::return_item(
-            cli.archive.as_deref(),
-            &item,
-            from.as_deref(),
-            (yes, discard),
-            trim_snapshots,
-            working_copy,
-        ),
+        command @ Command::Return { .. } => return_command(cli.archive.as_deref(), command),
         Command::Collection { action } => collection_command(cli.archive.as_deref(), action),
         Command::Backup { action } => backup_command(cli.archive.as_deref(), action),
         Command::Questions { action } => questions_command(cli.archive.as_deref(), action),
@@ -1433,6 +1438,29 @@ fn rename_or_flag_command(archive: Option<&Path>, command: Command) -> Result<Re
         Command::Unflag { target } => flag::unflag(archive, &target),
         _ => flag::list(archive),
     }
+}
+
+/// `carrel return`.
+fn return_command(archive: Option<&Path>, command: Command) -> Result<Report, Failure> {
+    let Command::Return {
+        item,
+        from,
+        yes,
+        discard,
+        trim_snapshots,
+        working_copy,
+    } = command
+    else {
+        unreachable!("only `carrel return` comes here")
+    };
+    checkout::return_item(
+        archive,
+        &item,
+        from.as_deref(),
+        (yes, discard),
+        trim_snapshots,
+        working_copy,
+    )
 }
 
 /// Whether `command` takes the writer lease to change the archive, so finished work sessions
