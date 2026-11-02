@@ -666,6 +666,24 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterData: FfiConverterRustBuffer {
+    typealias SwiftType = Data
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        let len: Int32 = try readInt(&buf)
+        return Data(try readBytes(&buf, count: Int(len)))
+    }
+
+    public static func write(_ value: Data, into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        writeBytes(&buf, value)
+    }
+}
+
 
 
 
@@ -1354,6 +1372,37 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * [`CarrelError::Failed`] if the archive can't be read.
      */
     func wanderStep(walk: Wander) throws  -> WanderStep?
+    
+    /**
+     * The handwritten notes on the item `item`'s card, oldest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for an unknown item or a card that can't be read.
+     */
+    func cardDrawings(item: String) throws  -> [CardDrawingInfo]
+    
+    /**
+     * Removes the handwritten note `drawing` from the item `item`'s card.
+     *
+     * # Errors
+     *
+     * As [`ArchiveHandle::save_card_drawing`].
+     */
+    func removeCardDrawing(item: String, drawing: String) throws  -> CardDrawingChange
+    
+    /**
+     * Saves a handwritten note on the item `item`'s card: `data` is the `PKDrawing`'s data
+     * representation, `picture` a PNG of it, and `text` what was recognised in it. A new
+     * drawing when `drawing` is `None`, else a new version of that drawing.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for an unknown item or drawing, an empty drawing, a picture
+     * that isn't a PNG, or an item that's checked out; [`CarrelError::Busy`] if another
+     * writer holds the archive; or [`CarrelError::Failed`] if it can't be written.
+     */
+    func saveCardDrawing(item: String, drawing: String?, data: Data, picture: Data, text: String) throws  -> CardDrawingChange
     
     /**
      * The filed item `item`'s card body, its Notes and Carrel's sections, to edit.
@@ -3723,6 +3772,66 @@ open func wanderStep(walk: Wander)throws  -> WanderStep?  {
     uniffi_carrel_ffi_fn_method_archivehandle_wander_step(
             self.uniffiCloneHandle(),
         FfiConverterTypeWander_lower(walk),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The handwritten notes on the item `item`'s card, oldest first.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for an unknown item or a card that can't be read.
+     */
+open func cardDrawings(item: String)throws  -> [CardDrawingInfo]  {
+    return try  FfiConverterSequenceTypeCardDrawingInfo.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_card_drawings(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(item),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Removes the handwritten note `drawing` from the item `item`'s card.
+     *
+     * # Errors
+     *
+     * As [`ArchiveHandle::save_card_drawing`].
+     */
+open func removeCardDrawing(item: String, drawing: String)throws  -> CardDrawingChange  {
+    return try  FfiConverterTypeCardDrawingChange_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_remove_card_drawing(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(item),
+        FfiConverterString.lower(drawing),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Saves a handwritten note on the item `item`'s card: `data` is the `PKDrawing`'s data
+     * representation, `picture` a PNG of it, and `text` what was recognised in it. A new
+     * drawing when `drawing` is `None`, else a new version of that drawing.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Invalid`] for an unknown item or drawing, an empty drawing, a picture
+     * that isn't a PNG, or an item that's checked out; [`CarrelError::Busy`] if another
+     * writer holds the archive; or [`CarrelError::Failed`] if it can't be written.
+     */
+open func saveCardDrawing(item: String, drawing: String?, data: Data, picture: Data, text: String)throws  -> CardDrawingChange  {
+    return try  FfiConverterTypeCardDrawingChange_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_save_card_drawing(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(item),
+        FfiConverterOptionString.lower(drawing),
+        FfiConverterData.lower(data),
+        FfiConverterData.lower(picture),
+        FfiConverterString.lower(text),uniffiCallStatus
     )
 })
 }
@@ -9094,6 +9203,204 @@ public func FfiConverterTypeCardDates_lift(_ buf: RustBuffer) throws -> CardDate
 #endif
 public func FfiConverterTypeCardDates_lower(_ value: CardDates) -> RustBuffer {
     return FfiConverterTypeCardDates.lower(value)
+}
+
+
+/**
+ * What saving or removing a drawing did.
+ */
+public struct CardDrawingChange: Equatable, Hashable {
+    /**
+     * The drawing's identifier: a new drawing's is made when it's saved.
+     */
+    public var id: String
+    /**
+     * Whether anything changed.
+     */
+    public var changed: Bool
+    /**
+     * The change, as History shows it.
+     */
+    public var summary: String
+    /**
+     * The history commit, when one was made.
+     */
+    public var commit: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The drawing's identifier: a new drawing's is made when it's saved.
+         */id: String, 
+        /**
+         * Whether anything changed.
+         */changed: Bool, 
+        /**
+         * The change, as History shows it.
+         */summary: String, 
+        /**
+         * The history commit, when one was made.
+         */commit: String?) {
+        self.id = id
+        self.changed = changed
+        self.summary = summary
+        self.commit = commit
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension CardDrawingChange: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCardDrawingChange: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CardDrawingChange {
+        return
+            try CardDrawingChange(
+                id: FfiConverterString.read(from: &buf), 
+                changed: FfiConverterBool.read(from: &buf), 
+                summary: FfiConverterString.read(from: &buf), 
+                commit: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CardDrawingChange, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterBool.write(value.changed, into: &buf)
+        FfiConverterString.write(value.summary, into: &buf)
+        FfiConverterOptionString.write(value.commit, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCardDrawingChange_lift(_ buf: RustBuffer) throws -> CardDrawingChange {
+    return try FfiConverterTypeCardDrawingChange.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCardDrawingChange_lower(_ value: CardDrawingChange) -> RustBuffer {
+    return FfiConverterTypeCardDrawingChange.lower(value)
+}
+
+
+/**
+ * A handwritten note on a card.
+ */
+public struct CardDrawingInfo: Equatable, Hashable {
+    /**
+     * Its identifier.
+     */
+    public var id: String
+    /**
+     * The text recognised in it, if any.
+     */
+    public var text: String?
+    /**
+     * When it was first drawn, as written (FORMAT.md §2.4).
+     */
+    public var at: String?
+    /**
+     * When it was last changed, if it has been since.
+     */
+    public var modified: String?
+    /**
+     * Its `PencilKit` data, as a full path.
+     */
+    public var dataPath: String
+    /**
+     * Its PNG picture, as a full path.
+     */
+    public var picturePath: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its identifier.
+         */id: String, 
+        /**
+         * The text recognised in it, if any.
+         */text: String?, 
+        /**
+         * When it was first drawn, as written (FORMAT.md §2.4).
+         */at: String?, 
+        /**
+         * When it was last changed, if it has been since.
+         */modified: String?, 
+        /**
+         * Its `PencilKit` data, as a full path.
+         */dataPath: String, 
+        /**
+         * Its PNG picture, as a full path.
+         */picturePath: String) {
+        self.id = id
+        self.text = text
+        self.at = at
+        self.modified = modified
+        self.dataPath = dataPath
+        self.picturePath = picturePath
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension CardDrawingInfo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCardDrawingInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CardDrawingInfo {
+        return
+            try CardDrawingInfo(
+                id: FfiConverterString.read(from: &buf), 
+                text: FfiConverterOptionString.read(from: &buf), 
+                at: FfiConverterOptionString.read(from: &buf), 
+                modified: FfiConverterOptionString.read(from: &buf), 
+                dataPath: FfiConverterString.read(from: &buf), 
+                picturePath: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CardDrawingInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterOptionString.write(value.text, into: &buf)
+        FfiConverterOptionString.write(value.at, into: &buf)
+        FfiConverterOptionString.write(value.modified, into: &buf)
+        FfiConverterString.write(value.dataPath, into: &buf)
+        FfiConverterString.write(value.picturePath, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCardDrawingInfo_lift(_ buf: RustBuffer) throws -> CardDrawingInfo {
+    return try FfiConverterTypeCardDrawingInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCardDrawingInfo_lower(_ value: CardDrawingInfo) -> RustBuffer {
+    return FfiConverterTypeCardDrawingInfo.lower(value)
 }
 
 
@@ -27135,6 +27442,31 @@ fileprivate struct FfiConverterSequenceTypeActivityDay: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeCardDrawingInfo: FfiConverterRustBuffer {
+    typealias SwiftType = [CardDrawingInfo]
+
+    public static func write(_ value: [CardDrawingInfo], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeCardDrawingInfo.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [CardDrawingInfo] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [CardDrawingInfo]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeCardDrawingInfo.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeCardHistoryEntry: FfiConverterRustBuffer {
     typealias SwiftType = [CardHistoryEntry]
 
@@ -29494,6 +29826,15 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_wander_step() != 8914) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_card_drawings() != 49458) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_remove_card_drawing() != 64806) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_save_card_drawing() != 17731) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_card_body() != 37529) {

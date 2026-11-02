@@ -75,6 +75,7 @@ pub mod desk;
 pub mod detect;
 pub mod discover;
 pub mod documents;
+pub mod drawings;
 pub mod edit;
 pub mod entries;
 pub mod file_pickers;
