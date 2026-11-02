@@ -4,7 +4,7 @@
 //! managed section. Saving or removing one is an ordinary change in the history, so undo
 //! reverses it, drawing files and all.
 //!
-//! The drawing itself is PencilKit's data, which only Apple's platforms can edit; the picture
+//! The drawing itself is `PencilKit`'s data, which only Apple's platforms can edit; the picture
 //! (PNG) and the recognised text are what every other interface shows, and the text is what
 //! search and the librarian find.
 
@@ -26,7 +26,7 @@ pub const DRAWINGS_DIR: &str = "_System/drawings";
 /// The card's managed section showing its drawings (FORMAT.md §5.3).
 pub const DRAWINGS_SECTION: &str = "drawings";
 
-/// The extension of a drawing's data: PencilKit's `PKDrawing` data representation.
+/// The extension of a drawing's data: `PencilKit`'s `PKDrawing` data representation.
 pub const DRAWING_EXTENSION: &str = "drawing";
 
 /// The largest drawing, or picture of one, that's kept, in bytes.
@@ -40,7 +40,7 @@ const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
 /// A drawing to save on a card.
 #[derive(Debug, Clone, Copy)]
 pub struct DrawingToSave<'a> {
-    /// The drawing, as PencilKit's data representation.
+    /// The drawing, as `PencilKit`'s data representation.
     pub data: &'a [u8],
     /// A PNG picture of it.
     pub picture: &'a [u8],
@@ -54,7 +54,7 @@ pub struct ListedDrawing {
     /// The drawing's record on the card.
     #[serde(flatten)]
     pub drawing: CardDrawing,
-    /// Its PencilKit data, relative to the archive root.
+    /// Its `PencilKit` data, relative to the archive root.
     pub data: String,
     /// Its picture, relative to the archive root.
     pub picture: String,
@@ -95,8 +95,8 @@ fn io(path: &Path) -> impl FnOnce(std::io::Error) -> ActionError + '_ {
 fn read_card(archive: &Archive, item: &ItemRef) -> Result<CardFile, ActionError> {
     let path = archive.root().join(&item.card);
     let text = std::fs::read_to_string(&path).map_err(io(&path))?;
-    let file = CardFile::parse(&text)
-        .map_err(|e| ActionError::Invalid(format!("{}: {e}", item.card)))?;
+    let file =
+        CardFile::parse(&text).map_err(|e| ActionError::Invalid(format!("{}: {e}", item.card)))?;
     if file.card().id != item.id {
         return Err(ActionError::Invalid(format!(
             "{} describes another item now",
@@ -484,7 +484,9 @@ mod tests {
             b"strokes"
         );
         let card = std::fs::read_to_string(archive.root().join(&item.card)).unwrap();
-        let section = crate::sections::get(&card, DRAWINGS_SECTION).unwrap().unwrap();
+        let section = crate::sections::get(&card, DRAWINGS_SECTION)
+            .unwrap()
+            .unwrap();
         assert!(section.contains(&format!("![[{}]]", listed[0].picture)));
         assert!(section.contains("> call Ana about"));
         // Before the history section.
@@ -503,7 +505,7 @@ mod tests {
 
         let removed = remove_card_drawing(&archive, &item, saved.id, holder).unwrap();
         assert!(removed.changed);
-        assert!(card_drawings(&archive, &item).unwrap().is_empty());
+        assert_eq!(card_drawings(&archive, &item).unwrap(), Vec::new());
         assert!(!archive.root().join(&listed[0].picture).exists());
         let card_after = std::fs::read_to_string(archive.root().join(&item.card)).unwrap();
         assert!(!card_after.contains("carrel:drawings"));

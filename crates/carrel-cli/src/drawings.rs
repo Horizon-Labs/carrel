@@ -100,16 +100,22 @@ pub fn listing(archive: &Archive, item: &ItemRef) -> Result<(String, Value), Fai
     }
     let json = listed
         .iter()
-        .map(|ListedDrawing { drawing, data, picture }| {
-            json!({
-                "id": drawing.id,
-                "text": drawing.text,
-                "at": drawing.at,
-                "modified": drawing.modified,
-                "data": data,
-                "picture": picture,
-            })
-        })
+        .map(
+            |ListedDrawing {
+                 drawing,
+                 data,
+                 picture,
+             }| {
+                json!({
+                    "id": drawing.id,
+                    "text": drawing.text,
+                    "at": drawing.at,
+                    "modified": drawing.modified,
+                    "data": data,
+                    "picture": picture,
+                })
+            },
+        )
         .collect();
     Ok((text, Value::Array(json)))
 }

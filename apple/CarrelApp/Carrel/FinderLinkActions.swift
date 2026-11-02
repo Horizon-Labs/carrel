@@ -1,7 +1,8 @@
 // What a link from the Finder extension asks the window to start (docs/design/macos-integration.md,
 // "Finder"): an action that needs a decision opens the app's own sheet for it rather than deciding
 // in Finder. Check Out… asks where to and when it's due, Return… shows the return's preview,
-// Cancel Checkout… asks first, and Ask About This opens the librarian about the item.
+// Cancel Checkout… asks first, Ask About This opens the librarian about the item, and Write a Note opens the drawing editor
+// on its card.
 
 import CarrelKit
 import Foundation
@@ -24,6 +25,9 @@ extension ArchiveWindowModel {
             activeScreen?.askToCancel()
         case .ask:
             if let item = items.first(where: { $0.id == id }) { librarian?.ask(about: item) }
+        case .draw:
+            ItemDrawingsSection.noteToWrite = id
+            open(item: id)
         }
     }
 }

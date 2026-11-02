@@ -1156,6 +1156,10 @@ fn without_command(archive: Option<&std::path::Path>, json: bool) -> ExitCode {
         .exit();
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the command list: one arm per command, each a call into its own module"
+)]
 fn main() -> ExitCode {
     let cli = Cli::parse();
     if !matches!(cli.command, Some(Command::Bench(_))) {

@@ -8,6 +8,9 @@ import ImageIO
 import SwiftUI
 
 struct ItemDrawingsSection: View {
+    /// The item a link asked to write a note on (`action=draw`), opened when its card shows.
+    static var noteToWrite: String?
+
     let archive: ArchiveModel
     let item: String
     @State private var drawings: [CardDrawingInfo]?
@@ -42,7 +45,13 @@ struct ItemDrawingsSection: View {
                 ProgressView().frame(maxWidth: .infinity)
             }
         }
-        .task(id: item) { await reload() }
+        .task(id: item) {
+            if Self.noteToWrite == item {
+                Self.noteToWrite = nil
+                editing = EditedDrawing(existing: nil)
+            }
+            await reload()
+        }
         .sheet(item: $editing) { edited in
             DrawingEditor(existing: edited.existing) { drawn in
                 try await save(drawn, over: edited.existing)

@@ -18,7 +18,7 @@ pub struct CardDrawingInfo {
     pub at: Option<String>,
     /// When it was last changed, if it has been since.
     pub modified: Option<String>,
-    /// Its PencilKit data, as a full path.
+    /// Its `PencilKit` data, as a full path.
     pub data_path: String,
     /// Its PNG picture, as a full path.
     pub picture_path: String,
@@ -68,14 +68,20 @@ impl ArchiveHandle {
         let root = archive.root();
         Ok(carrel_core::drawings::card_drawings(&archive, &item)?
             .into_iter()
-            .map(|ListedDrawing { drawing, data, picture }| CardDrawingInfo {
-                id: drawing.id.to_string(),
-                text: drawing.text,
-                at: drawing.at.map(|at| at.0),
-                modified: drawing.modified.map(|at| at.0),
-                data_path: root.join(data).to_string_lossy().into_owned(),
-                picture_path: root.join(picture).to_string_lossy().into_owned(),
-            })
+            .map(
+                |ListedDrawing {
+                     drawing,
+                     data,
+                     picture,
+                 }| CardDrawingInfo {
+                    id: drawing.id.to_string(),
+                    text: drawing.text,
+                    at: drawing.at.map(|at| at.0),
+                    modified: drawing.modified.map(|at| at.0),
+                    data_path: root.join(data).to_string_lossy().into_owned(),
+                    picture_path: root.join(picture).to_string_lossy().into_owned(),
+                },
+            )
             .collect())
     }
 
@@ -162,13 +168,16 @@ mod tests {
         assert!(std::path::Path::new(&drawings[0].picture_path).is_file());
 
         let found = sample.handle.search("zanzibar".into(), 5, None).unwrap();
-        assert!(found.hits.iter().any(|h| h.item_id.as_ref() == Some(&item)), "{found:?}");
+        assert!(
+            found.hits.iter().any(|h| h.item_id.as_ref() == Some(&item)),
+            "{found:?}"
+        );
 
         let removed = sample
             .handle
             .remove_card_drawing(item.clone(), saved.id)
             .unwrap();
         assert!(removed.changed);
-        assert!(sample.handle.card_drawings(item).unwrap().is_empty());
+        assert_eq!(sample.handle.card_drawings(item).unwrap(), Vec::new());
     }
 }
