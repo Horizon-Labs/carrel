@@ -134,6 +134,9 @@ impl App {
                 self.gaps.shown = true;
                 return Handled::Yes(None);
             }
+            if let Handled::Yes(effect) = self.status_devices_key(key) {
+                return Handled::Yes(effect);
+            }
             return self.status_key(key);
         }
         let chosen = self.gaps.log.gaps.get(self.gaps.chosen).map(|g| g.number);

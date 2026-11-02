@@ -533,6 +533,8 @@ pub struct App {
     pub active: Vec<super::active::ActiveItem>,
     /// The reminders due, which Status lists.
     pub reminders: Vec<carrel_core::reminders::Reminder>,
+    /// How many cards weaker devices drafted this device can re-check now.
+    pub rechecks_here: usize,
     /// The working copy of the checkout being returned, to ask about once it's back, when
     /// `checkout.after_return` says to ask.
     pub returning_working_copy: Option<std::path::PathBuf>,
@@ -705,6 +707,7 @@ impl App {
             returning_working_copy: None,
             active_chosen: 0,
             reminders: Vec::new(),
+            rechecks_here: 0,
             active_marked: BTreeSet::new(),
             asked: Vec::new(),
             asked_settles: Vec::new(),
@@ -823,6 +826,7 @@ impl App {
         self.load_settings();
         self.load_active();
         self.load_reminders();
+        self.load_rechecks();
         if !self.stacks.lines.is_empty() {
             self.load_discover();
         }
@@ -1005,9 +1009,18 @@ impl App {
             _ => keys.push(("↑↓", "scroll")),
         }
         if self.tab == Tab::Status && !self.gaps.shown && !self.sync.shown {
-            keys.extend([("g", "gaps"), ("s", "sync")]);
+            keys.extend(self.status_keys());
         }
         keys.extend([("^R", "refresh"), ("?", "help"), ("q", "quit")]);
+        keys
+    }
+
+    /// Status's own keys, when no panel is open on it.
+    fn status_keys(&self) -> Vec<(&'static str, &'static str)> {
+        let mut keys = vec![("g", "gaps"), ("s", "sync")];
+        if self.rechecks_here > 0 {
+            keys.push(("c", "re-check cards"));
+        }
         keys
     }
 

@@ -397,7 +397,13 @@ fn sync_status_counts_inboxes_holding_and_rechecks() {
     std::fs::create_dir_all(s.path("_System/holding/a")).unwrap();
     std::fs::write(s.path("_System/holding/a/old.pdf"), vec![0u8; 2048]).unwrap();
     std::fs::create_dir_all(s.path("_System/tasks")).unwrap();
-    std::fs::write(s.path("_System/tasks/recheck-1.json"), "{}").unwrap();
+    std::fs::write(
+        s.path("_System/tasks/01a18701-0500-776a-9867-0810dc3b08d1.json"),
+        r#"{"task": "recheck-card", "item": "01a18701-0500-776a-9867-0810dc3b08d1",
+            "card": "Holding/untitled scan.txt.md", "title": "Untitled scan",
+            "added": "2026-11-02T09:00:00Z"}"#,
+    )
+    .unwrap();
     let lease = s.lease();
 
     let status = carrel_core::sync_status::sync_status(&archive);

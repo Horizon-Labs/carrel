@@ -58,6 +58,7 @@ struct StatusView: View {
             StatusDiscoverySections(model: model)
             StatusQuestionsSection(window: model)
             StatusCrawlerSection(window: model)
+            StatusDevicesSection(window: model)
             StatusGapsSection(window: model)
             StatusFeedbackSection(window: model)
             StatusSyncSection(window: model)

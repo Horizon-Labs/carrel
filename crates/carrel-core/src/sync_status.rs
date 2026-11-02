@@ -16,7 +16,7 @@ pub const HOLDING_DIR: &str = "_System/holding";
 
 /// The re-check queue, where work done below the preferred level waits for a stronger device
 /// to claim it.
-pub const RECHECKS_DIR: &str = "_System/tasks";
+pub const RECHECKS_DIR: &str = crate::recheck::TASKS_DIR;
 
 /// The holding folder is worth a warning when it holds more than this many bytes…
 pub const HOLDING_WARN_BYTES: u64 = 1024 * 1024 * 1024;
@@ -78,7 +78,7 @@ pub fn sync_status(archive: &Archive) -> SyncStatus {
         writer: DiskLock::for_archive(archive).current().ok().flatten(),
         inboxes: inboxes(archive),
         holding: holding(&root.join(HOLDING_DIR)),
-        rechecks: count_files(&root.join(RECHECKS_DIR), Some("json")),
+        rechecks: crate::recheck::waiting(archive).len(),
         not_downloaded: crate::cloud_files::not_downloaded(root),
         conflicts: crate::cloud_files::conflicts(root),
         kept: collections
