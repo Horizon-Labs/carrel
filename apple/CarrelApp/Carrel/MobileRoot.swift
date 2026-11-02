@@ -5,6 +5,7 @@
 
 #if os(iOS)
 import CarrelKit
+import CoreSpotlight
 import Observation
 import SwiftUI
 
@@ -168,6 +169,16 @@ struct MobileRoot: View {
         }
         .onOpenURL { url in
             // A link from a notification or another app: open its archive here.
+            app.open(link: url) { root in library?.open(root) }
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            // A Spotlight result: open what it was indexed by.
+            guard let url = MobileSpotlight.link(for: activity) else { return }
+            app.open(link: url) { root in library?.open(root) }
+        }
+        .onChange(of: MobileReminders.shared.chosen) {
+            guard let url = MobileReminders.shared.chosen else { return }
+            MobileReminders.shared.chosen = nil
             app.open(link: url) { root in library?.open(root) }
         }
         .onChange(of: scenePhase) {
@@ -366,11 +377,22 @@ private struct MobileArchiveToolbar: ViewModifier {
             .task(id: TaskID(phase: scenePhase, ready: capture != nil)) {
                 if scenePhase == .active { await capture?.addShared() }
             }
+            // Spotlight and reminders follow the archive as it opens, its items change, and
+            // the app comes to the front.
+            .task(id: NoticesID(phase: scenePhase, items: model.items)) {
+                guard scenePhase == .active, let handle = model.handle else { return }
+                await MobileArchiveNotices.refresh(handle)
+            }
     }
 
     private struct TaskID: Equatable {
         var phase: ScenePhase
         var ready: Bool
+    }
+
+    private struct NoticesID: Equatable {
+        var phase: ScenePhase
+        var items: [ItemSummary]
     }
 }
 

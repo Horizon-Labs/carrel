@@ -48,6 +48,8 @@ struct CarrelApp: App {
         #if os(iOS)
         // Background tasks are registered before the app finishes launching.
         BackgroundWork.register()
+        // Before launch finishes too, so a notification that launched the app reaches it.
+        MobileReminders.shared.start()
         #endif
     }
 
