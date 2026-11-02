@@ -502,7 +502,7 @@ _System/
   index/                search index (§7.11)
   cache.nosync/         rebuildable caches, excluded from iCloud sync
   holding/              replaced content waiting for a snapshot, from devices without backups
-  tasks/                re-checks waiting for a stronger device
+  tasks/                re-checks waiting for a stronger device (§7.9)
   moved.json            only in an old copy left behind by a move: where the archive went (§7.13)
 ```
 
@@ -690,7 +690,7 @@ Feedback the owner sends for development, from any screen of any program, is kep
 
 ### 7.9 Queues
 
-`_System/queue/` holds pending work as one JSON file per entry, in subfolders `intake/` (items waiting to be ingested), `review/` (ingest and change proposals), `questions/` (questions for the owner), `tasks/` (work for a more capable device), `proposals/` (restructure proposals), `crawler/` (the crawler's findings) and `flags/` (the librarian's work on flags). Entry schemas are defined alongside the features that use them and are versioned with this specification. Programs **must** preserve unknown keys in entries.
+`_System/queue/` holds pending work as one JSON file per entry, in subfolders `intake/` (items waiting to be ingested), `review/` (ingest and change proposals), `questions/` (questions for the owner), `proposals/` (restructure proposals), `crawler/` (the crawler's findings) and `flags/` (the librarian's work on flags). Work for a more capable device waits in `_System/tasks/` (below). Entry schemas are defined alongside the features that use them and are versioned with this specification. Programs **must** preserve unknown keys in entries.
 
 #### Review entries
 
@@ -933,9 +933,77 @@ The crawler rechecks filed items in the background and leaves what it finds for 
 - **Owner fields:** a correction is only ever of a field a model wrote (§5.6).
 - **Approving** makes the change through the corrections path as the owner's change, then removes the entry. **Rejecting** removes it, and the device's verdicts (§7.10) remember it, so it isn't proposed again.
 
+#### Re-check tasks
+
+`_System/tasks/<item-id>.json` names a card drafted below the preferred level, waiting for a stronger device to re-check it. A card waits when its `generated.level` (§5.6) is `below-preferred`, or when another device's profile (§7.10) lists a stronger text model than both the model that drafted it and the device it was drafted on. It stops waiting once a stronger model than the one that drafted it has judged it at the current drafting version, as the device's `crawler.json` records. Naming the file by the item means two devices queuing the same card write the same file.
+
+```json
+{
+  "task": "recheck-card",
+  "item": "01a18701-0500-776a-9867-0810dc3b08d1",
+  "card": "Holding/untitled scan.txt.md",
+  "title": "Untitled scan",
+  "model": "apple/afm-3-core-advanced",
+  "device": "01928f3a-0000-7000-8000-00000000d002",
+  "level": "below-preferred",
+  "added": "2026-11-02T09:00:00Z",
+  "claim": {
+    "device": "01928f3a-0000-7000-8000-00000000d001",
+    "at": "2026-11-02T10:00:00Z",
+    "until": "2026-11-03T10:00:00Z"
+  }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `task` | `recheck-card` |
+| `item`, `card`, `title` | The item, and its card's path and title when it was queued |
+| `model`, `device`, `level` | What drafted the card, where, and at what level, from its `generated` |
+| `added` | When it was queued |
+| `claim` | The device re-checking it, when it claimed it, and when the claim lapses |
+
+Programs write tasks and claims only while holding the writer lock (§8.4), so two devices never claim the same card. A device claims only tasks it's stronger for and that no other device's claim holds; a claim lapses after a day, so a device that went away doesn't keep its cards. The device that claimed a task proposes what could be better as crawler findings, for the owner to approve, then removes the task. A task whose card changed or was removed is removed unchecked.
+
 ### 7.10 Devices
 
-`_System/devices/<device-id>/device.json` records a device's name, type and capability profile. `desk.json` lists the desk items tracked on that device with their local paths. Paths in `desk.json` are only meaningful on that device.
+`_System/devices/<device-id>/device.json` records a device's name, type and capability profile, written only by that device, when what it can do changes and at least once a day while it's used:
+
+```json
+{
+  "id": "01928f3a-0000-7000-8000-00000000d002",
+  "name": "The owner's iPad",
+  "type": "ipad",
+  "updated": "2026-11-02T09:00:00Z",
+  "by": "carrel 0.8.0",
+  "capabilities": {
+    "chip": "iPad16,3",
+    "memory_gb": 8,
+    "free_gb": 120,
+    "models": ["apple/afm-3-core-advanced"],
+    "tools": [],
+    "on_power": false,
+    "low_power": false,
+    "thermal": "nominal",
+    "background": "limited",
+    "benchmark": { "mb_per_second": 1800 }
+  }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `id`, `name` | The device, and its name for people |
+| `type` | `mac`, `ipad`, `iphone`, `linux`, `windows` or `other` |
+| `updated`, `by` | When the profile was written, and the program that wrote it |
+| `capabilities.chip`, `memory_gb`, `free_gb` | The chip, memory, and free storage where the archive is, in gigabytes |
+| `capabilities.models` | The text models it has, best first, as `provider/offer` |
+| `capabilities.tools` | Of `git`, `kopia` and `file-watching`, those it has |
+| `capabilities.on_power`, `low_power`, `thermal` | Whether it was on mains power or in low-power mode, and how warm it ran: `nominal`, `fair`, `serious` or `critical` |
+| `capabilities.background` | How much time it gets when Carrel isn't in front: `unlimited`, `limited` (now and then, as iPad and iPhone schedule it) or `none` |
+| `capabilities.benchmark` | A short self-benchmark: `mb_per_second`, how fast it hashes |
+
+Every key but `id`, `name` and `type` is optional. Other devices read profiles to tell which is stronger, by the strongest text model each lists, for the re-check queue (§7.9). `desk.json` lists the desk items tracked on that device with their local paths. Paths in `desk.json` are only meaningful on that device.
 
 `desk.json` is an object whose `items` is a list, in the order they were added, of:
 

@@ -399,20 +399,9 @@ pub fn status_on(
     text.push_str(&librarian_text);
     let (crawler_text, crawler) = crate::crawl::status_section(&archive, this_device, history);
     text.push_str(&crawler_text);
-    if !summary.problems.is_empty() {
-        writeln!(
-            text,
-            "\n{} with problems:",
-            plural(summary.problems.len(), "card")
-        )
-        .unwrap();
-        for found in &summary.problems {
-            writeln!(text, "  {}", found.card).unwrap();
-            for problem in &found.problems {
-                writeln!(text, "    {problem}").unwrap();
-            }
-        }
-    }
+    let (devices_text, devices) = crate::devices::status_section(&archive, this_device);
+    text.push_str(&devices_text);
+    text.push_str(&problems_section(&summary.problems));
     text.push_str(&names_section(&summary.names));
     text.push_str(&signals_section(&summary.signals));
     text.push_str(&crate::flag_librarian::status_section(&archive));
@@ -452,6 +441,7 @@ pub fn status_on(
         "holding": sync["holding"],
         "librarian": librarian,
         "crawler": crawler,
+        "devices": devices,
         "reminders": reminders,
         "desk": desk,
         "resurfaced": resurfaced,
@@ -469,6 +459,20 @@ pub fn status_on(
 
 /// The part of `carrel status` about the structure: where it shows signs of needing a
 /// restructure (`docs/design/signals.md`).
+fn problems_section(problems: &[carrel_core::status::CardProblems]) -> String {
+    let mut text = String::new();
+    if !problems.is_empty() {
+        writeln!(text, "\n{} with problems:", plural(problems.len(), "card")).unwrap();
+        for found in problems {
+            writeln!(text, "  {}", found.card).unwrap();
+            for problem in &found.problems {
+                writeln!(text, "    {problem}").unwrap();
+            }
+        }
+    }
+    text
+}
+
 fn signals_section(signals: &[carrel_core::signals::Signal]) -> String {
     let mut text = String::new();
     if signals.is_empty() {

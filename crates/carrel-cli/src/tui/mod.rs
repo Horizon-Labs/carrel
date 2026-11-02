@@ -9,6 +9,7 @@ mod archives;
 mod asking;
 mod backups;
 mod browser;
+mod devices;
 mod discover;
 mod embedding;
 mod feedback;

@@ -203,6 +203,68 @@ impl Crawler<'_> {
         self.judge(&card, folder(&item.card), &places, false)
     }
 
+    /// Redrafts `item`'s card, as for an outdated draft, for the re-check queue
+    /// ([`crate::recheck`]): its verdict is kept, and what could be better is proposed in
+    /// Review for the owner to approve, never made, whatever `crawler.changes` says. Returns
+    /// how many findings were proposed, or `None` when its card can't be read or the model's
+    /// answer wasn't usable.
+    ///
+    /// # Errors
+    ///
+    /// [`CrawlError::Model`] when the model fails, or what the crawler keeps can't be written.
+    pub fn propose_redraft(&self, item: &ItemRef) -> Result<Option<usize>, CrawlError> {
+        let archive = self.archive;
+        let Some(card) = read_card(archive, item) else {
+            return Ok(None);
+        };
+        let collection = folder(&item.card);
+        let places = places(archive)?;
+        let judged = self.judge(&card, collection, &places, true);
+        self.note_gap(item, &judged);
+        let Some(judgment) = judged? else {
+            return Ok(None);
+        };
+        let declined = verdicts::all(archive)
+            .get(&item.id)
+            .map(|v| v.declined.clone())
+            .unwrap_or_default();
+        let mut proposed = 0;
+        for finding in findings_of(archive, &judgment, &card, collection, &places) {
+            if declined.iter().any(|d| declines(d, &finding)) {
+                continue;
+            }
+            let entry = CrawlEntry::new(
+                item,
+                &card.title,
+                finding,
+                &judgment.reason,
+                judgment.confidence,
+                &self.model_name(),
+            );
+            if findings::propose(archive, &entry)? {
+                proposed += 1;
+            }
+        }
+        record(
+            archive,
+            self.holder.device,
+            item.id,
+            Verdict {
+                collection: collection.to_owned(),
+                fits: judgment.fits,
+                better: judgment.better.clone(),
+                confidence: judgment.confidence,
+                reason: judgment.reason.clone(),
+                model: self.model_name(),
+                judged: jiff::Timestamp::now().to_string(),
+                declined,
+                drafting: Some(crate::ingest::card::DRAFTING),
+                extra: Extra::new(),
+            },
+        )?;
+        Ok(Some(proposed))
+    }
+
     /// The model's judgment of `item`, or `None` when its answer wasn't usable; `redraft`
     /// when its card is an outdated draft.
     fn judge(

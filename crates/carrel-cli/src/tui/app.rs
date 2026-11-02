@@ -535,6 +535,8 @@ pub struct App {
     pub active: Vec<super::active::ActiveItem>,
     /// The reminders due, which Status lists.
     pub reminders: Vec<carrel_core::reminders::Reminder>,
+    /// How many cards weaker devices drafted this device can re-check now.
+    pub rechecks_here: usize,
     /// The working copy of the checkout being returned, to ask about once it's back, when
     /// `checkout.after_return` says to ask.
     pub returning_working_copy: Option<std::path::PathBuf>,
@@ -653,6 +655,14 @@ fn lines(text: &str) -> Vec<String> {
     text.lines().map(str::to_owned).collect()
 }
 
+/// This device's identifier, from its identity, if it has one.
+fn this_device() -> Option<Id> {
+    crate::config::Identity::load()
+        .ok()
+        .flatten()
+        .map(|i| i.device)
+}
+
 /// Where the interactive mode records what it asks about: in memory under test, so tests
 /// never write the owner's records.
 fn records_for(archive: &Archive) -> crate::asking::Records {
@@ -708,6 +718,7 @@ impl App {
             returning_working_copy: None,
             active_chosen: 0,
             reminders: Vec::new(),
+            rechecks_here: 0,
             active_marked: BTreeSet::new(),
             asked: Vec::new(),
             asked_settles: Vec::new(),
@@ -727,10 +738,7 @@ impl App {
             input: None,
             message: None,
             confirm: None,
-            device: crate::config::Identity::load()
-                .ok()
-                .flatten()
-                .map(|i| i.device),
+            device: this_device(),
             intake: Vec::new(),
             intake_chosen: 0,
             planned: None,
@@ -829,6 +837,7 @@ impl App {
         self.load_settings();
         self.load_active();
         self.load_reminders();
+        self.load_rechecks();
         if !self.stacks.lines.is_empty() {
             self.load_discover();
         }
@@ -928,6 +937,9 @@ impl App {
             vec![("↑↓", "scroll")]
         };
         keys.extend([("f", "flags"), ("g", "gaps"), ("s", "sync")]);
+        if self.rechecks_here > 0 {
+            keys.push(("c", "re-check cards"));
+        }
         keys
     }
 

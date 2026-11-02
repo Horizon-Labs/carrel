@@ -64,17 +64,21 @@ impl CliJobs {
     }
 
     /// A crawler pass, when its pace says one is due and the device is idle and on power,
-    /// after downloading what collections kept downloaded need, in a synced archive.
+    /// after downloading what collections kept downloaded need, in a synced archive; then
+    /// this device's profile brought up to date and weaker devices' cards re-checked.
     fn crawl(archive: &Archive) -> Result<Option<String>, JobError> {
         let kept = Self::keep_downloaded(archive);
         let crawled = crate::crawl::when_idle(archive).map_err(|Failure(e)| JobError::Failed(e))?;
         // Flags waiting for the librarian use the same idle time.
         let looked =
             crate::flag_librarian::when_idle(archive).map_err(|Failure(e)| JobError::Failed(e))?;
+        let rechecked =
+            crate::devices::for_agent(archive).map_err(|Failure(e)| JobError::Failed(e))?;
         let done: Vec<String> = kept
             .into_iter()
             .chain(crawled.and_then(|c| c.summary()))
             .chain(looked)
+            .chain(rechecked)
             .collect();
         Ok((!done.is_empty()).then(|| done.join("; ")))
     }
