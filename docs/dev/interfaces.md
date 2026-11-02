@@ -20,6 +20,10 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Add a web address as a `url` item, and a note for the cards | `ingest --url`, `--title`, `--note` | ✓ a web address on the Ingest line, `n` for a note | ✓ File → Add Web Address…, the add sheet's note, pasting; Send to Archive and Add to Archive in Shortcuts | ✓ Web Address… and Paste in the + menu, the add sheet's note; the share sheet |
 | Add a note you write as an item of its own | `ingest --text` (`-` for standard input) | ✓ `a` on Ingest | ✓ File → Add Note…, pasting text; the share sheet's text | ✓ Note… and Paste in the + menu; the share sheet's text |
 | Add while another device is the writer, through this device's inbox | `ingest` | ✓ Ingest | ✓ the window, Send to Archive, the Quick Action, Shortcuts | ✓ the share sheet and the + menu |
+| Every other change while another device is the writer, through this device's inbox: approvals, holds, rejections, answers, corrections and edits, checkouts and returns, desk changes, flags, expanding, undo (#467; the rest, #484) | each command, automatically, saying so | ✓ automatically, saying so | ✓ automatically, saying so | ✓ automatically, saying so |
+| This device's inbox: what waits for the writer, and what it skipped and why (#467) | `status` | ✓ Status | ✓ Status | ✓ Status |
+| The holding folder, on a device without Kopia: how much waits for a snapshot, with warnings (#470) | `status` | ✓ Status | ✓ Status | ✓ Status |
+| Restore a version from the holding folder (#470) | `backup restore --held` | #483 | ✓ Status's holding folder | ✓ Status's holding folder |
 | The intake queue: list, remove, move to the front, try again | `ingest --status`, `--remove`, `--first`, `--retry` | ✓ Ingest | ✓ Status, with each failure's reason | ✓ |
 | The worker's progress | `ingest --status` | ✓ | ✓ (#236) | ✓ |
 | Draft the queue with this device's models | `ingest`, `worker` | ✓ Ingest | ✓ Draft Now on Status; the agent | ✓ Draft Now on Status; background tasks. Apple's model or an MLX model, in the app's own process, which Settings → This Device lists (#481) |
@@ -39,7 +43,7 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Card previews outside Carrel | `show` | ✓ Browse | ✓ Quick Look in Finder, with Carrel's drawings of STEP, IGES and 3MF (#410) | — Quick Look in Finder is the Mac's; Files previews the files themselves |
 | An item's history and related items | `show` | ✓ | ✓ the inspector's History and Related | ✓ |
 | Search, with filters and reasons | `search` | ✓ `/` | ✓ ⌘F (#236) | ✓ |
-| Search from outside Carrel | `search` | ✓ `/` | ✓ Spotlight finds cards, collections and glossary facts, by `spotlight.index`; a result opens the item in Carrel (#411) | — Spotlight on iPad and iPhone: #478 |
+| Search from outside Carrel | `search` | ✓ `/` | ✓ Spotlight finds cards, collections and glossary facts, by `spotlight.index`; a result opens the item in Carrel (#411) | ✓ Spotlight, indexed by the app when the archive opens, after changes and in background tasks; a result opens the item (#478) |
 | Discovery: on this day, timeline | `discover today`, `discover timeline` | ✓ Discover (`D`) | ✓ Discover | ✓ |
 | Discovery: the timeline's words, filters and date | `discover timeline QUERY --by` | ✓ `/` and `b` on the timeline | ✓ Discover | ✓ |
 | Discovery: wander the stacks | `discover wander` | ✓ Discover, with previews where the terminal draws them | ✓ Discover, with previews | ✓ |
@@ -81,7 +85,7 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | The usage report and its decision log, on or off | `report`, `settings set report.log` | ✓ Report on Status, Settings | the calls are in CarrelKit; the Report view #327 | the calls are in CarrelKit; the Report view #327 |
 | Gaps: what Carrel couldn't do, an issue draft for each opened in the browser, reported, and missing features in the owner's words | `report gaps` | ✓ Gaps on Status (`g`); `M` on an item in Browse | ✓ Status's Gaps; Report a Missing Feature… on an item (#455) | ✓ |
 | Background work: sessions as they happen, the queue, the index, scheduled snapshots | `agent`, `agent install` (#269) | ✓ Settings (#279) | ✓ agent (#237) | ✓ background tasks draft the queue and apply inboxes; an iPhone only while charging; no snapshots (Kopia) |
-| Reminders: entries waiting, checkouts due back, the week's sum, as notifications and on Status | `reminders`, `status`; `agent` notifies through `notify-send` or a PowerShell toast | ✓ Status (`Enter` goes to the item) | ✓ Status; the agent's notifications; `menu-bar` hides its menu bar list | ✓ Status; notifications: #479 |
+| Reminders: entries waiting, checkouts due back, the week's sum, as notifications and on Status | `reminders`, `status`; `agent` notifies through `notify-send` or a PowerShell toast | ✓ Status (`Enter` goes to the item) | ✓ Status; the agent's notifications; `menu-bar` hides its menu bar list | ✓ Status; local notifications from the app and its background tasks, each opening its item (#479) |
 | What's checked out, at a glance | `checkouts` | ✓ Active | ✓ menu bar (#237) | ✓ Active |
 | Sync status: the writer lock and its expiry, each device's inbox backlog, the holding folder, re-checks, files not downloaded, kept collections (#472) | `sync status`, a line in `status` | ✓ `s` on Status | ✓ Status → Sync | ✓ Status → Sync |
 | Download an item's or a collection's contents iCloud evicted; done by itself to open, preview, check out, draft or snapshot (#468) | `sync download` | ✓ `d` in Browse | ✓ Download from iCloud on an item, Download Now on a collection; Quick Look downloads first | ✓ as on the Mac |
@@ -104,7 +108,7 @@ Each setting, and where it's changed. `carrel settings set KEY VALUE` changes ev
 | `ingest.originals`, `compressed_files`, `signals.crowded_items`, `questions.skip_days`, `outside_edits` | Settings | Settings → General | Settings → General |
 | `checkout.destination`, `checkout.after_return`, `sessions.idle_minutes`, `reminders` | Settings | Settings → General | Settings → General |
 | `librarian.changes`, `librarian.confidence` | Settings | Settings → General | Settings → General |
-| `spotlight.index`, what a Mac's Spotlight finds (#411) | Settings | Settings → General | Settings → General (it decides what a Mac shows) |
+| `spotlight.index`, what Spotlight finds on a Mac, iPad or iPhone (#411, #478) | Settings | Settings → General | Settings → General |
 | `embedding.model`, chosen once, then switched | Settings, the index's row | Settings → Search | Settings → Search |
 | `backups` | Backups | Backups, and its status in Settings → Backups | — on a Mac |
 
@@ -118,8 +122,10 @@ These stay in one interface, for the reason given:
 - **The `previews` setting** chooses how a terminal draws pictures, so only the interactive mode has it.
 - **Previews in a terminal** need a terminal that can draw images (#258). Elsewhere the interactive mode shows the card. The command line's output is text, so `carrel show` gives the card and the item's path instead.
 - **Quick Look** is how macOS previews files in Finder, so only the Mac has it. `carrel show` and Browse show the same card (`docs/design/macos-integration.md`).
-- **Spotlight** is how macOS searches everything at once, so only the Mac has it. `carrel search` and `/` find the same cards. `spotlight.index` is an archive setting in every interface, since it decides what the archive shows anyone at a Mac.
+- **Spotlight** is how macOS, iPadOS and iOS search everything at once, so only Apple's devices have it: the agent indexes on a Mac, the app itself on iPad and iPhone. `carrel search` and `/` find the same cards. `spotlight.index` is an archive setting in every interface, since it decides what the archive shows anyone at an Apple device.
 - **Grid views, dragging and the menu bar** are ways of working in a graphical app. The command line and the interactive mode reach the same capabilities through their own commands and screens, as the table shows.
+- **The command line on Linux and Windows with a synced archive** can't reach the CloudKit writer lock, so it never writes the history there: it reads freely, acts through its inbox, and says so (`docs/design/sync-and-mobile.md`, decision 2). Changes the inbox doesn't carry (backups, restructuring, settings) need an archive that isn't synced.
+- **Kopia snapshots** run only where Kopia is set up. On a Mac without it, as on an iPad or iPhone (below), the holding folder keeps replaced content until a Mac with Kopia snapshots and clears it.
 - **Platform-only models and readers,** such as Apple's model or Vision's OCR, are available in every interface on the platforms that have them. Elsewhere, the open models and the extraction provider stand in.
 - **The CloudKit writer lock** for an archive in iCloud Drive needs CloudKit, which only Apple's platforms have: on a Mac the agent holds it for the app, the command line and the interactive mode. On Linux and Windows, the command line and the interactive mode can't write such an archive's history once it uses the lock, and act through their device's inbox instead (`docs/design/sync-and-mobile.md`).
 - **Backups on iPad and iPhone:** Kopia runs only on a Mac, so the iPad and iPhone app can't set up, take, verify or restore snapshots. What a change there replaces or removes is kept in the archive's holding folder until a Mac snapshots it (`docs/design/sync-and-mobile.md`, decision 5), and Status says how much is waiting.

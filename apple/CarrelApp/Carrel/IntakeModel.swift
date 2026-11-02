@@ -248,7 +248,7 @@ struct AddReport: Equatable {
     var writer: String?
 
     init(_ added: Added) {
-        self.init(Shared(added: added, inbox: nil, writer: nil)) {
+        self.init(Shared(added: added, inbox: nil, writer: nil, sent: nil)) {
             URL(filePath: $0).lastPathComponent
         }
     }

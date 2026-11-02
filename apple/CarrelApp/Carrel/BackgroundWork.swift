@@ -100,6 +100,8 @@ nonisolated enum BackgroundWork {
             guard let handle = lastArchive() else { return true }
             do {
                 try work(handle)
+                // What changed shows in Spotlight, and the reminders now due as notifications.
+                await MobileArchiveNotices.refresh(handle)
                 return true
             } catch {
                 return false
