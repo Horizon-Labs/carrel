@@ -782,8 +782,8 @@
 				ARCHS = arm64;
 				CARREL_APP_GROUP = "$(CARREL_BUNDLE_IDENTIFIER)";
 				"CARREL_APP_GROUP[sdk=iphone*]" = "group.$(CARREL_BUNDLE_IDENTIFIER)";
-				CARREL_BUNDLE_IDENTIFIER = io.github.hannaharose.Carrel.dev;
-				CARREL_CLOUDKIT_CONTAINER = iCloud.io.github.hannaharose.Carrel;
+				CARREL_BUNDLE_IDENTIFIER = me.hrose.carrel.dev;
+				CARREL_CLOUDKIT_CONTAINER = iCloud.me.hrose.carrel;
 				CARREL_ICLOUD = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -818,8 +818,8 @@
 				ARCHS = arm64;
 				CARREL_APP_GROUP = "$(CARREL_BUNDLE_IDENTIFIER)";
 				"CARREL_APP_GROUP[sdk=iphone*]" = "group.$(CARREL_BUNDLE_IDENTIFIER)";
-				CARREL_BUNDLE_IDENTIFIER = io.github.hannaharose.Carrel;
-				CARREL_CLOUDKIT_CONTAINER = iCloud.io.github.hannaharose.Carrel;
+				CARREL_BUNDLE_IDENTIFIER = me.hrose.carrel;
+				CARREL_CLOUDKIT_CONTAINER = iCloud.me.hrose.carrel;
 				CARREL_ICLOUD = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -921,7 +921,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.hannaharose.CarrelTests;
+				PRODUCT_BUNDLE_IDENTIFIER = me.hrose.carrelTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Carrel.app/Contents/MacOS/Carrel";
 			};
@@ -932,7 +932,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.hannaharose.CarrelTests;
+				PRODUCT_BUNDLE_IDENTIFIER = me.hrose.carrelTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Carrel.app/Contents/MacOS/Carrel";
 			};

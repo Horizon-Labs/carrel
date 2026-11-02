@@ -43,7 +43,7 @@ scripts/build-xcframework.sh
 xcodebuild -project apple/CarrelApp/CarrelApp.xcodeproj -scheme Carrel -configuration Release -derivedDataPath target/mac-app DEVELOPMENT_TEAM=4V63YRQU43 CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" CARREL_ICLOUD=YES -allowProvisioningUpdates build
 ```
 
-Use your own team's identifier for `DEVELOPMENT_TEAM`. `CARREL_ICLOUD=YES` gives the agent the iCloud entitlement for the `iCloud.io.github.hannaharose.Carrel` container, and `-allowProvisioningUpdates` lets Xcode register the app's identifiers, the container and this Mac with the team the first time. The app is at `target/mac-app/Build/Products/Release/Carrel.app`; `codesign -d --entitlements - "target/mac-app/Build/Products/Release/Carrel.app/Contents/Library/LoginItems/Carrel Agent.app"` should list the container. Leave `CARREL_ICLOUD` off for an ad hoc build: macOS stops an ad hoc program that claims iCloud at launch.
+Use your own team's identifier for `DEVELOPMENT_TEAM`. `CARREL_ICLOUD=YES` gives the agent the iCloud entitlement for the `iCloud.me.hrose.carrel` container, and `-allowProvisioningUpdates` lets Xcode register the app's identifiers, the container and this Mac with the team the first time. The app is at `target/mac-app/Build/Products/Release/Carrel.app`; `codesign -d --entitlements - "target/mac-app/Build/Products/Release/Carrel.app/Contents/Library/LoginItems/Carrel Agent.app"` should list the container. Leave `CARREL_ICLOUD` off for an ad hoc build: macOS stops an ad hoc program that claims iCloud at launch.
 
 ### Models and Kopia
 

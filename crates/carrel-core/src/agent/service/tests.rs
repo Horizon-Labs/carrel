@@ -53,7 +53,7 @@ fn each_platform_writes_its_own_file_in_the_home_folder_given() {
     let home = &places.home;
     assert_eq!(
         places.file(Platform::Launchd),
-        home.join("Library/LaunchAgents/io.github.hannaharose.carrel.agent.plist")
+        home.join("Library/LaunchAgents/me.hrose.carrel.agent.plist")
     );
     assert_eq!(
         places.file(Platform::Systemd),
@@ -95,7 +95,7 @@ fn the_definitions_say_what_each_service_manager_needs() {
     let definition = definition(&places);
 
     let plist = definition.contents(Platform::Launchd);
-    assert!(plist.contains("<string>io.github.hannaharose.carrel.agent</string>"));
+    assert!(plist.contains("<string>me.hrose.carrel.agent</string>"));
     assert!(plist.contains("<key>RunAtLoad</key>\n  <true/>"));
     assert!(plist.contains("<key>PATH</key>\n    <string>/opt/homebrew/bin:/usr/bin</string>"));
     assert!(plist.contains("&amp; 100%"), "XML is escaped");
@@ -202,4 +202,52 @@ fn a_service_manager_that_refuses_is_an_error_and_the_file_stays_to_uninstall() 
             .unwrap()
             .was_installed
     );
+}
+
+#[test]
+fn installing_or_uninstalling_on_a_mac_removes_the_agent_under_its_old_label() {
+    let dir = tempfile::tempdir().unwrap();
+    let places = places(dir.path());
+    let old = places
+        .home
+        .join("Library/LaunchAgents")
+        .join(format!("{OLD_LAUNCHD_LABEL}.plist"));
+    let leave_old = || {
+        std::fs::create_dir_all(old.parent().unwrap()).unwrap();
+        std::fs::write(&old, "<plist/>").unwrap();
+    };
+
+    leave_old();
+    let mut manager = Fake::default();
+    let done = install(
+        Platform::Launchd,
+        &places,
+        &definition(&places),
+        &mut manager,
+    )
+    .unwrap();
+    assert_eq!(done.removed_old.as_deref(), Some(old.as_path()));
+    assert!(!old.exists());
+    assert!(manager.ran[0].starts_with("launchctl bootout gui/"));
+    assert!(manager.ran[0].ends_with(&format!("/{OLD_LAUNCHD_LABEL}")));
+    assert!(places.file(Platform::Launchd).exists());
+
+    uninstall(Platform::Launchd, &places, &mut manager).unwrap();
+    leave_old();
+    let removed = uninstall(Platform::Launchd, &places, &mut manager).unwrap();
+    assert!(!removed.was_installed);
+    assert_eq!(removed.removed_old.as_deref(), Some(old.as_path()));
+    assert!(!old.exists());
+
+    leave_old();
+    let mut manager = Fake::default();
+    let done = install(
+        Platform::Systemd,
+        &places,
+        &definition(&places),
+        &mut manager,
+    )
+    .unwrap();
+    assert_eq!(done.removed_old, None, "only launchd's");
+    assert!(old.exists());
 }

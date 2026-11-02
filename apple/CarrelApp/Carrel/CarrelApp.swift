@@ -33,7 +33,7 @@ extension UserDefaults {
     /// emptied at each run, so tests never read or write a developer's settings or recents.
     nonisolated(unsafe) static let app: UserDefaults = {
         guard CarrelMain.isHostingTests else { return .standard }
-        let suite = "io.github.hannaharose.Carrel.test-host"
+        let suite = "me.hrose.carrel.test-host"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         return UserDefaults(suiteName: suite) ?? .standard
     }()

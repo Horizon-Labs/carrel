@@ -9,7 +9,7 @@ public enum AgentService {
     public static let appGroup =
         Bundle.main.object(forInfoDictionaryKey: "CarrelAppGroup") as? String ?? releaseAppGroup
     /// The installed app's group, for a process whose bundle doesn't name one.
-    public static let releaseAppGroup = "io.github.hannaharose.Carrel"
+    public static let releaseAppGroup = "me.hrose.carrel"
     /// The agent's Mach service: its bundle identifier, inside the app group.
     public static let machServiceName = appGroup + ".Agent"
 
