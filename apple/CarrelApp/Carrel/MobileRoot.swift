@@ -349,7 +349,9 @@ private struct MobileArchiveToolbar: ViewModifier {
                     Button("Archives", systemImage: "archivebox") { library.close() }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    if let capture, !model.isReadOnly { CaptureMenu(capture: capture) }
+                    if let capture, !model.isReadOnly {
+                        CaptureMenu(capture: capture, intake: model.intake)
+                    }
                     Button("Settings", systemImage: "gearshape") { library.showingSettings = true }
                 }
             }

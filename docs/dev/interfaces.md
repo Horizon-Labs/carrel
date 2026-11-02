@@ -17,8 +17,9 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Create an archive with a chosen embedding model, or start history for one that has none | `init --embedding-model`, `init` in the archive | ✓ `Ctrl-O` | ✓ New Archive…'s embedding model; Start History on Status and History | ✓ New Archive's embedding model; Start History on Status and History |
 | Status, problems and Recent | `status` | ✓ Status | ✓ Status: Recent, cards with problems, names to rename, restructure signals, desk suggestions | ✓ |
 | Add items to the intake queue | `ingest` | ✓ Ingest | ✓ drag, ⌘O (#236), a folder entry by entry or whole | ✓ the + menu: Photos, Take Photo, Scan Document, Files |
-| Add a web address as a `url` item, and a note for the cards | `ingest --url`, `--title`, `--note` | ✓ a web address on the Ingest line, `n` for a note | ✓ Send to Archive and Add to Archive in Shortcuts; the window: #439 | ✓ the share sheet; the window: #439 |
-| Add while another device is the writer, through this device's inbox | `ingest` | ✓ Ingest | ✓ Send to Archive, the Quick Action, Shortcuts | ✓ the share sheet and the + menu |
+| Add a web address as a `url` item, and a note for the cards | `ingest --url`, `--title`, `--note` | ✓ a web address on the Ingest line, `n` for a note | ✓ File → Add Web Address…, the add sheet's note, pasting; Send to Archive and Add to Archive in Shortcuts | ✓ Web Address… and Paste in the + menu, the add sheet's note; the share sheet |
+| Add a note you write as an item of its own | `ingest --text` (`-` for standard input) | ✓ `a` on Ingest | ✓ File → Add Note…, pasting text; the share sheet's text | ✓ Note… and Paste in the + menu; the share sheet's text |
+| Add while another device is the writer, through this device's inbox | `ingest` | ✓ Ingest | ✓ the window, Send to Archive, the Quick Action, Shortcuts | ✓ the share sheet and the + menu |
 | The intake queue: list, remove, move to the front, try again | `ingest --status`, `--remove`, `--first`, `--retry` | ✓ Ingest | ✓ Status, with each failure's reason | ✓ |
 | The worker's progress | `ingest --status` | ✓ | ✓ (#236) | ✓ |
 | Review: approve, hold, move, reject | `review` | ✓ Review | ✓ (#234) | ✓ |
