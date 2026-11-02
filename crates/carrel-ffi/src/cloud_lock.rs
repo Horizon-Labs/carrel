@@ -3,7 +3,9 @@
 //! ([`serve_cloud_lock`]); the iOS app uses it directly ([`use_cloud_lock`]). Archives in
 //! iCloud Drive then take their writer lock through it whenever they're written.
 
-use std::sync::{Arc, Mutex, PoisonError};
+#[cfg(unix)]
+use std::sync::PoisonError;
+use std::sync::{Arc, Mutex};
 
 use carrel_core::card::Id;
 #[cfg(unix)]
