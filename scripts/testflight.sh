@@ -13,8 +13,9 @@
 # so it rises with every commit merged; upload from dev or main.
 #
 # Signing is automatic, with team TEAM (4V63YRQU43 by default) through the Xcode account on
-# this Mac; -allowProvisioningUpdates lets Xcode register the app's identifiers and profiles.
-# The script never takes a password. For CI, an App Store Connect API key can stand in for the
+# this Mac; -allowProvisioningUpdates lets Xcode register the app's identifiers and profiles,
+# and the iCloud container its entitlements name for the CloudKit writer lock. The script never
+# takes a password. For CI, an App Store Connect API key can stand in for the
 # Xcode account: ASC_KEY_PATH (the .p8 file), ASC_KEY_ID and ASC_ISSUER_ID.
 set -euo pipefail
 

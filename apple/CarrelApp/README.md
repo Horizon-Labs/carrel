@@ -37,4 +37,6 @@ From the command line:
 xcodebuild -project apple/CarrelApp/CarrelApp.xcodeproj -scheme Carrel test
 ```
 
+The agent holds the CloudKit writer lock only in a build signed with a team and `CARREL_ICLOUD=YES`, which gives it `CarrelAgent-iCloud.entitlements`; [the Mac app guide](../../docs/guide/mac-app.md#building-it-signed-with-your-team-for-icloud) has the command. Without it (Debug, tests, CI) the agent has no entitlements, since an ad hoc build claiming iCloud is stopped at launch. On iPad and iPhone, `Carrel-iOS.entitlements` always carries the container: those builds are signed with the team, and the Simulator doesn't check.
+
 CI builds the app on every push and pull request and keeps it, zipped and signed ad hoc, as the "Carrel" artifact for 30 days. It isn't notarized, so macOS won't open it at first: try once, then choose Open Anyway in System Settings → Privacy & Security.

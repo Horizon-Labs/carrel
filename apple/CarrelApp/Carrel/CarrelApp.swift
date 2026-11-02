@@ -52,6 +52,9 @@ struct CarrelApp: App {
         BackgroundWork.register()
         // Before launch finishes too, so a notification that launched the app reaches it.
         MobileReminders.shared.start()
+        // Archives in iCloud Drive take their writer lock through CloudKit
+        // (docs/design/sync-and-mobile.md, "The writer lock").
+        if let store = CloudKitLockStore.forBundle() { useCloudLock(store: store) }
         #endif
     }
 

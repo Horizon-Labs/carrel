@@ -34,6 +34,17 @@ PROFILE=dev scripts/build-xcframework.sh
 
 Then open `apple/CarrelApp/CarrelApp.xcodeproj` in Xcode and run the **Carrel** scheme (⌘R). It's signed to run on your own Mac; to sign with your own team instead, choose it under Signing & Capabilities. [The app's README](../../apple/CarrelApp/README.md) has the details.
 
+### Building it signed with your team, for iCloud
+
+An archive in iCloud Drive used from more than one device needs the CloudKit writer lock, which the agent can only hold when it's signed with your Apple Developer team and the iCloud entitlement. The build above, and CI's, are signed ad hoc and use the lock file in the archive instead, as for one device. To sign with your team, build the core for release and then the app, from the repository's folder:
+
+```bash
+scripts/build-xcframework.sh
+xcodebuild -project apple/CarrelApp/CarrelApp.xcodeproj -scheme Carrel -configuration Release -derivedDataPath target/mac-app DEVELOPMENT_TEAM=4V63YRQU43 CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" CARREL_ICLOUD=YES -allowProvisioningUpdates build
+```
+
+Use your own team's identifier for `DEVELOPMENT_TEAM`. `CARREL_ICLOUD=YES` gives the agent the iCloud entitlement for the `iCloud.io.github.hannaharose.Carrel` container, and `-allowProvisioningUpdates` lets Xcode register the app's identifiers, the container and this Mac with the team the first time. The app is at `target/mac-app/Build/Products/Release/Carrel.app`; `codesign -d --entitlements - "target/mac-app/Build/Products/Release/Carrel.app/Contents/Library/LoginItems/Carrel Agent.app"` should list the container. Leave `CARREL_ICLOUD` off for an ad hoc build: macOS stops an ad hoc program that claims iCloud at launch.
+
 ### Models and Kopia
 
 The app uses the same models, providers and Kopia as the command line, and the same models folder, so a model downloaded from either is there for both. The development build doesn't carry the provider programs inside it yet. **Settings → Providers** shows which ones the app found; if it lists fewer than `carrel providers` does in your terminal, that's why.
