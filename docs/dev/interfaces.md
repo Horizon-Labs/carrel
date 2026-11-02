@@ -42,7 +42,7 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Card previews outside Carrel | `show` | ✓ Browse | ✓ Quick Look in Finder, with Carrel's drawings of STEP, IGES and 3MF (#410) | — Quick Look in Finder is the Mac's; Files previews the files themselves |
 | An item's history and related items | `show` | ✓ | ✓ the inspector's History and Related | ✓ |
 | Search, with filters and reasons | `search` | ✓ `/` | ✓ ⌘F (#236) | ✓ |
-| Search from outside Carrel | `search` | ✓ `/` | ✓ Spotlight finds cards, collections and glossary facts, by `spotlight.index`; a result opens the item in Carrel (#411) | — Spotlight on iPad and iPhone: #478 |
+| Search from outside Carrel | `search` | ✓ `/` | ✓ Spotlight finds cards, collections and glossary facts, by `spotlight.index`; a result opens the item in Carrel (#411) | ✓ Spotlight, indexed by the app when the archive opens, after changes and in background tasks; a result opens the item (#478) |
 | Discovery: on this day, timeline | `discover today`, `discover timeline` | ✓ Discover (`D`) | ✓ Discover | ✓ |
 | Discovery: the timeline's words, filters and date | `discover timeline QUERY --by` | ✓ `/` and `b` on the timeline | ✓ Discover | ✓ |
 | Discovery: wander the stacks | `discover wander` | ✓ Discover, with previews where the terminal draws them | ✓ Discover, with previews | ✓ |
@@ -85,7 +85,7 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Gaps: what Carrel couldn't do, an issue draft for each opened in the browser, reported, and missing features in the owner's words | `report gaps` | ✓ Gaps on Status (`g`); `M` on an item in Browse | ✓ Status's Gaps; Report a Missing Feature… on an item (#455) | ✓ |
 | Feedback from any screen, with the screen, step and what's in view, kept in `_System/feedback/<device-id>/`; listed, exported as Markdown by screen, an issue draft for each, marked sent, the unsent count on Status | `feedback "text" [--about ITEM\|COLLECTION] [--kind KIND] [--screen S --step S]`, `feedback list\|export\|issue N\|sent N [URL]`, `status` (a command line has no screen; `--screen` names one) | ✓ `!` on every screen, `idea:` or `confusing:` before the words sets the kind; the list and export by command | ✓ Help → Send Feedback (⇧⌘F) and the toolbar's overflow, with the window's screenshot to keep or leave out; Status's Feedback (#487) | ✓ shake, or the ••• menu on each column; the screenshot; Status's Feedback |
 | Background work: sessions as they happen, the queue, the index, scheduled snapshots | `agent`, `agent install` (#269) | ✓ Settings (#279) | ✓ agent (#237) | ✓ background tasks draft the queue and apply inboxes; an iPhone only while charging; no snapshots (Kopia) |
-| Reminders: entries waiting, checkouts due back, the week's sum, as notifications and on Status | `reminders`, `status`; `agent` notifies through `notify-send` or a PowerShell toast | ✓ Status (`Enter` goes to the item) | ✓ Status; the agent's notifications; `menu-bar` hides its menu bar list | ✓ Status; notifications: #479 |
+| Reminders: entries waiting, checkouts due back, the week's sum, as notifications and on Status | `reminders`, `status`; `agent` notifies through `notify-send` or a PowerShell toast | ✓ Status (`Enter` goes to the item) | ✓ Status; the agent's notifications; `menu-bar` hides its menu bar list | ✓ Status; local notifications from the app and its background tasks, each opening its item (#479) |
 | What's checked out, at a glance | `checkouts` | ✓ Active | ✓ menu bar (#237) | ✓ Active |
 | Sync status: the writer lock and its expiry, each device's inbox backlog, the holding folder, re-checks, files not downloaded, kept collections (#472) | `sync status`, a line in `status` | ✓ `s` on Status | ✓ Status → Sync | ✓ Status → Sync |
 | Download an item's or a collection's contents iCloud evicted; done by itself to open, preview, check out, draft or snapshot (#468) | `sync download` | ✓ `d` in Browse | ✓ Download from iCloud on an item, Download Now on a collection; Quick Look downloads first | ✓ as on the Mac |
@@ -108,7 +108,7 @@ Each setting, and where it's changed. `carrel settings set KEY VALUE` changes ev
 | `ingest.originals`, `compressed_files`, `signals.crowded_items`, `questions.skip_days`, `outside_edits` | Settings | Settings → General | Settings → General |
 | `checkout.destination`, `checkout.after_return`, `sessions.idle_minutes`, `reminders` | Settings | Settings → General | Settings → General |
 | `librarian.changes`, `librarian.confidence` | Settings | Settings → General | Settings → General |
-| `spotlight.index`, what a Mac's Spotlight finds (#411) | Settings | Settings → General | Settings → General (it decides what a Mac shows) |
+| `spotlight.index`, what Spotlight finds on a Mac, iPad or iPhone (#411, #478) | Settings | Settings → General | Settings → General |
 | `embedding.model`, chosen once, then switched | Settings, the index's row | Settings → Search | Settings → Search |
 | `backups` | Backups | Backups, and its status in Settings → Backups | — on a Mac |
 
@@ -122,7 +122,7 @@ These stay in one interface, for the reason given:
 - **The `previews` setting** chooses how a terminal draws pictures, so only the interactive mode has it.
 - **Previews in a terminal** need a terminal that can draw images (#258). Elsewhere the interactive mode shows the card. The command line's output is text, so `carrel show` gives the card and the item's path instead.
 - **Quick Look** is how macOS previews files in Finder, so only the Mac has it. `carrel show` and Browse show the same card (`docs/design/macos-integration.md`).
-- **Spotlight** is how macOS searches everything at once, so only the Mac has it. `carrel search` and `/` find the same cards. `spotlight.index` is an archive setting in every interface, since it decides what the archive shows anyone at a Mac.
+- **Spotlight** is how macOS, iPadOS and iOS search everything at once, so only Apple's devices have it: the agent indexes on a Mac, the app itself on iPad and iPhone. `carrel search` and `/` find the same cards. `spotlight.index` is an archive setting in every interface, since it decides what the archive shows anyone at an Apple device.
 - **Grid views, dragging and the menu bar** are ways of working in a graphical app. The command line and the interactive mode reach the same capabilities through their own commands and screens, as the table shows.
 - **The command line on Linux and Windows with a synced archive** can't reach the CloudKit writer lock, so it never writes the history there: it reads freely, acts through its inbox, and says so (`docs/design/sync-and-mobile.md`, decision 2). Changes the inbox doesn't carry (backups, restructuring, settings) need an archive that isn't synced.
 - **Kopia snapshots** run only where Kopia is set up. On a Mac without it, as on an iPad or iPhone (below), the holding folder keeps replaced content until a Mac with Kopia snapshots and clears it.
