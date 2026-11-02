@@ -50,7 +50,7 @@ struct CrawlerFindingsView: View {
                 ContentUnavailableView(
                     "Nothing From the Crawler", systemImage: "binoculars",
                     description: Text(
-                        "The crawler has found nothing to review. It rechecks where items are filed when this Mac is idle."
+                        "The crawler has found nothing to review. It rechecks where items are filed when \(thisDevice) is idle."
                     ))
             }
         }
@@ -75,7 +75,7 @@ struct CrawlerFindingInspector: View {
                         .font(.caption).foregroundStyle(.secondary)
                     Text(finding.title).font(.title3.bold())
                     Button("Show in Browse") { window.open(item: finding.item) }
-                        .buttonStyle(.link)
+                        .linkButtonStyle()
                 }
                 .textSelection(.enabled)
             }
@@ -132,6 +132,20 @@ struct StatusCrawlerSection: View {
                     ForEach(status.waiting, id: \.stage) { stage in
                         LabeledContent(stage.stage.capitalized, value: "\(stage.items) due")
                     }
+                    if !status.drafts.isEmpty {
+                        DisclosureGroup(
+                            status.drafts.count == 1
+                                ? "1 card could get a better draft"
+                                : "\(status.drafts.count) cards could get a better draft"
+                        ) {
+                            ForEach(status.drafts.prefix(20), id: \.self) { card in
+                                Text(card).font(.callout).textSelection(.enabled)
+                            }
+                        }
+                        .help(
+                            "Drafted by a weaker model or an older Carrel; the crawler redrafts them first"
+                        )
+                    }
                     if status.findings > 0 {
                         Button(
                             status.findings == 1
@@ -140,7 +154,7 @@ struct StatusCrawlerSection: View {
                             window.screen = .review
                             crawler.isShown = true
                         }
-                        .buttonStyle(.link)
+                        .linkButtonStyle()
                     }
                     ForEach(crawler.changes.prefix(5), id: \.id) { change in
                         LabeledContent(change.summary, value: change.when)

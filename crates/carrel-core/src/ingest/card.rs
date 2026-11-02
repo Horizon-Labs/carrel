@@ -19,6 +19,11 @@ use super::text::{ItemText, fit};
 /// readings of what the item is.
 pub const ANSWER_TOKENS: u32 = 700;
 
+/// The drafting version: raised whenever drafting's prompt, schema or steps improve, so cards
+/// drafted before are redrafted first (FORMAT.md §5.6, `docs/design/restructure.md`,
+/// "Crawlers"). Cards record it in `generated.drafting`.
+pub const DRAFTING: u32 = 1;
+
 /// The context assumed for a model that doesn't report its size.
 const DEFAULT_CONTEXT: u64 = 4096;
 
@@ -747,6 +752,7 @@ fn provenance(draft: &Draft, model: String, device: Id, below_preferred: bool) -
         } else {
             QualityLevel::Preferred
         }),
+        drafting: Some(DRAFTING),
         extra: crate::card::Extra::new(),
     }
 }
