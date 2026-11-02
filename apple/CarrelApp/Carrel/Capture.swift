@@ -168,6 +168,8 @@ final class CaptureModel {
 /// The capture menu in the archive's toolbar.
 struct CaptureMenu: View {
     let capture: CaptureModel
+    /// The window's intake, for Web Address…, Note… and Paste (#439).
+    var intake: IntakeModel?
     @State private var choosingPhotos = false
     @State private var photos: [PhotosPickerItem] = []
     @State private var takingPhoto = false
@@ -185,6 +187,16 @@ struct CaptureMenu: View {
                     .init(folders: true, files: true, multiple: true, prompt: "Add") { urls in
                         Task { await capture.send(urls) }
                     })
+            }
+            if let intake {
+                Divider()
+                Button("Web Address…", systemImage: "link") {
+                    intake.writing = Writing(kind: .webAddress)
+                }
+                Button("Note…", systemImage: "note.text") { intake.writing = Writing(kind: .note) }
+                Button("Paste", systemImage: "doc.on.clipboard") {
+                    Task { await intake.paste(from: .general) }
+                }
             }
         }
         .photosPicker(
