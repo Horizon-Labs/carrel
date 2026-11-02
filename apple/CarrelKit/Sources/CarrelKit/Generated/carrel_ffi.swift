@@ -1738,14 +1738,15 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * `memory_gb` is this device's memory, which the strongest model has to fit in.
      * `progress` is told as each step starts: the step, of the most it may take, and what
      * the last one did. With `librarian.changes` on, the librarian makes the changes it's
-     * sure of, as this device's owner; the rest are left in the answer to confirm.
+     * sure of, as this device's owner; the rest are left in the answer to confirm. `about`
+     * is what the owner is looking at, loaded up front so "this" means it.
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] if there's no model, or [`CarrelError::Failed`] if the
-     * archive can't be read or the model fails.
+     * [`CarrelError::Invalid`] if there's no model or `about` names no item, or
+     * [`CarrelError::Failed`] if the archive can't be read or the model fails.
      */
-    func askLibrarian(conversation: LibrarianConversation, question: String, model: ModelProvider?, memoryGb: UInt64?, progress: ProgressListener?) throws  -> LibrarianAnswer
+    func askLibrarian(conversation: LibrarianConversation, question: String, about: LibrarianAbout?, model: ModelProvider?, memoryGb: UInt64?, progress: ProgressListener?) throws  -> LibrarianAnswer
     
     /**
      * The changes the librarian made on its own at or after `since` (seconds since the Unix
@@ -4309,20 +4310,22 @@ open func workerStatus() -> WorkerStatus?  {
      * `memory_gb` is this device's memory, which the strongest model has to fit in.
      * `progress` is told as each step starts: the step, of the most it may take, and what
      * the last one did. With `librarian.changes` on, the librarian makes the changes it's
-     * sure of, as this device's owner; the rest are left in the answer to confirm.
+     * sure of, as this device's owner; the rest are left in the answer to confirm. `about`
+     * is what the owner is looking at, loaded up front so "this" means it.
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] if there's no model, or [`CarrelError::Failed`] if the
-     * archive can't be read or the model fails.
+     * [`CarrelError::Invalid`] if there's no model or `about` names no item, or
+     * [`CarrelError::Failed`] if the archive can't be read or the model fails.
      */
-open func askLibrarian(conversation: LibrarianConversation, question: String, model: ModelProvider?, memoryGb: UInt64?, progress: ProgressListener?)throws  -> LibrarianAnswer  {
+open func askLibrarian(conversation: LibrarianConversation, question: String, about: LibrarianAbout?, model: ModelProvider?, memoryGb: UInt64?, progress: ProgressListener?)throws  -> LibrarianAnswer  {
     return try  FfiConverterTypeLibrarianAnswer_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
         uniffiCallStatus in
     uniffi_carrel_ffi_fn_method_archivehandle_ask_librarian(
             self.uniffiCloneHandle(),
         FfiConverterTypeLibrarianConversation_lower(conversation),
         FfiConverterString.lower(question),
+        FfiConverterOptionTypeLibrarianAbout.lower(about),
         FfiConverterOptionTypeModelProvider.lower(model),
         FfiConverterOptionUInt64.lower(memoryGb),
         FfiConverterOptionTypeProgressListener.lower(progress),uniffiCallStatus
@@ -5726,6 +5729,432 @@ public func FfiConverterTypeArchiveHandle_lift(_ handle: UInt64) throws -> Archi
 #endif
 public func FfiConverterTypeArchiveHandle_lower(_ value: ArchiveHandle) -> UInt64 {
     return FfiConverterTypeArchiveHandle.lower(value)
+}
+
+
+
+
+
+
+/**
+ * The Mac agent's lock service, serving the app and the command line until stopped.
+ */
+public protocol CloudLockServiceProtocol: AnyObject, Sendable {
+    
+    /**
+     * The socket the app and the command line reach it at.
+     */
+    func socket()  -> String?
+    
+    /**
+     * Stops serving, and stops using the store in this process.
+     */
+    func stop() 
+    
+}
+/**
+ * The Mac agent's lock service, serving the app and the command line until stopped.
+ */
+open class CloudLockService: CloudLockServiceProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_carrel_ffi_fn_clone_cloudlockservice(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_carrel_ffi_fn_free_cloudlockservice(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * The socket the app and the command line reach it at.
+     */
+open func socket() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_cloudlockservice_socket(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Stops serving, and stops using the store in this process.
+     */
+open func stop()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_cloudlockservice_stop(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+}
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCloudLockService: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = CloudLockService
+
+    public static func lift(_ handle: UInt64) throws -> CloudLockService {
+        return CloudLockService(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: CloudLockService) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CloudLockService {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: CloudLockService, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCloudLockService_lift(_ handle: UInt64) throws -> CloudLockService {
+    return try FfiConverterTypeCloudLockService.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCloudLockService_lower(_ value: CloudLockService) -> UInt64 {
+    return FfiConverterTypeCloudLockService.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Where lock records are kept: one per archive in the owner's private `CloudKit` database,
+ * implemented in Swift. Called from a background thread, and may block on the network.
+ */
+public protocol CloudLockStore: AnyObject, Sendable {
+    
+    /**
+     * The record for the archive `archive_id`, if there is one.
+     *
+     * # Errors
+     *
+     * When `CloudKit` can't be reached, as [`CarrelError::Callback`].
+     */
+    func fetch(archiveId: String) throws  -> CloudLockRecord?
+    
+    /**
+     * Saves `record` for the archive, only if the stored record's change tag is still
+     * `expected_tag` (`None`: only if there's no record yet).
+     *
+     * # Errors
+     *
+     * When `CloudKit` can't be reached, as [`CarrelError::Callback`].
+     */
+    func save(archiveId: String, record: CloudLockRecord, expectedTag: String?) throws  -> CloudLockSave
+    
+}
+/**
+ * Where lock records are kept: one per archive in the owner's private `CloudKit` database,
+ * implemented in Swift. Called from a background thread, and may block on the network.
+ */
+open class CloudLockStoreImpl: CloudLockStore, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_carrel_ffi_fn_clone_cloudlockstore(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_carrel_ffi_fn_free_cloudlockstore(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * The record for the archive `archive_id`, if there is one.
+     *
+     * # Errors
+     *
+     * When `CloudKit` can't be reached, as [`CarrelError::Callback`].
+     */
+open func fetch(archiveId: String)throws  -> CloudLockRecord?  {
+    return try  FfiConverterOptionTypeCloudLockRecord.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_cloudlockstore_fetch(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(archiveId),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Saves `record` for the archive, only if the stored record's change tag is still
+     * `expected_tag` (`None`: only if there's no record yet).
+     *
+     * # Errors
+     *
+     * When `CloudKit` can't be reached, as [`CarrelError::Callback`].
+     */
+open func save(archiveId: String, record: CloudLockRecord, expectedTag: String?)throws  -> CloudLockSave  {
+    return try  FfiConverterTypeCloudLockSave_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_cloudlockstore_save(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(archiveId),
+        FfiConverterTypeCloudLockRecord_lower(record),
+        FfiConverterOptionString.lower(expectedTag),uniffiCallStatus
+    )
+})
+}
+    
+
+    
+}
+
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceCloudLockStore {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // Store the vtable directly.
+    static let vtable: UniffiVTableCallbackInterfaceCloudLockStore = UniffiVTableCallbackInterfaceCloudLockStore(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterTypeCloudLockStore.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface CloudLockStore: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterTypeCloudLockStore.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface CloudLockStore: handle missing in uniffiClone")
+            }
+        },
+        fetch: { (
+            uniffiHandle: UInt64,
+            archiveId: RustBuffer,
+            uniffiOutReturn: UnsafeMutablePointer<RustBuffer>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> CloudLockRecord? in
+                guard let uniffiObj = try? FfiConverterTypeCloudLockStore.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return try uniffiObj.fetch(
+                     archiveId: try FfiConverterString.lift(archiveId)
+                )
+            }
+
+            
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterOptionTypeCloudLockRecord.lower($0) }
+            uniffiTraitInterfaceCallWithError(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn,
+                lowerError: FfiConverterTypeCarrelError_lower
+            )
+        },
+        save: { (
+            uniffiHandle: UInt64,
+            archiveId: RustBuffer,
+            record: RustBuffer,
+            expectedTag: RustBuffer,
+            uniffiOutReturn: UnsafeMutablePointer<RustBuffer>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> CloudLockSave in
+                guard let uniffiObj = try? FfiConverterTypeCloudLockStore.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return try uniffiObj.save(
+                     archiveId: try FfiConverterString.lift(archiveId),
+                     record: try FfiConverterTypeCloudLockRecord_lift(record),
+                     expectedTag: try FfiConverterOptionString.lift(expectedTag)
+                )
+            }
+
+            
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterTypeCloudLockSave_lower($0) }
+            uniffiTraitInterfaceCallWithError(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn,
+                lowerError: FfiConverterTypeCarrelError_lower
+            )
+        }
+    )
+
+    // Rust stores this pointer for future callback invocations, so it must live
+    // for the process lifetime (not just for the init function call).
+    //
+    // `nonisolated(unsafe)` is needed under Swift 6 strict concurrency.
+    // This is safe because the pointee is initialized once during static init
+    // and never mutated by either side of the FFI.  Its fields are C function pointers.
+    nonisolated(unsafe) static let vtablePtr: UnsafePointer<UniffiVTableCallbackInterfaceCloudLockStore> = {
+        let ptr = UnsafeMutablePointer<UniffiVTableCallbackInterfaceCloudLockStore>.allocate(capacity: 1)
+        ptr.initialize(to: vtable)
+        return UnsafePointer(ptr)
+    }()
+}
+
+private func uniffiCallbackInitCloudLockStore() {
+    uniffi_carrel_ffi_fn_init_callback_vtable_cloudlockstore(UniffiCallbackInterfaceCloudLockStore.vtablePtr)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCloudLockStore: FfiConverter {
+    fileprivate static let handleMap = UniffiHandleMap<CloudLockStore>()
+
+    typealias FfiType = UInt64
+    typealias SwiftType = CloudLockStore
+
+    public static func lift(_ handle: UInt64) throws -> CloudLockStore {
+        if ((handle & 1) == 0) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return CloudLockStoreImpl(unsafeFromHandle: handle)
+        } else {
+            // Swift-generated handle, get the object from the handle map
+            return try handleMap.remove(handle: handle)
+        }
+    }
+
+    public static func lower(_ value: CloudLockStore) -> UInt64 {
+         if let rustImpl = value as? CloudLockStoreImpl {
+             // Rust-implemented object.  Clone the handle and return it
+            return rustImpl.uniffiCloneHandle()
+         } else {
+            // Swift object, generate a new vtable handle and return that.
+            return handleMap.insert(obj: value)
+         }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CloudLockStore {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: CloudLockStore, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCloudLockStore_lift(_ handle: UInt64) throws -> CloudLockStore {
+    return try FfiConverterTypeCloudLockStore.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCloudLockStore_lower(_ value: CloudLockStore) -> UInt64 {
+    return FfiConverterTypeCloudLockStore.lower(value)
 }
 
 
@@ -8897,6 +9326,146 @@ public func FfiConverterTypeCheckedOut_lift(_ buf: RustBuffer) throws -> Checked
 #endif
 public func FfiConverterTypeCheckedOut_lower(_ value: CheckedOut) -> RustBuffer {
     return FfiConverterTypeCheckedOut.lower(value)
+}
+
+
+/**
+ * An archive's lock record, as `CloudKit` keeps it: who holds the lease and until when, and
+ * the history head. Never file contents.
+ */
+public struct CloudLockRecord: Equatable, Hashable {
+    /**
+     * The lease's random identifier.
+     */
+    public var token: String
+    /**
+     * The person holding it.
+     */
+    public var person: String
+    /**
+     * The device holding it.
+     */
+    public var device: String
+    /**
+     * What the writer is doing, such as `ingest`.
+     */
+    public var purpose: String
+    /**
+     * The program, such as `carrel 0.8.0`.
+     */
+    public var program: String
+    /**
+     * When the lease was taken (RFC 3339).
+     */
+    public var acquired: String
+    /**
+     * When it runs out (RFC 3339); released leases have run out.
+     */
+    public var expires: String
+    /**
+     * The history commit the last writer recorded.
+     */
+    public var head: String?
+    /**
+     * The store's version of the record (its change tag); empty when saving.
+     */
+    public var tag: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The lease's random identifier.
+         */token: String, 
+        /**
+         * The person holding it.
+         */person: String, 
+        /**
+         * The device holding it.
+         */device: String, 
+        /**
+         * What the writer is doing, such as `ingest`.
+         */purpose: String, 
+        /**
+         * The program, such as `carrel 0.8.0`.
+         */program: String, 
+        /**
+         * When the lease was taken (RFC 3339).
+         */acquired: String, 
+        /**
+         * When it runs out (RFC 3339); released leases have run out.
+         */expires: String, 
+        /**
+         * The history commit the last writer recorded.
+         */head: String?, 
+        /**
+         * The store's version of the record (its change tag); empty when saving.
+         */tag: String) {
+        self.token = token
+        self.person = person
+        self.device = device
+        self.purpose = purpose
+        self.program = program
+        self.acquired = acquired
+        self.expires = expires
+        self.head = head
+        self.tag = tag
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension CloudLockRecord: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCloudLockRecord: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CloudLockRecord {
+        return
+            try CloudLockRecord(
+                token: FfiConverterString.read(from: &buf), 
+                person: FfiConverterString.read(from: &buf), 
+                device: FfiConverterString.read(from: &buf), 
+                purpose: FfiConverterString.read(from: &buf), 
+                program: FfiConverterString.read(from: &buf), 
+                acquired: FfiConverterString.read(from: &buf), 
+                expires: FfiConverterString.read(from: &buf), 
+                head: FfiConverterOptionString.read(from: &buf), 
+                tag: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CloudLockRecord, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.token, into: &buf)
+        FfiConverterString.write(value.person, into: &buf)
+        FfiConverterString.write(value.device, into: &buf)
+        FfiConverterString.write(value.purpose, into: &buf)
+        FfiConverterString.write(value.program, into: &buf)
+        FfiConverterString.write(value.acquired, into: &buf)
+        FfiConverterString.write(value.expires, into: &buf)
+        FfiConverterOptionString.write(value.head, into: &buf)
+        FfiConverterString.write(value.tag, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCloudLockRecord_lift(_ buf: RustBuffer) throws -> CloudLockRecord {
+    return try FfiConverterTypeCloudLockRecord.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCloudLockRecord_lower(_ value: CloudLockRecord) -> RustBuffer {
+    return FfiConverterTypeCloudLockRecord.lower(value)
 }
 
 
@@ -14544,6 +15113,10 @@ public struct LibrarianAnswer: Equatable, Hashable {
      */
     public var question: String
     /**
+     * What the owner was looking at when they asked, in words, if the question said.
+     */
+    public var about: String?
+    /**
      * The answer, then anything it suggests looking at.
      */
     public var text: String
@@ -14589,6 +15162,9 @@ public struct LibrarianAnswer: Equatable, Hashable {
          * The question.
          */question: String, 
         /**
+         * What the owner was looking at when they asked, in words, if the question said.
+         */about: String?, 
+        /**
          * The answer, then anything it suggests looking at.
          */text: String, 
         /**
@@ -14618,6 +15194,7 @@ public struct LibrarianAnswer: Equatable, Hashable {
          * item in a conversation.
          */asks: Question?) {
         self.question = question
+        self.about = about
         self.text = text
         self.items = items
         self.passages = passages
@@ -14646,6 +15223,7 @@ public struct FfiConverterTypeLibrarianAnswer: FfiConverterRustBuffer {
         return
             try LibrarianAnswer(
                 question: FfiConverterString.read(from: &buf), 
+                about: FfiConverterOptionString.read(from: &buf), 
                 text: FfiConverterString.read(from: &buf), 
                 items: FfiConverterSequenceTypeLibrarianItem.read(from: &buf), 
                 passages: FfiConverterSequenceTypeLibrarianPassage.read(from: &buf), 
@@ -14660,6 +15238,7 @@ public struct FfiConverterTypeLibrarianAnswer: FfiConverterRustBuffer {
 
     public static func write(_ value: LibrarianAnswer, into buf: inout [UInt8]) {
         FfiConverterString.write(value.question, into: &buf)
+        FfiConverterOptionString.write(value.about, into: &buf)
         FfiConverterString.write(value.text, into: &buf)
         FfiConverterSequenceTypeLibrarianItem.write(value.items, into: &buf)
         FfiConverterSequenceTypeLibrarianPassage.write(value.passages, into: &buf)
@@ -16557,6 +17136,19 @@ public struct Proposal: Equatable, Hashable {
      * reached, so Draft Again is offered first.
      */
     public var draftAgain: Bool
+    /**
+     * When the drafting model wasn't sure what the item is, its readings to pick from.
+     */
+    public var readings: [ProposalReading]
+    /**
+     * Whether the item's name, folder or text doesn't fit one of the readings, so what it is
+     * isn't settled.
+     */
+    public var readingsDoubted: Bool
+    /**
+     * How a list notes its readings, such as `what is it?`, if it has any.
+     */
+    public var readingsFlag: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -16615,7 +17207,17 @@ public struct Proposal: Equatable, Hashable {
         /**
          * Whether its card or collection couldn't be settled, as when no text model could be
          * reached, so Draft Again is offered first.
-         */draftAgain: Bool) {
+         */draftAgain: Bool, 
+        /**
+         * When the drafting model wasn't sure what the item is, its readings to pick from.
+         */readings: [ProposalReading], 
+        /**
+         * Whether the item's name, folder or text doesn't fit one of the readings, so what it is
+         * isn't settled.
+         */readingsDoubted: Bool, 
+        /**
+         * How a list notes its readings, such as `what is it?`, if it has any.
+         */readingsFlag: String?) {
         self.id = id
         self.shortId = shortId
         self.batch = batch
@@ -16634,6 +17236,9 @@ public struct Proposal: Equatable, Hashable {
         self.compressed = compressed
         self.high = high
         self.draftAgain = draftAgain
+        self.readings = readings
+        self.readingsDoubted = readingsDoubted
+        self.readingsFlag = readingsFlag
     }
 
     
@@ -16669,7 +17274,10 @@ public struct FfiConverterTypeProposal: FfiConverterRustBuffer {
                 duplicates: FfiConverterSequenceTypeDuplicate.read(from: &buf), 
                 compressed: FfiConverterOptionTypeCompressedChoice.read(from: &buf), 
                 high: FfiConverterBool.read(from: &buf), 
-                draftAgain: FfiConverterBool.read(from: &buf)
+                draftAgain: FfiConverterBool.read(from: &buf), 
+                readings: FfiConverterSequenceTypeProposalReading.read(from: &buf), 
+                readingsDoubted: FfiConverterBool.read(from: &buf), 
+                readingsFlag: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -16692,6 +17300,9 @@ public struct FfiConverterTypeProposal: FfiConverterRustBuffer {
         FfiConverterOptionTypeCompressedChoice.write(value.compressed, into: &buf)
         FfiConverterBool.write(value.high, into: &buf)
         FfiConverterBool.write(value.draftAgain, into: &buf)
+        FfiConverterSequenceTypeProposalReading.write(value.readings, into: &buf)
+        FfiConverterBool.write(value.readingsDoubted, into: &buf)
+        FfiConverterOptionString.write(value.readingsFlag, into: &buf)
     }
 }
 
@@ -16797,6 +17408,125 @@ public func FfiConverterTypeProposalItem_lift(_ buf: RustBuffer) throws -> Propo
 #endif
 public func FfiConverterTypeProposalItem_lower(_ value: ProposalItem) -> RustBuffer {
     return FfiConverterTypeProposalItem.lower(value)
+}
+
+
+/**
+ * One reading of what a proposal's item is.
+ */
+public struct ProposalReading: Equatable, Hashable {
+    /**
+     * Its number, counting from 1, as picking it names it.
+     */
+    public var number: UInt32
+    /**
+     * The title it gives the card.
+     */
+    public var title: String
+    /**
+     * The summary it gives the card.
+     */
+    public var summary: String
+    /**
+     * The tags it gives the card.
+     */
+    public var tags: [String]
+    /**
+     * Why the model read the item this way.
+     */
+    public var reason: String
+    /**
+     * What about the item doesn't fit it, such as its file name.
+     */
+    public var against: [String]
+    /**
+     * Whether the card shows it now.
+     */
+    public var onCard: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its number, counting from 1, as picking it names it.
+         */number: UInt32, 
+        /**
+         * The title it gives the card.
+         */title: String, 
+        /**
+         * The summary it gives the card.
+         */summary: String, 
+        /**
+         * The tags it gives the card.
+         */tags: [String], 
+        /**
+         * Why the model read the item this way.
+         */reason: String, 
+        /**
+         * What about the item doesn't fit it, such as its file name.
+         */against: [String], 
+        /**
+         * Whether the card shows it now.
+         */onCard: Bool) {
+        self.number = number
+        self.title = title
+        self.summary = summary
+        self.tags = tags
+        self.reason = reason
+        self.against = against
+        self.onCard = onCard
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ProposalReading: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeProposalReading: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ProposalReading {
+        return
+            try ProposalReading(
+                number: FfiConverterUInt32.read(from: &buf), 
+                title: FfiConverterString.read(from: &buf), 
+                summary: FfiConverterString.read(from: &buf), 
+                tags: FfiConverterSequenceString.read(from: &buf), 
+                reason: FfiConverterString.read(from: &buf), 
+                against: FfiConverterSequenceString.read(from: &buf), 
+                onCard: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ProposalReading, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.number, into: &buf)
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterString.write(value.summary, into: &buf)
+        FfiConverterSequenceString.write(value.tags, into: &buf)
+        FfiConverterString.write(value.reason, into: &buf)
+        FfiConverterSequenceString.write(value.against, into: &buf)
+        FfiConverterBool.write(value.onCard, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeProposalReading_lift(_ buf: RustBuffer) throws -> ProposalReading {
+    return try FfiConverterTypeProposalReading.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeProposalReading_lower(_ value: ProposalReading) -> RustBuffer {
+    return FfiConverterTypeProposalReading.lower(value)
 }
 
 
@@ -22093,6 +22823,93 @@ public func FfiConverterTypeCarrelError_lower(_ value: CarrelError) -> RustBuffe
 
 
 /**
+ * How a conditional save went.
+ */
+
+public enum CloudLockSave: Equatable, Hashable {
+    
+    /**
+     * Saved, as this version.
+     */
+    case saved(
+        /**
+         * The record's new change tag.
+         */tag: String
+    )
+    /**
+     * Not saved, because the record had changed: what it holds now, if anything.
+     */
+    case changed(
+        /**
+         * The record as stored now.
+         */current: CloudLockRecord?
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension CloudLockSave: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCloudLockSave: FfiConverterRustBuffer {
+    typealias SwiftType = CloudLockSave
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CloudLockSave {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .saved(tag: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .changed(current: try FfiConverterOptionTypeCloudLockRecord.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: CloudLockSave, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .saved(tag):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(tag, into: &buf)
+            
+        
+        case let .changed(current):
+            writeInt(&buf, Int32(2))
+            FfiConverterOptionTypeCloudLockRecord.write(current, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCloudLockSave_lift(_ buf: RustBuffer) throws -> CloudLockSave {
+    return try FfiConverterTypeCloudLockSave.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCloudLockSave_lower(_ value: CloudLockSave) -> RustBuffer {
+    return FfiConverterTypeCloudLockSave.lower(value)
+}
+
+
+
+/**
  * How sure a proposal is of where it goes.
  */
 
@@ -22923,6 +23740,126 @@ public func FfiConverterTypeItemKind_lift(_ buf: RustBuffer) throws -> ItemKind 
 #endif
 public func FfiConverterTypeItemKind_lower(_ value: ItemKind) -> RustBuffer {
     return FfiConverterTypeItemKind.lower(value)
+}
+
+
+
+/**
+ * What the owner is looking at as they ask, so "this" and "here" mean it
+ * ([`core::About`]).
+ */
+
+public enum LibrarianAbout: Equatable, Hashable {
+    
+    /**
+     * An item.
+     */
+    case item(
+        /**
+         * Its identifier, or its card's path.
+         */id: String
+    )
+    /**
+     * A collection.
+     */
+    case collection(
+        /**
+         * Its path.
+         */path: String
+    )
+    /**
+     * What a search found.
+     */
+    case search(
+        /**
+         * Its words and filters.
+         */query: String
+    )
+    /**
+     * A Discover view.
+     */
+    case discover(
+        /**
+         * Its name, such as "on this day".
+         */view: String
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension LibrarianAbout: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLibrarianAbout: FfiConverterRustBuffer {
+    typealias SwiftType = LibrarianAbout
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LibrarianAbout {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .item(id: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .collection(path: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .search(query: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .discover(view: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: LibrarianAbout, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .item(id):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(id, into: &buf)
+            
+        
+        case let .collection(path):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(path, into: &buf)
+            
+        
+        case let .search(query):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(query, into: &buf)
+            
+        
+        case let .discover(view):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(view, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLibrarianAbout_lift(_ buf: RustBuffer) throws -> LibrarianAbout {
+    return try FfiConverterTypeLibrarianAbout.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLibrarianAbout_lower(_ value: LibrarianAbout) -> RustBuffer {
+    return FfiConverterTypeLibrarianAbout.lower(value)
 }
 
 
@@ -24380,6 +25317,30 @@ fileprivate struct FfiConverterOptionTypeChanges: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeCloudLockRecord: FfiConverterRustBuffer {
+    typealias SwiftType = CloudLockRecord?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeCloudLockRecord.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeCloudLockRecord.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeCompressedChoice: FfiConverterRustBuffer {
     typealias SwiftType = CompressedChoice?
 
@@ -24732,6 +25693,30 @@ fileprivate struct FfiConverterOptionTypeItemKind: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeItemKind.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeLibrarianAbout: FfiConverterRustBuffer {
+    typealias SwiftType = LibrarianAbout?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeLibrarianAbout.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeLibrarianAbout.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -26113,6 +27098,31 @@ fileprivate struct FfiConverterSequenceTypeProposalItem: FfiConverterRustBuffer 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeProposalReading: FfiConverterRustBuffer {
+    typealias SwiftType = [ProposalReading]
+
+    public static func write(_ value: [ProposalReading], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeProposalReading.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ProposalReading] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ProposalReading]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeProposalReading.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeProviderInfo: FfiConverterRustBuffer {
     typealias SwiftType = [ProviderInfo]
 
@@ -26744,6 +27754,56 @@ public func looksCompressed(path: String) -> Bool  {
 })
 }
 /**
+ * Whether the archive at `root` is in iCloud Drive, so its writer is chosen through
+ * `CloudKit`.
+ */
+public func isInIcloudDrive(root: String) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_is_in_icloud_drive(
+        FfiConverterString.lower(root),uniffiCallStatus
+    )
+})
+}
+/**
+ * Uses `store` in this process and serves it to the app and the command line on this Mac,
+ * as the agent does. `socket` is where, by default the configuration folder's
+ * `cloud-lock.sock`; tests give another, so they never write the real configuration.
+ *
+ * # Errors
+ *
+ * [`CarrelError::Failed`] if another agent is serving, or the socket can't be made.
+ */
+public func serveCloudLock(store: CloudLockStore, socket: String? = nil)throws  -> CloudLockService  {
+    return try  FfiConverterTypeCloudLockService_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_serve_cloud_lock(
+        FfiConverterTypeCloudLockStore_lower(store),
+        FfiConverterOptionString.lower(socket),uniffiCallStatus
+    )
+})
+}
+/**
+ * Stops taking writer locks through the store given to [`use_cloud_lock`].
+ */
+public func stopUsingCloudLock()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_stop_using_cloud_lock(uniffiCallStatus
+    )
+}
+}
+/**
+ * Takes archives' writer locks in iCloud Drive through `store`, in this process, as the iOS
+ * app does.
+ */
+public func useCloudLock(store: CloudLockStore)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_use_cloud_lock(
+        FfiConverterTypeCloudLockStore_lower(store),uniffiCallStatus
+    )
+}
+}
+/**
  * The embedding model a new archive uses unless another is chosen.
  */
 public func defaultEmbeddingModel() -> String  {
@@ -26817,6 +27877,19 @@ public func quickLookDrawing(store: String, path: String) -> String?  {
 })
 }
 /**
+ * The words that pick reading `number` of a proposal, for
+ * [`crate::ArchiveHandle::prepare_proposal_correction`]: it rewrites the card's title,
+ * summary and tags as one correction, without a model.
+ */
+public func readingPickWords(number: UInt32) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_reading_pick_words(
+        FfiConverterUInt32.lower(number),uniffiCallStatus
+    )
+})
+}
+/**
  * This device's decision log preferences.
  *
  * # Errors
@@ -26881,6 +27954,18 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_func_looks_compressed() != 40569) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_carrel_ffi_checksum_func_is_in_icloud_drive() != 19251) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_serve_cloud_lock() != 61862) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_stop_using_cloud_lock() != 24793) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_use_cloud_lock() != 35095) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_carrel_ffi_checksum_func_default_embedding_model() != 53069) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -26897,6 +27982,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_func_quick_look_drawing() != 11005) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_reading_pick_words() != 63957) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_func_decision_log_settings() != 63067) {
@@ -27178,7 +28266,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_worker_status() != 53926) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_ask_librarian() != 58024) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_ask_librarian() != 61083) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_librarian_changes() != 3059) {
@@ -27409,6 +28497,18 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_agentclaim_release() != 20833) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_carrel_ffi_checksum_method_cloudlockservice_socket() != 13790) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_cloudlockservice_stop() != 13903) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_cloudlockstore_fetch() != 11130) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_cloudlockstore_save() != 42250) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_carrel_ffi_checksum_method_correction_changes() != 53890) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -27443,6 +28543,7 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
 
+    uniffiCallbackInitCloudLockStore()
     uniffiCallbackInitCrawlStop()
     uniffiCallbackInitModelProvider()
     uniffiCallbackInitProgressListener()

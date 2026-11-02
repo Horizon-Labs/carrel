@@ -140,6 +140,10 @@ enum Command {
         /// The question; without one, a conversation, a question per line.
         #[arg(value_name = "QUESTION")]
         question: Vec<String>,
+        /// What the questions are about, so "this" and "here" mean it: an item (its
+        /// identifier, card, path or title) or a collection (its path or title).
+        #[arg(long, value_name = "ITEM|COLLECTION")]
+        about: Option<String>,
         /// Save the conversation to this month's Journal.
         #[arg(long)]
         save: bool,
@@ -920,6 +924,18 @@ enum ReviewAction {
         #[arg(long)]
         learn: bool,
     },
+    /// Pick another reading of what the item is, when the model offered several (`carrel
+    /// review show` lists them): its title, summary and tags replace the card's, as one
+    /// correction, shown before it's saved.
+    Pick {
+        /// The proposal's identifier, or its start or end.
+        id: String,
+        /// The reading's number, as `carrel review show` lists it.
+        n: usize,
+        /// Save without asking.
+        #[arg(long)]
+        yes: bool,
+    },
     /// Propose another collection for an item. It's filed there when approved.
     MoveTo {
         /// The proposal's identifier, or its start or end.
@@ -1073,6 +1089,7 @@ fn review_command(
             yes,
             learn,
         } => correct::review(archive, &id, &words, yes, learn),
+        ReviewAction::Pick { id, n, yes } => review::pick(archive, &id, n, yes),
         ReviewAction::MoveTo { id, collection } => review::move_to(archive, &id, &collection),
         ReviewAction::Expand { ids } => review::choose_compressed(archive, &ids, Choice::Expand),
         ReviewAction::KeepCompressed { ids } => {
@@ -1160,9 +1177,11 @@ fn main() -> ExitCode {
         Command::Undo { change, librarian } => {
             undo_command(cli.archive.as_deref(), change, librarian)
         }
-        Command::Ask { question, save } => {
-            ask::ask(cli.archive.as_deref(), &question.join(" "), save, cli.json)
-        }
+        Command::Ask {
+            question,
+            about,
+            save,
+        } => ask::ask(cli.archive.as_deref(), &question, about, save, cli.json),
         Command::Init {
             path,
             name,

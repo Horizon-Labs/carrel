@@ -1279,6 +1279,7 @@ pub fn correct_proposal(
             generated: None,
             attempts: Vec::new(),
             problems: Vec::new(),
+            readings: Vec::new(),
         };
         let source = entry
             .source
