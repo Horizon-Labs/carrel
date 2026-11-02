@@ -21,7 +21,7 @@ public struct FoundationModel: TextModel {
             capability: .textModel, id: "afm", label: "Apple Foundation Model",
             structuredOutput: true)
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, iOS 26.0, *) {
             let model = SystemLanguageModel.default
             offer.contextTokens = model.contextSize
             if case .unavailable(let why) = model.availability {
@@ -38,7 +38,7 @@ public struct FoundationModel: TextModel {
 
     public func complete(_ request: CompletionRequest) async throws(ProviderError) -> Completion {
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, iOS 26.0, *) {
             return try await Self.run(request)
         }
         #endif
@@ -59,7 +59,7 @@ public struct FoundationModel: TextModel {
     }
 
     #if canImport(FoundationModels)
-    @available(macOS 26.0, *)
+    @available(macOS 26.0, iOS 26.0, *)
     static func describe(_ reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
         switch reason {
         case .deviceNotEligible: "this Mac can't run Apple Intelligence"
@@ -70,7 +70,7 @@ public struct FoundationModel: TextModel {
     }
 
     /// The model's name for provenance, such as `apple/afm-3-core-advanced`.
-    @available(macOS 26.0, *)
+    @available(macOS 26.0, iOS 26.0, *)
     static var modelName: String {
         // `variant` is in the macOS 27 SDK, which comes with Swift 6.4; older SDKs can't name it.
         #if compiler(>=6.4)
@@ -85,7 +85,7 @@ public struct FoundationModel: TextModel {
         return "apple/afm"
     }
 
-    @available(macOS 26.0, *)
+    @available(macOS 26.0, iOS 26.0, *)
     static func run(_ request: CompletionRequest) async throws(ProviderError) -> Completion {
         let session = LanguageModelSession(model: .default, instructions: request.system)
         let options = GenerationOptions(maximumResponseTokens: request.maxTokens)
@@ -108,7 +108,7 @@ public struct FoundationModel: TextModel {
 
     /// Sorts the model's errors into the protocol's codes. macOS 27 reports them as
     /// `LanguageModelError` and `SystemLanguageModel.Error`; macOS 26 as `GenerationError`.
-    @available(macOS 26.0, *)
+    @available(macOS 26.0, iOS 26.0, *)
     static func map(any error: any Error) -> ProviderError {
         if let error = error as? ProviderError {
             return error
@@ -152,7 +152,7 @@ public struct FoundationModel: TextModel {
     }
     #endif
 
-    @available(macOS 26.0, *)
+    @available(macOS 26.0, iOS 26.0, *)
     static func map(_ error: LanguageModelSession.GenerationError) -> ProviderError {
         let why = error.localizedDescription
         switch error {
@@ -176,7 +176,7 @@ public struct FoundationModel: TextModel {
 /// properties (and `required`), arrays (with `minItems` and `maxItems`), strings, string
 /// `enum`s, integers, numbers and booleans, each with a `description`. Anything else is
 /// unsupported, so another model gets the request.
-@available(macOS 26.0, *)
+@available(macOS 26.0, iOS 26.0, *)
 struct JSONSchemaConverter {
     static let understood: Set<String> = [
         "type", "properties", "required", "items", "enum", "description", "title",
