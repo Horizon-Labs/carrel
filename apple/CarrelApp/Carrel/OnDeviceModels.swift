@@ -32,7 +32,8 @@ final class OnDeviceModels: ModelProvider, @unchecked Sendable {
     nonisolated static func forArchive(_ handle: ArchiveHandle) -> OnDeviceModels? {
         #if os(iOS)
         let apple = FoundationModel()
-        let installed = handle.modelsFolder()
+        let installed =
+            handle.modelsFolder()
             .map { ModelFolder.discover(in: URL(filePath: $0, directoryHint: .isDirectory)) }
             ?? []
         let available = availableMemory
