@@ -110,6 +110,8 @@ pub enum InputPurpose {
     },
     /// Something about the gaps in Carrel (`super::gaps`).
     Gap(super::gaps::GapInput),
+    /// Feedback for development, about this screen (`super::feedback`).
+    Feedback(carrel_core::feedback::ScreenContext),
 }
 
 /// What a correction is for.
@@ -158,6 +160,7 @@ impl Input {
             InputPurpose::Option(line) => line.prompt(),
             InputPurpose::FlagNote { .. } => "what needs work, or nothing",
             InputPurpose::Gap(gap) => gap.prompt(),
+            InputPurpose::Feedback(_) => super::feedback::PROMPT,
         }
     }
 
@@ -395,6 +398,7 @@ impl App {
                     }
                     InputPurpose::Option(line) => return self.option_entered(line, text),
                     InputPurpose::Gap(gap) => self.gap_typed(gap, &text),
+                    InputPurpose::Feedback(context) => self.feedback_typed(context, &text),
                     purpose => return self.action_input(purpose, text),
                 }
             }

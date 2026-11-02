@@ -4578,3 +4578,70 @@ fn ingest_text_files_a_written_note_as_an_item_from_the_flag_or_standard_input()
         "{path}"
     );
 }
+
+#[test]
+fn feedback_is_saved_per_device_listed_exported_and_marked_sent() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let sent = sandbox.json(
+        &root,
+        &[
+            "feedback",
+            "The inspector hides the path",
+            "--about",
+            "01a18701-0500-776a-9867-080924eb019c",
+            "--kind",
+            "confusing",
+            "--screen",
+            "Browse",
+            "--step",
+            "collection inspector",
+        ],
+    );
+    let entry = &sent["feedback"];
+    assert_eq!(entry["kind"], "confusing", "{sent}");
+    assert_eq!(entry["in_view"][0]["title"], "oscillator-sim", "{sent}");
+    assert_eq!(entry["interface"], "command line");
+    assert!(
+        std::path::Path::new(entry["path"].as_str().unwrap())
+            .starts_with(root.join("_System/feedback")),
+        "{sent}"
+    );
+    sandbox.ok(&root, &["feedback", "Status is slow"]);
+    let empty = sandbox.run_in(&root, &["feedback", " "]);
+    assert!(!empty.status.success(), "empty words are refused");
+
+    let listed = sandbox.json(&root, &["feedback", "list"]);
+    assert_eq!(listed["unsent"], 2, "{listed}");
+    let bundle = sandbox.ok(&root, &["feedback", "export"]);
+    assert!(
+        bundle.find("## Browse").unwrap() < bundle.find("## Command line").unwrap(),
+        "{bundle}"
+    );
+    assert!(bundle.contains("Browse → collection inspector"), "{bundle}");
+    let issue = sandbox.json(&root, &["feedback", "issue", "1", "--print"]);
+    assert!(
+        issue["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://github.com/Horizon-Labs/carrel/issues/new?"),
+        "{issue}"
+    );
+    sandbox.ok(
+        &root,
+        &[
+            "feedback",
+            "sent",
+            "1",
+            "https://github.com/Horizon-Labs/carrel/issues/1",
+        ],
+    );
+    assert_eq!(sandbox.json(&root, &["status"])["feedback_unsent"], 1);
+    assert_eq!(
+        sandbox.json(&root, &["feedback", "list", "--unsent"])["feedback"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}

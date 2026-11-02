@@ -466,6 +466,7 @@ _System/
   history.git/          the history repository (§8)
   writer.lock           which device may write, on local and external disks (§8.4)
   inbox/<device-id>/    quick actions from devices that aren't the writer (§7.8)
+  feedback/<device-id>/ feedback the owner sends for development (§7.8)
   queue/                pending proposals, questions and tasks (§7.9)
   devices/<device-id>/  device profiles and desk-item registries (§7.10)
   index/                search index (§7.11)
@@ -612,6 +613,8 @@ Adding from a device that isn't the writer, such as from a Mac's share sheet, us
 | `add-url` | `url`, `title`, `note` | Adds the web address to its intake queue as a `url` item |
 
 The writer records what it applied as one `inbox` change (§8.2), and removes the entries and their copies.
+
+Feedback the owner sends for development, from any screen of any program, is kept the same way, in `_System/feedback/<device-id>/`: one `<timestamp>-<id>.json` each, with `kind` (`bug`, `idea` or `confusing`), the owner's `words`, the `screen` and `step` they were on, `in_view` (the items and collections shown, by `kind`, `id` and `title`, never their contents), the `interface`, Carrel's `version` and `commit`, the `device` and `os`, the `model` in use, `recent_problems` from the device's own gap log, and `at`. A `screenshot` names a PNG beside it. `sent.json` maps the entries that device has marked sent to their issues' addresses. A device writes only its own folder, needs no writer lease to do so, and nothing applies or removes the entries; history doesn't track them (§8.1).
 
 ### 7.9 Queues
 
@@ -869,7 +872,7 @@ Rebuildable, device-specific data. The `.nosync` suffix keeps iCloud Drive from 
 
 The archive's metadata history is a Git repository whose Git directory is `_System/history.git` and whose work tree is the archive root. Keeping the Git directory under `_System` leaves no `.git` folder at the root, so the root never looks like a code repository and never interferes with sealed bundles that are repositories themselves.
 
-The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/` and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
+The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/`, `feedback/` and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
 
 - **Staging:** programs compute that set of files and stage exactly it for each commit, rather than relying on ignore patterns. The repository's `info/exclude` contains `*`, so Git tools never add item contents by accident.
 - **Work tree:** the repository's `core.worktree` is the relative path `../..`, so it stays valid when the archive is moved or synced to another device.

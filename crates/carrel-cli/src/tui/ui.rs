@@ -363,6 +363,7 @@ const HELP_ROWS: &[(&str, &str)] = &[
     ("x", "uninstall the background agent, on its row (Settings)"),
     ("Ctrl-O", "open another archive, or create one"),
     ("Ctrl-R", "read everything again"),
+    ("!", "send feedback about this screen, for development"),
     ("?", "this help"),
     ("q, Esc, Ctrl-C", "quit"),
 ];
@@ -1129,6 +1130,7 @@ fn draw_input(frame: &mut Frame, input: &Input, theme: Theme, area: Rect) {
         ),
         InputPurpose::Option(line) => line.text(),
         InputPurpose::Gap(gap) => gap.text(),
+        InputPurpose::Feedback(context) => super::feedback::input_text(context),
         purpose => super::actions::input_text(purpose).unwrap_or((" ", String::new())),
     };
     let shown = if input.masked() {

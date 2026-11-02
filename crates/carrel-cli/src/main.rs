@@ -22,6 +22,7 @@ mod desk;
 mod discover;
 mod edit;
 mod expand;
+mod feedback;
 mod findability;
 mod flag;
 mod formats;
@@ -153,6 +154,10 @@ enum Command {
     /// titles, text, names or searches, so it can be shared. `carrel report gaps` lists what
     /// Carrel couldn't do, to report to development.
     Report(report_gaps::ReportArgs),
+    /// Send feedback for development, about the command line or another screen: `carrel
+    /// feedback "text" [--about ITEM|COLLECTION] [--kind bug|idea|confusing]`. `list`,
+    /// `export` and `issue` show what every device sent, and draft issues from it.
+    Feedback(feedback::FeedbackArgs),
     /// Add files and folders to the intake queue. A worker drafts each one's card and
     /// destination in the background, saving proposals for `carrel review` as they're ready.
     /// Nothing is moved until a proposal is approved.
@@ -1196,6 +1201,7 @@ fn main() -> ExitCode {
         Command::Providers => Ok(providers::list()),
         Command::Formats => Ok(formats::list()),
         Command::Report(args) => report_gaps::command(cli.archive.as_deref(), args),
+        Command::Feedback(args) => feedback::command(cli.archive.as_deref(), args),
         Command::Ingest(args) => {
             ingest::command(cli.archive.as_deref(), &args.into_request(), cli.json)
         }

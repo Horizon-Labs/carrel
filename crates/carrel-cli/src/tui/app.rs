@@ -1075,6 +1075,10 @@ impl App {
             self.archive_picker();
             return None;
         }
+        if key.code == KeyCode::Char('!') {
+            self.ask_feedback();
+            return None;
+        }
         let handled = match self.tab {
             Tab::Review => self.review_key(key),
             Tab::Active => self.active_key(key),

@@ -62,6 +62,7 @@ struct CarrelApp: App {
             ActiveCommands()
             BrowseCommands()
             LibrarianCommands()
+            FeedbackCommands()
         }
     }
     #else
@@ -88,6 +89,7 @@ struct CarrelApp: App {
             ArchiveWindowCommands()
             BrowseCommands()
             LibrarianCommands()
+            FeedbackCommands()
         }
 
         Settings {

@@ -27,15 +27,23 @@ struct ArchiveWindow: View {
         NavigationSplitView {
             ArchiveSidebar(model: model)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220)
+                .feedbackToolbarItem(model)
                 #if os(iOS)
             .mobileArchiveToolbar(model)
                 #endif
         } content: {
             ArchiveScreenContent(model: model)
                 .navigationSplitViewColumnWidth(min: 260, ideal: 340)
+                #if os(iOS)
+            .feedbackToolbarItem(model)
+                #endif
         } detail: {
             Inspector(model: model)
+                #if os(iOS)
+            .feedbackToolbarItem(model)
+                #endif
         }
+        .feedbackActions(model)
         .activeAndHistorySheets(model)
         .modifier(ArchiveWindowActions(model: model))
         .browseSheets(model.browse)
@@ -273,6 +281,7 @@ private struct Inspector: View {
         if model.screen == .review, let crawler = model.crawler, crawler.isShown {
             if let finding = crawler.inspected {
                 CrawlerFindingInspector(finding: finding, crawler: crawler, window: model)
+                    .feedbackScreen(step: "crawler finding")
             } else {
                 ContentUnavailableView("Nothing Selected", systemImage: "binoculars")
             }
@@ -282,6 +291,7 @@ private struct Inspector: View {
             ProposalInspector(proposal: proposal, review: review, correct: model.correct) {
                 model.pickReading($0, of: proposal)
             }
+            .feedbackScreen(step: "proposal inspector")
         } else if model.screen == .questions, let questions = model.questions,
             let question = questions.selected
         {
@@ -293,6 +303,7 @@ private struct Inspector: View {
             let proposal = restructure.selected
         {
             RestructureInspector(proposal: proposal, restructure: restructure)
+                .feedbackScreen(step: "restructure proposal")
         } else if model.screen == .active, let active = model.activeScreen {
             ActiveInspector(model: active)
         } else if model.screen == .history, let history = model.historyScreen {
@@ -306,6 +317,7 @@ private struct Inspector: View {
         } else if let item = model.selectedItem {
             if let edit = model.editing, edit.target == .item(item.id) {
                 ItemEditor(item: item, edit: edit, items: model.items) { model.editing = nil }
+                    .feedbackScreen(step: "editing the card")
             } else {
                 VStack(spacing: 0) {
                     if let previews = model.previews {
@@ -326,6 +338,7 @@ private struct Inspector: View {
             let collection = model.collections.first(where: { $0.path == path })
         {
             CollectionInspector(collection: collection, window: model)
+                .feedbackScreen(step: "collection inspector")
         } else {
             ContentUnavailableView("Nothing Selected", systemImage: "sidebar.right")
         }

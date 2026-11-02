@@ -415,6 +415,8 @@ pub fn status_on(
     text.push_str(&names_section(&summary.names));
     text.push_str(&signals_section(&summary.signals));
     text.push_str(&crate::flag::status_section(&summary.flagged));
+    let (feedback_text, feedback_unsent) = crate::feedback::status_line(&archive);
+    text.push_str(&feedback_text);
     let (desk_text, desk) = crate::desk::suggestions_section(&summary.desk);
     text.push_str(&desk_text);
     let (resurfaced_text, resurfaced) = crate::discover::resurfaced(&archive, records);
@@ -455,6 +457,7 @@ pub fn status_on(
             "suggestion": f.suggestion,
         })).collect::<Vec<_>>(),
         "warnings": warnings,
+        "feedback_unsent": feedback_unsent,
     });
     Ok(Report::new(text, json))
 }
