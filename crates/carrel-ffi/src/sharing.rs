@@ -243,7 +243,12 @@ mod tests {
             )
             .unwrap();
         assert_eq!(shared.added.added.len(), 1);
-        assert!(shared.added.added[0].path.ends_with("/Lamp.md"));
+        assert!(
+            shared.added.added[0]
+                .path
+                .replace('\\', "/")
+                .ends_with("/Lamp.md")
+        );
         assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 1);
         assert!(matches!(
             sample

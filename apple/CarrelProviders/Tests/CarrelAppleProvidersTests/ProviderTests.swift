@@ -159,7 +159,8 @@ struct ContextEcho: TextExtractor {
 }
 
 @Test func picturesToDescribeComeWithTheirContext() async throws {
-    let server = Server(name: "Apple", version: "1.0.0-rc.1", extractors: [ContextEcho(), PDFText()])
+    let server = Server(
+        name: "Apple", version: "1.0.0-rc.1", extractors: [ContextEcho(), PDFText()])
     let start = try await send(
         server, ["jsonrpc": "2.0", "id": 1, "method": "initialize", "params": ["protocol": 1]])
     let offers = try #require((start["result"] as? [String: Any])?["offers"] as? [[String: Any]])

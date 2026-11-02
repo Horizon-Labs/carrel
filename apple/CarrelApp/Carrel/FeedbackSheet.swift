@@ -69,7 +69,8 @@ final class FeedbackModel: Identifiable {
         guard size > 0 else { return kind }
         var bytes = [CChar](repeating: 0, count: size)
         sysctlbyname(key, &bytes, &size, nil, 0)
-        let model = String(decoding: bytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        let model = String(
+            decoding: bytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         return model.isEmpty ? kind : "\(kind) (\(model))"
     }
 
@@ -193,9 +194,9 @@ private struct FeedbackActions: ViewModifier {
             .environment(model.feedbackMarks)
             .sheet(item: $model.feedback) { FeedbackSheet(window: model, model: $0) }
             #if os(iOS)
-            .onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in
-                model.startFeedback()
-            }
+        .onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in
+            model.startFeedback()
+        }
             #endif
     }
 }
