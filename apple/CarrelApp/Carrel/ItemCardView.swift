@@ -94,6 +94,7 @@ struct ItemCardView<Actions: View, Below: View>: View {
             below
         }
         .formStyle(.grouped)
+        .modifier(WritesNotesFromLinks(archive: archive, item: item.id))
     }
 }
 
