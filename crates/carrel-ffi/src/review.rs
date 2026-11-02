@@ -420,6 +420,9 @@ fn inbox_answer(
         QuestionKind::Item => Err(CarrelError::invalid(
             "an item question is answered through a correction of its card",
         )),
+        QuestionKind::Flag => Err(CarrelError::invalid(
+            "the librarian's questions about flags are answered on the device that keeps the archive",
+        )),
         QuestionKind::Collection | QuestionKind::Group => Ok(InboxAnswer::Place {
             collection: answer.to_owned(),
             create: picked.is_some_and(|s| s.new_collection),
