@@ -82,7 +82,9 @@ final class DevicesModel {
             let done = try await archive.recheckNow(
                 facts: facts, memoryGB: LibrarianModel.thisMac)
             report =
-                done.summary.map { "\(thisDevice.prefix(1).uppercased() + thisDevice.dropFirst()) \($0)." }
+                done.summary.map {
+                    "\(thisDevice.prefix(1).uppercased() + thisDevice.dropFirst()) \($0)."
+                }
                 ?? "Nothing was waiting that \(thisDevice) can do better."
             if !done.failed.isEmpty { report? += " " + done.failed.joined(separator: "; ") }
         } catch {
@@ -118,14 +120,18 @@ struct StatusDevicesSection: View {
                             Text(card).font(.callout).textSelection(.enabled)
                         }
                     }
-                    .help("Drafted on a weaker device or with a weaker model; a stronger device re-checks them and proposes better drafts in Review")
+                    .help(
+                        "Drafted on a weaker device or with a weaker model; a stronger device re-checks them and proposes better drafts in Review"
+                    )
                     if rechecks.claimed > 0 {
                         Text("\(rechecks.claimed) being re-checked by another device")
                             .foregroundStyle(.secondary)
                     }
                     if rechecks.here > 0 {
                         Button("Re-check Some Now") { Task { await devices.recheckNow() } }
-                            .help("\(thisDevice.prefix(1).uppercased() + thisDevice.dropFirst()) can do better on \(rechecks.here) of them")
+                            .help(
+                                "\(thisDevice.prefix(1).uppercased() + thisDevice.dropFirst()) can do better on \(rechecks.here) of them"
+                            )
                             .disabled(window.isReadOnly || devices.archive.isWorking)
                     }
                 }
@@ -145,7 +151,8 @@ private struct DeviceProfileDetails: View {
         if let memory = profile.memoryGb { LabeledContent("Memory", value: "\(memory) GB") }
         if let free = profile.freeGb { LabeledContent("Free storage", value: "\(free) GB") }
         LabeledContent(
-            "Models", value: profile.models.isEmpty ? "None" : profile.models.joined(separator: ", "))
+            "Models",
+            value: profile.models.isEmpty ? "None" : profile.models.joined(separator: ", "))
         LabeledContent(
             "Tools", value: profile.tools.isEmpty ? "None" : profile.tools.joined(separator: ", "))
         if let power = powerLine { LabeledContent("Power", value: power) }
@@ -155,7 +162,9 @@ private struct DeviceProfileDetails: View {
         if let speed = profile.benchmarkMbPerSecond {
             LabeledContent("Self-benchmark", value: "\(speed) MB/s")
         }
-        if let updated = profile.updated { LabeledContent("Updated", value: String(updated.prefix(10))) }
+        if let updated = profile.updated {
+            LabeledContent("Updated", value: String(updated.prefix(10)))
+        }
     }
 
     private var powerLine: String? {

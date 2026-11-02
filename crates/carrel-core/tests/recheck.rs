@@ -238,7 +238,10 @@ fn a_claim_keeps_other_devices_off_until_it_lapses_and_weaker_ones_never_claim()
     gather(&archive, mac);
     assert_eq!(recheck::waiting(&archive).len(), 2);
 
-    assert!(claim(&archive, phone, &phone_profile).is_empty());
+    assert_eq!(
+        claim(&archive, phone, &phone_profile),
+        Vec::<RecheckTask>::new()
+    );
     let lease = DiskLock::for_archive(&archive)
         .acquire(mac, "test", DEFAULT_LEASE)
         .unwrap();
@@ -339,6 +342,6 @@ fn a_mac_rechecks_a_phones_card_and_proposes_a_better_draft_for_approval() {
     assert!(!card.contains("moving the oscillator meeting to Thursday"));
 
     // Re-checked by a stronger model, the cards stay out of the queue.
-    assert!(recheck::waiting(&archive).is_empty());
+    assert_eq!(recheck::waiting(&archive), Vec::<RecheckTask>::new());
     assert_eq!(gather(&archive, mac), recheck::Gathered::default());
 }

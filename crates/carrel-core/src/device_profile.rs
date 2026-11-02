@@ -394,18 +394,18 @@ pub fn tools_here() -> Vec<String> {
 pub fn self_benchmark() -> SelfBenchmark {
     let block = vec![0x5a_u8; 1 << 20];
     let started = Instant::now();
-    let mut hashed: u64 = 0;
+    let mut blocks: u64 = 0;
     let mut hasher = Sha256::new();
     while started.elapsed() < BENCHMARK_TIME {
         hasher.update(&block);
-        hashed += 1;
+        blocks += 1;
     }
     std::hint::black_box(hasher.finalize());
     let millis = u64::try_from(started.elapsed().as_millis())
         .unwrap_or(u64::MAX)
         .max(1);
     SelfBenchmark {
-        mb_per_second: hashed * 1000 / millis,
+        mb_per_second: blocks * 1000 / millis,
     }
 }
 

@@ -17,9 +17,9 @@ extension DeviceFactsRecord {
         let free = try? root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             .volumeAvailableCapacityForImportantUsage
         #if os(macOS)
-            let background = "unlimited"
+        let background = "unlimited"
         #else
-            let background = "limited"
+        let background = "limited"
         #endif
         return DeviceFactsRecord(
             name: name,
@@ -37,9 +37,9 @@ extension DeviceFactsRecord {
     /// The chip's name on a Mac, or the model's identifier on an iPad or iPhone.
     private static func chip() -> String? {
         #if os(macOS)
-            let key = "machdep.cpu.brand_string"
+        let key = "machdep.cpu.brand_string"
         #else
-            let key = "hw.machine"
+        let key = "hw.machine"
         #endif
         var size = 0
         guard sysctlbyname(key, nil, &size, nil, 0) == 0, size > 0 else { return nil }
