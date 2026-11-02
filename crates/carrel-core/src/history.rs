@@ -24,11 +24,16 @@ use crate::coordinator::{CoordinatorError, WriterLease};
 pub const HISTORY_DIR: &str = "_System/history.git";
 
 /// Folders under `_System/` that history never tracks (FORMAT.md §8.1).
-const UNTRACKED_SYSTEM: [&str; 5] = [
+const UNTRACKED_SYSTEM: [&str; 7] = [
     "history.git",
     "manifests",
     "index",
     "cache.nosync",
+    // Requests waiting for the writer, with copies of files, and versions waiting for a
+    // snapshot: both pass through, and neither is metadata.
+    "inbox",
+    "holding",
+    // Feedback, which each device writes without the writer lease (#487).
     "feedback",
 ];
 

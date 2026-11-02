@@ -34,12 +34,12 @@ pub enum WrittenNoteAdded {
         /// What joined the queue, and what was left out.
         queued: Queued,
     },
-    /// Another device is the writer, so it went into this device's inbox instead.
+    /// Changes made here go through this device's inbox, so it went there instead.
     Sent {
         /// The inbox entry.
         inbox: PathBuf,
-        /// The writing device.
-        writer: Id,
+        /// Why it went through the inbox.
+        sending: inbox::Sending,
     },
 }
 
@@ -123,14 +123,14 @@ pub fn add_written_note(
     holder: Holder,
 ) -> Result<WrittenNoteAdded, ActionError> {
     let path = keep_written_note(folder, text, title)?;
-    if let Some(writer) = inbox::writer_elsewhere(archive, holder.device) {
+    if let Some(sending) = inbox::sending(archive, holder.device) {
         let sent = inbox::send_paths(archive, holder, std::slice::from_ref(&path), false, note);
         if let Some(own) = path.parent() {
             let _ = std::fs::remove_dir_all(own);
         }
         return Ok(WrittenNoteAdded::Sent {
             inbox: sent?,
-            writer: writer.device,
+            sending,
         });
     }
     let one = IntakeOptions {
