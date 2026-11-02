@@ -2282,7 +2282,16 @@ fn expand_opens_a_filed_zip_in_one_change_that_undo_reverses() {
     assert_eq!(expanded["kind"], "folder");
     assert!(root.join(to).join("run2.csv").is_file());
     assert!(!root.join(&zip_path).exists());
-    assert!(sandbox.path("Trash/Spectra.zip").is_file());
+    // Without backups, the compressed file waits in the holding folder for a snapshot.
+    let held = expanded["held"]
+        .as_str()
+        .expect("kept in the holding folder");
+    assert!(
+        root.join("_System/holding")
+            .join(held)
+            .join("Spectra.zip")
+            .is_file()
+    );
     let card = std::fs::read_to_string(root.join(expanded["card"].as_str().unwrap())).unwrap();
     assert!(
         card.contains("kind: folder") && card.contains("name: Spectra.zip"),
@@ -4437,6 +4446,58 @@ fn gui_points_to_the_interactive_mode_off_macos() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("only on macOS"), "{stderr}");
     assert!(stderr.contains("carrel tui"), "{stderr}");
+}
+
+#[test]
+fn sync_status_keep_resolve_and_move_into_icloud_drive() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    sandbox.ok(&root, &["init"]);
+    let status = sandbox.json(&root, &["sync", "status"]);
+    assert_eq!(status["synced"], false, "{status}");
+    assert_eq!(status["conflicts"], json!([]));
+
+    std::fs::write(
+        root.join("Reading/On the Origin of Species 2.md"),
+        "another device's card",
+    )
+    .unwrap();
+    let text = sandbox.ok(&root, &["sync"]);
+    assert!(text.contains("On the Origin of Species 2.md"), "{text}");
+    sandbox.ok(
+        &root,
+        &[
+            "sync",
+            "resolve",
+            "Reading/On the Origin of Species 2.md",
+            "--keep",
+            "original",
+        ],
+    );
+    assert!(!root.join("Reading/On the Origin of Species 2.md").exists());
+
+    sandbox.ok(&root, &["sync", "keep", "Projects", "on"]);
+    let kept = sandbox.json(&root, &["sync", "keep", "Projects/Hardware"]);
+    assert_eq!(kept["keep_downloaded"], true, "{kept}");
+    let downloaded = sandbox.json(
+        &root,
+        &["sync", "download", "Reading/Coupled oscillators note.pdf"],
+    );
+    assert_eq!(downloaded["downloaded"], 0);
+
+    let to = sandbox.path("iCloud/Sample");
+    std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+    let moved = sandbox.json(
+        &root,
+        &["sync", "move", "--to", to.to_str().unwrap(), "--yes"],
+    );
+    assert_eq!(moved["moved"], true, "{moved}");
+    assert!(to.join("Reading/Coupled oscillators note.pdf").exists());
+    let old = sandbox.ok(&root, &["status"]);
+    assert!(old.contains("This is the old copy"), "{old}");
+    let elsewhere = sandbox.path("config");
+    let now = sandbox.ok(&elsewhere, &["status"]);
+    assert!(!now.contains("This is the old copy"), "{now}");
 }
 
 #[test]

@@ -393,6 +393,7 @@ pub fn status_on(
     text.push_str(&history_line(history));
     text.push_str(&crate::backup::status_line(&archive, history));
     text.push_str(&writer_line(summary.writer.as_ref(), this_device));
+    text.push_str(&crate::sync::status_lines(&archive, summary.synced));
     text.push_str(&recent_section(&summary.recent));
     let (librarian_text, librarian) = crate::ask::status_section(history);
     text.push_str(&librarian_text);
@@ -415,6 +416,8 @@ pub fn status_on(
     text.push_str(&names_section(&summary.names));
     text.push_str(&signals_section(&summary.signals));
     text.push_str(&crate::flag::status_section(&summary.flagged));
+    let (sync_text, sync) = crate::sync_status::section(&archive, this_device);
+    text.push_str(&sync_text);
     let (desk_text, desk) = crate::desk::suggestions_section(&summary.desk);
     text.push_str(&desk_text);
     let (resurfaced_text, resurfaced) = crate::discover::resurfaced(&archive, records);
@@ -443,6 +446,8 @@ pub fn status_on(
         "recent": summary.recent.iter().map(|r| recent_line(r).1).collect::<Vec<_>>(),
         "signals": summary.signals,
         "flagged": summary.flagged,
+        "inbox": sync["inbox"],
+        "holding": sync["holding"],
         "librarian": librarian,
         "crawler": crawler,
         "reminders": reminders,
@@ -512,7 +517,7 @@ fn history_line(history: Option<&[Entry]>) -> String {
     }
 }
 
-fn writer_line(lock: Option<&LockInfo>, this_device: Option<Id>) -> String {
+pub(crate) fn writer_line(lock: Option<&LockInfo>, this_device: Option<Id>) -> String {
     let Some(info) = lock else {
         return "Nobody is writing\n".to_owned();
     };
@@ -883,6 +888,18 @@ pub fn undo(archive: Option<&Path>, change: &str) -> Result<Report, Failure> {
             )));
         }
     };
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = carrel_core::inbox::Request::Undo {
+            change: entry.id.clone(),
+        };
+        let mut report = through.send(&archive, request)?;
+        report
+            .text
+            .insert_str(0, &format!("Undoing “{}”\n", entry.summary));
+        report.json["undone"] = json!(null);
+        report.json["change"] = json!(entry.id);
+        return Ok(report);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "undo", DEFAULT_LEASE)?;

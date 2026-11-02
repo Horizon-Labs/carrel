@@ -18,6 +18,7 @@
 //! | [`active`] | Checkout and return, the desk, and work sessions' pending entries |
 //! | [`search`] | Search with filters and reasons, an item's card, history and related items |
 //! | [`history`] | The history and undo, Status's summary and Recent |
+//! | [`inbox`] | Changes sent to this device's inbox while another device writes, and the holding folder's kept versions |
 //! | [`settings`] | The archive's settings and this device's model choices |
 //! | [`models`] | The model catalog, providers, and downloads |
 //! | [`intake`] | The intake queue |
@@ -66,6 +67,7 @@ pub mod flags;
 pub mod gaps;
 pub mod graph;
 pub mod history;
+pub mod inbox;
 pub mod index;
 pub mod intake;
 pub mod librarian;
@@ -85,6 +87,7 @@ pub mod search;
 pub mod settings;
 pub mod sharing;
 pub mod spotlight;
+pub mod sync;
 pub mod usage_report;
 pub mod working_copy;
 
@@ -132,6 +135,14 @@ pub enum CarrelError {
     #[error("{message}")]
     Invalid {
         /// Why, in words.
+        message: String,
+    },
+    /// Nothing was changed here: another device is the writer, so the change went into this
+    /// device's inbox, for the writer to apply as this device's (FORMAT.md §7.8). Show the
+    /// message instead of treating the change as made; Status lists what's waiting.
+    #[error("{message}")]
+    SentToInbox {
+        /// What happened and why, in words.
         message: String,
     },
 }
@@ -194,6 +205,8 @@ failed_from!(
     carrel_core::search::run::SearchError,
     carrel_core::models::ModelError,
     carrel_core::card_file::CardFileError,
+    carrel_core::cloud_files::SyncError,
+    carrel_core::icloud_move::MoveError,
     std::io::Error,
 );
 
@@ -951,15 +964,13 @@ mod tests {
     }
 
     #[test]
-    fn a_change_while_another_writer_holds_the_archive_says_who() {
+    fn a_change_while_this_device_is_busy_writing_says_what_with() {
         use carrel_core::coordinator::{Coordinator as _, DEFAULT_LEASE, DiskLock};
         let sample = Sample::new();
         let item = sample.item_titled("Desk lamp parts list");
         let archive = Archive::open(&sample.root()).unwrap();
-        let other = Holder {
-            person: carrel_core::card::Id::new_v7(),
-            device: carrel_core::card::Id::new_v7(),
-        };
+        // This device's agent, say; another device writing is in `inbox`'s tests.
+        let other = sample.handle.holder().unwrap();
         let lease = DiskLock::for_archive(&archive)
             .acquire(other, "ingest", DEFAULT_LEASE)
             .unwrap();

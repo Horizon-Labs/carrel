@@ -401,6 +401,8 @@ item_template: project          # optional: a card template name for this collec
 compressed_files: keep          # optional: expand, keep or ask; overrides settings.json (§7.2)
 restructure:                    # optional
   eagerness: settled            # settled, balanced or eager; overrides settings.json (§7.2) here and below
+sync:                           # optional
+  keep_downloaded: true         # keep this collection's items downloaded on every device (§7.13); here and below
 needs_work: "split this folder" # optional: the owner's flag (§5.9)
 tags:                           # this collection's tag vocabulary
   - name: simulation
@@ -490,12 +492,17 @@ _System/
   manifests/            folder and bundle manifests (§7.7)
   history.git/          the history repository (§8)
   writer.lock           which device may write, on local and external disks (§8.4)
-  inbox/<device-id>/    quick actions from devices that aren't the writer (§7.8)
+  inbox/<device-id>/    changes from devices that aren't the writer (§7.8)
+  inbox-skipped/<device-id>/  inbox entries the writer skipped, and why (§7.8)
+  holding/              replaced content waiting for a snapshot (§7.14)
   queue/                pending proposals, questions and tasks (§7.9)
   devices/<device-id>/  device profiles and desk-item registries (§7.10)
   drawings/<item-id>/   handwritten notes drawn on cards (§5.10)
   index/                search index (§7.11)
   cache.nosync/         rebuildable caches, excluded from iCloud sync
+  holding/              replaced content waiting for a snapshot, from devices without backups
+  tasks/                re-checks waiting for a stronger device
+  moved.json            only in an old copy left behind by a move: where the archive went (§7.13)
 ```
 
 ### 7.1 `archive.json`
@@ -611,33 +618,61 @@ src/main.rs	sha256:e3b0c442…	2048	2026-09-14T10:02:11.137401922-07:00
 - **Storage:** manifests are stored at `_System/manifests/<item-id>.tsv`. They sync with the archive but are not part of the history repository (§8.1). While an item is checked out, the manifest of what it held when it went out is kept beside them as `<item-id>.checkout.tsv`, for comparing with on return (§9.1); it's deleted when the item comes back.
 - **Content checksum:** the card's `manifest.checksum` identifies the item's contents, not the manifest file. It is the checksum of the text made by writing, for every row in order, the encoded path, a tab, the checksum, a tab, the size and a line feed. Modification times and the header are left out, so touching a file without changing it never changes the card, and a manifest rebuilt from a backup can be checked exactly against history.
 - **Reusing checksums:** a program may reuse an entry's checksum when a file's size and modification time both match the previous manifest, instead of reading the file again, but only when that modification time is at least two seconds before the previous manifest's `built` time. File systems stamp writes from a coarse clock (about 16 ms on Windows, up to two seconds on FAT), so a file edited just after it was read can keep the modification time recorded for it; such files, and every file when `built` is missing, are read again.
+- **Evicted files:** a file whose contents a sync service evicted (§7.13) is never read to build a manifest: it keeps its previous manifest's entry, whatever its modification time. One with no previous entry is left out, and isn't counted as removed.
 - **Past manifests** can be rebuilt from the backup snapshot named in a history commit's `Carrel-Snapshot` trailer, using the rules in `_System/rules/` as of that commit, and checked against the `manifest.checksum` in the card as of that commit.
 
 ### 7.8 Inboxes
 
-Devices that are not the current writer (§8.2) record quick actions as one JSON file each in `_System/inbox/<device-id>/`, named `<timestamp>-<uuid>.json`:
+Devices that are not the current writer (§8.4), and devices that can't take the writer lock at all, such as the command line on Linux or Windows with a synced archive, record every change they make as one JSON file each in `_System/inbox/<device-id>/`, named `<timestamp>-<uuid>.json` so names sort in the order they were made:
 
 ```json
 {
-  "action": "approve-entry",
-  "item": "01928f3a-7c41-7d2e-9b6a-3f0c5e2a1b44",
-  "entry": "2026-10-29 · 2h 10m",
+  "action": "reject",
+  "proposals": ["01928f3a-7c41-7d2e-9b6a-3f0c5e2a1b44"],
   "person": "01928f39-eeee-7fff-8000-000000000005",
   "device": "01928f3a-0000-7000-8000-00000000d002",
   "at": "2026-10-29T18:01:00-07:00"
 }
 ```
 
-A device only ever writes to its own inbox folder. The writer applies inbox files in timestamp order and records each as applied in the history.
+A device only ever writes to its own inbox folder, so entries never conflict, even offline. Files an entry needs are copied into a folder beside it, named as the entry is without `.json`.
 
-Adding from a device that isn't the writer, such as from a Mac's share sheet, uses two actions:
+The writer applies every device's entries in timestamp order, each as its sender's: the commit recording it names the sending person and device (§8.2), as if they had made the change themselves. It then removes the entry and its folder. An entry a program doesn't understand, such as an `action` from a later version, is left for a writer that does.
 
 | `action` | Keys | What the writer does |
 | --- | --- | --- |
-| `add` | `files`: the names of copies kept in a folder beside the entry, named as the entry is without `.json`; `each`: read folders entry by entry; `note` | Moves the copies out of the archive to a folder of its own and adds them to its intake queue (§7.9), with the note |
+| `add` | `files`: the copies' names; `each`: read folders entry by entry; `note`; `desk_card`: for a desk item, its card's copy, kept (§9.4) | Moves the copies out of the archive to a folder of its own and adds them to its intake queue (§7.9), with the note |
 | `add-url` | `url`, `title`, `note` | Adds the web address to its intake queue as a `url` item |
+| `approve` | `proposals`; `holding`: file in Holding instead; `keep`: `{"link": "version" or "both", "target"}` for duplicates | Files the proposals still open, on the device their items are on |
+| `reject` | `proposals` | Rejects the proposals still open |
+| `move-proposal` | `proposal`, `collection` | Proposes the collection instead |
+| `choose-compressed` | `proposals`, `choice` | Records whether their compressed files are expanded |
+| `answer` | `question`; `answer`: `{"kind": "decline"}`, `"skip"`, `"dismiss"`, `"settle"`, `{"kind": "teach", "fact"}` or `{"kind": "place", "collection", "create"}` | Answers the question |
+| `add-rule` | `subject`, `collection` | Adds a routing rule (§7.4) |
+| `learn` | `about`, `fact` | Adds the fact to the glossary (§7.3) |
+| `correct` | `corrects`: `{"kind": "proposal" or "filed", "id"}`; `words`; `changes`: what the words were worked out into on the sending device; `model`; `by`; `answering`: a question | Saves the correction as if worked out there, without a model |
+| `edit-fields` | `item`; `base`: the fields as the editor opened them; `fields`: as edited | Merges the edit field by field with the card as it is |
+| `edit-body` | `item`, `base`, `body` | Merges the edit with the body as it is |
+| `check-out` | `item`; `to`: the working copy, on the sending device; `checksum`: the manifest checksum of the copy taken; `due`; `git_head` | Records the checkout (§9.1) as the sending device's |
+| `return` | `item`; `name`: the working copy's copy beside the entry | Returns the item from the copy |
+| `cancel-checkout` | `item` | Cancels the sending device's checkout |
+| `flag`, `unflag` | `target`: `{"kind": "item", "id"}` or `{"kind": "collection", "path"}`; `note` | Sets or clears the flag (§5.9) |
+| `expand` | `item`, `anyway` | Expands the compressed file |
+| `undo` | `change`: a commit | Undoes the change (§8.3) |
+| `record` | `operation`, `summary`, `items` | Records a change the device already made in its own files, such as its desk (§7.10), as one commit |
 
-The writer records what it applied as one `inbox` change (§8.2), and removes the entries and their copies.
+**Skipped entries.** An entry that no longer applies, such as approving a proposal decided elsewhere meanwhile, editing a field changed elsewhere to something else, or returning an item no longer checked out to that device, is removed from the inbox and recorded in `_System/inbox-skipped/<device-id>/` under the same name, for that device to show:
+
+```json
+{
+  "entry": { "action": "reject", "proposals": ["…"], "person": "…", "device": "…", "at": "…" },
+  "reason": "the proposal was already decided elsewhere, or gone",
+  "by": "01928f3a-0000-7000-8000-00000000d001",
+  "skipped": "2026-10-30T09:12:00-07:00"
+}
+```
+
+The writer removes skipped records after 30 days. An entry that can't be applied for now, such as while the writer lease is busy, stays in its inbox to be tried again.
 
 ### 7.9 Queues
 
@@ -889,13 +924,43 @@ While the archive switches models (`embedding.switching_to`, §7.2), the new mod
 
 Rebuildable, device-specific data. The `.nosync` suffix keeps iCloud Drive from syncing it. Readers **must** ignore it and programs **must** tolerate it being missing.
 
+### 7.13 iCloud Drive
+
+An archive may live in iCloud Drive, as the same plain files.
+
+- **Evicted files:** iCloud Drive may evict a file's contents to save space, leaving a placeholder: a "dataless" file with the file's own name on current macOS, or a hidden `.<name>.icloud` file in its place elsewhere. Programs **must not** treat a placeholder as a missing or changed file, nor list a `.icloud` file as a file of its own. Cards and design documents are read as they are (a `.icloud` card is downloaded first); an item's contents are downloaded only when needed, to open, preview, check out, draft or snapshot it.
+- **Keep downloaded:** a collection whose `_collection.md` says `sync: {keep_downloaded: true}` (§6.3) keeps its items, and those of the collections inside it that don't say otherwise, downloaded on every device. Off by default.
+- **Conflicted copies:** when two devices change a file before syncing, iCloud Drive keeps both, the other as `<name> 2.<ext>` (other services write `<name> (… conflicted copy …).<ext>`). Programs report conflicted copies of cards, design documents and `_System` files for a person to choose between, and never choose silently.
+- **Moving an archive:** a program that moves an archive copies it, checks every file of the copy against a manifest of the original, and leaves `_System/moved.json` in the old copy, `{"to": "<new root>", "moved": "<RFC 3339 time>"}`, so programs opening it say it was moved. The old copy is the person's to remove.
+
+### 7.14 The holding folder
+
+On a device that has no backups set up, such as an iPad or iPhone, which can't run Kopia, a change that replaces or removes an item's contents keeps the old version in `_System/holding/<id>/` until a device with backups snapshots it: the archive copy a return replaced, or a compressed file an expansion replaced. Each folder holds the version, under its own name, and `held.json`:
+
+```json
+{
+  "id": "019a3f00-0000-7000-8000-000000000001",
+  "item": "01928f3a-7c41-7d2e-9b6a-3f0c5e2a1b44",
+  "title": "Desk lamp parts list",
+  "path": "Projects/Hardware/parts-list.csv",
+  "name": "parts-list.csv",
+  "why": "return",
+  "size": 1294,
+  "person": "01928f39-eeee-7fff-8000-000000000005",
+  "device": "01928f3a-0000-7000-8000-00000000d002",
+  "at": "2026-10-30T16:02:11Z"
+}
+```
+
+`why` is `return` or `expand`; `path` is where the version was, relative to the archive root. A device with backups snapshots the archive, holding folder included, then removes the folders that were there before the snapshot started. Until then a program may restore a version from it, outside the archive, and should say how much is waiting and warn when it's large or old. Programs **must** preserve unknown keys in `held.json`.
+
 ## 8. History
 
 ### 8.1 The history repository
 
 The archive's metadata history is a Git repository whose Git directory is `_System/history.git` and whose work tree is the archive root. Keeping the Git directory under `_System` leaves no `.git` folder at the root, so the root never looks like a code repository and never interferes with sealed bundles that are repositories themselves.
 
-The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/` and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
+The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/`, `inbox/` and `holding/` (which only pass through, and hold copies of contents) and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
 
 - **Staging:** programs compute that set of files and stage exactly it for each commit, rather than relying on ignore patterns. The repository's `info/exclude` contains `*`, so Git tools never add item contents by accident.
 - **Work tree:** the repository's `core.worktree` is the relative path `../..`, so it stays valid when the archive is moved or synced to another device.
@@ -959,7 +1024,7 @@ On a local or external disk, the writer is whoever holds `_System/writer.lock`, 
 - **Before each commit** the writer re-reads the lock and commits only if it still holds its own `token` and has not expired. A writer whose lease was lost stops and does not commit.
 - **Expired locks** may be taken over: rename the lock to `writer.lock.expired-<token>` (only one program's rename succeeds), delete it, and take the lock as usual. A lock that is not valid JSON is never taken over automatically; a person must confirm no writer is running before it is removed.
 - **Releasing:** the writer deletes the lock when it finishes, but only while it still holds its own `token`.
-- **Synced folders:** a lock file is only safe while a single device uses the archive. Sync services can let two devices each create the file before either sees the other's, so programs should warn when the lock file is used inside a synced folder.
+- **Synced folders:** a lock file is only safe while a single device uses the archive. Sync services can let two devices each create the file before either sees the other's, so programs should warn when the lock file is used inside a synced folder. `carrel sync status` shows the lock's holder and expiry, each device's inbox backlog, and what waits in `holding/` and `tasks/`.
 
 #### iCloud Drive
 

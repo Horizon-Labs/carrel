@@ -349,7 +349,7 @@ pub(super) fn queue_written_note(
     })?;
     let holder = crate::commands::holder(&identity);
     match add_written_note(&archive, &folder, text, None, note, holder)? {
-        WrittenNoteAdded::Sent { .. } => Ok(super::INBOX_LINE.into()),
+        WrittenNoteAdded::Sent { sending, .. } => Ok(sending.describe()),
         WrittenNoteAdded::Queued { queued, .. } => super::queued_line(&archive, queued.added.len()),
     }
 }
