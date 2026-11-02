@@ -40,11 +40,17 @@ impl App {
 
     /// Moves the choice among snapshots.
     pub(super) fn backups_move(&mut self, delta: i32) {
+        if self.held_move(delta) {
+            return;
+        }
         self.backup_chosen = step(self.backup_chosen, delta, self.snapshots().len());
     }
 
     /// Handles a key on the Backups screen.
     pub(super) fn backups_key(&mut self, key: KeyEvent) -> Handled {
+        if let handled @ Handled::Yes(_) = self.held_key(key) {
+            return handled;
+        }
         let set_up = self.backups_set_up();
         Handled::Yes(match key.code {
             KeyCode::Char('s') => {

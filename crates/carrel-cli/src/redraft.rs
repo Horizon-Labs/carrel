@@ -73,6 +73,14 @@ pub(crate) fn redraft_proposals(
             json!({ "redrafted": [], "failed": [] }),
         ));
     }
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        // The writer drafts them, with the models it has.
+        let proposals = carrel_core::actions::proposals(&archive, &ids)?
+            .iter()
+            .map(|e| e.id)
+            .collect();
+        return through.send(&archive, carrel_core::inbox::Request::Redraft { proposals });
+    }
     let (registry, _) = crate::providers::registry();
     let mut text = String::new();
     let mut redrafted = Vec::new();

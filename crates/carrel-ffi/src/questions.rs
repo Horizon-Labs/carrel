@@ -219,7 +219,8 @@ impl ArchiveHandle {
     /// # Errors
     ///
     /// [`CarrelError::Invalid`] if there's no such item or the question isn't open about it
-    /// any more, or [`CarrelError::Failed`].
+    /// any more, [`CarrelError::SentToInbox`] when another device is the writer, which puts
+    /// it in the queue, or [`CarrelError::Failed`].
     pub fn ask_about_item(&self, item: String, question: String) -> Result<Question, CarrelError> {
         let archive = self.fresh()?;
         let item = Self::item(&archive, &item)?;
@@ -228,6 +229,11 @@ impl ArchiveHandle {
             .iter()
             .find(|q| q.question == question)
             .ok_or_else(|| CarrelError::invalid("that question isn't open any more"))?;
+        self.through_inbox(&archive, || {
+            Ok(Request::Raise {
+                questions: vec![wanted.clone()],
+            })
+        })?;
         Ok((&moments::ask(&archive, wanted)?).into())
     }
 
@@ -404,6 +410,28 @@ mod tests {
             .find(|i| i.card == ASKED_ABOUT)
             .unwrap()
             .id
+    }
+
+    #[test]
+    fn a_question_asked_while_another_device_writes_goes_into_the_inbox() {
+        use crate::inbox::tests::{another_writer, sent};
+        let sample = Sample::new();
+        let item = asked_about(&sample);
+        let open = sample.handle.questions_about(item.clone()).unwrap();
+        let first = open.first().expect("the sample's project has a question");
+        let lease = another_writer(&sample);
+        sent(sample.handle.ask_about_item(item, first.question.clone()));
+        assert!(
+            sample
+                .handle
+                .questions()
+                .unwrap()
+                .iter()
+                .all(|q| q.question != first.question),
+            "the writer puts it in the queue"
+        );
+        assert_eq!(sample.handle.inbox_status().unwrap().waiting.len(), 1);
+        lease.release().unwrap();
     }
 
     #[test]

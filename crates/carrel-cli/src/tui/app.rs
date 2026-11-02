@@ -454,6 +454,9 @@ pub enum Effect {
         /// The folder to restore into, as `--to` says; beside the archive when none.
         to: Option<std::path::PathBuf>,
     },
+    /// Restore this version from the holding folder beside the archive, as
+    /// `carrel backup restore ITEM --held ID` does.
+    RestoreHeld(Id),
     /// Create or connect to a backup repository.
     BackupSetup {
         /// Where it is or will be.
@@ -602,6 +605,8 @@ pub struct App {
     pub known_archives: Vec<std::path::PathBuf>,
     /// The chosen snapshot on the Backups screen.
     pub backup_chosen: usize,
+    /// The versions in the holding folder, under the Backups screen's snapshots.
+    pub held: super::held::HeldVersions,
     /// The built-in file browser, while it's open.
     pub browser: Option<super::browser::Browser>,
     /// The `picker` preference.
@@ -737,6 +742,7 @@ impl App {
             progress: super::embedding::Shared::default(),
             known_archives: Vec::new(),
             backup_chosen: 0,
+            held: super::held::HeldVersions::default(),
             browser: None,
             picker_preference: None,
             start_folder: std::path::PathBuf::from("."),
@@ -816,6 +822,7 @@ impl App {
         self.load_queue(entries);
         self.load_crawler_findings();
         self.load_restructures();
+        self.load_held();
         self.load_questions(ranked);
         self.load_browse()?;
         self.load_intake();
@@ -904,6 +911,26 @@ impl App {
         keys
     }
 
+    /// Status's keys: those of the view shown on it, else its own and the views it opens.
+    fn status_keys(&self) -> Vec<(&'static str, &'static str)> {
+        if self.flags.shown {
+            return self.flags_keys();
+        }
+        if self.sync.shown {
+            return self.sync_keys();
+        }
+        if self.gaps.shown {
+            return self.gaps_keys();
+        }
+        let mut keys = if self.reminder_has_item() {
+            vec![("↑↓", "scroll"), ("Enter", "reminder's item")]
+        } else {
+            vec![("↑↓", "scroll")]
+        };
+        keys.extend([("f", "flags"), ("g", "gaps"), ("s", "sync")]);
+        keys
+    }
+
     /// The keys the current screen answers to, for the help line.
     pub fn keys(&self) -> Vec<(&'static str, &'static str)> {
         if self.correction.is_some() {
@@ -982,27 +1009,22 @@ impl App {
                 ("r", "retry"),
             ]),
             Tab::History => keys.extend([("↑↓", "choose"), ("u", "undo")]),
-            Tab::Backups => keys.extend([
-                ("↑↓", "choose"),
-                ("n", "snapshot now"),
-                ("v", "verify"),
-                ("r", "restore"),
-                ("s", "set up"),
-            ]),
+            Tab::Backups => {
+                keys.extend([
+                    ("↑↓", "choose"),
+                    ("n", "snapshot now"),
+                    ("v", "verify"),
+                    ("r", "restore"),
+                    ("s", "set up"),
+                ]);
+                keys.extend(self.held_keys());
+            }
             Tab::Questions => {
                 keys.extend([("↑↓", "choose"), ("Enter", "answer"), ("d", "dismiss")]);
             }
             Tab::Browse => return self.browse_keys(),
-            Tab::Status if self.flags.shown => keys.extend(self.flags_keys()),
-            Tab::Status if self.sync.shown => keys.extend(self.sync_keys()),
-            Tab::Status if self.gaps.shown => keys.extend(self.gaps_keys()),
-            Tab::Status if self.reminder_has_item() => {
-                keys.extend([("↑↓", "scroll"), ("Enter", "reminder's item")]);
-            }
+            Tab::Status => keys.extend(self.status_keys()),
             _ => keys.push(("↑↓", "scroll")),
-        }
-        if self.tab == Tab::Status && !self.gaps.shown && !self.sync.shown && !self.flags.shown {
-            keys.extend([("f", "flags"), ("g", "gaps"), ("s", "sync")]);
         }
         keys.extend([("^R", "refresh"), ("?", "help"), ("q", "quit")]);
         keys
@@ -1113,6 +1135,7 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
             KeyCode::Char('?') => self.help = true,
+            KeyCode::Char('!') => self.ask_feedback(),
             KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 // Providers may have come or gone too.
                 if self.here.is_some() {

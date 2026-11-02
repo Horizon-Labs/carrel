@@ -60,10 +60,19 @@ struct AskedQuestionView: View {
         }
     }
 
-    /// The question as the queue has it, asking it first when it isn't there yet.
+    /// The question as the queue has it, asking it first when it isn't there yet. While
+    /// another device is the writer, asking sends it there instead, to answer once it's in
+    /// the queue, and says so.
     private func queued() async -> Question? {
         guard let ask else { return question }
-        return await ask()
+        let asked = await ask()
+        if asked == nil, let archive = window.archive, let error = archive.lastError,
+            error.isSentToInbox
+        {
+            archive.lastError = nil
+            said = "Sent to the writer, to answer once it’s in the queue."
+        }
+        return asked
     }
 
     private func respond(_ given: String) async {

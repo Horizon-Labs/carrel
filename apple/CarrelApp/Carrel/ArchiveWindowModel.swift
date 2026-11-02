@@ -107,6 +107,9 @@ final class ArchiveWindowModel {
     var missingFeature: MissingFeatureModel?
     /// Everything flagged, with where the librarian is with each (`FlagLibrarian.swift`).
     var flagRequests: [FlagRequestView] = []
+    /// Send Feedback's form, while it's open, and where each view says the owner is (#487).
+    var feedback: FeedbackModel?
+    let feedbackMarks = FeedbackMarks()
     /// The filed item whose card the inspector is editing (⌘E).
     var editing: CardEditModel?
     /// Move to iCloud Drive…'s sheet, while it's open.

@@ -8,6 +8,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use carrel_core::card::Id;
+use carrel_core::inbox::Request;
 use carrel_core::restructure::tags::{TagOptions, propose};
 use carrel_core::restructure::{self, Approved, Proposal, ProposalKind, ProposedChange, Touched};
 use carrel_core::review::short_id;
@@ -87,6 +88,13 @@ pub fn approve_tags(
 ) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let proposal = restructure::find(&archive, ProposalKind::Tags, id)?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = Request::ApproveRestructure {
+            proposal: proposal.id,
+            only: only.to_vec(),
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let only = (!only.is_empty()).then_some(only);
     let approved = restructure::approve(&archive, &proposal, only, holder(&identity))?;
@@ -105,6 +113,14 @@ pub fn approve_tags(
 pub fn reject_tags(archive: Option<&Path>, id: Option<&str>) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let proposal = restructure::find(&archive, ProposalKind::Tags, id)?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        return through.send(
+            &archive,
+            Request::RejectRestructure {
+                proposal: proposal.id,
+            },
+        );
+    }
     restructure::reject(&archive, &proposal)?;
     Ok(Report::new(
         format!(

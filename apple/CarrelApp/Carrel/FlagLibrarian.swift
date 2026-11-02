@@ -212,10 +212,3 @@ struct ItemFlagSection: View {
         }
     }
 }
-
-extension String {
-    /// With its first letter a capital, as a label starts.
-    var capitalizedFirst: String {
-        prefix(1).uppercased() + dropFirst()
-    }
-}

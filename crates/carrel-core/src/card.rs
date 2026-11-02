@@ -89,6 +89,9 @@ pub struct Card {
     /// The compressed file the item was expanded from (FORMAT.md §5.2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expanded_from: Option<ExpandedFrom>,
+    /// Handwritten notes drawn on the card, such as with Apple Pencil (FORMAT.md §5.10).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drawings: Vec<CardDrawing>,
     /// The owner's mark that the item or its card needs work (FORMAT.md §5.9).
     #[serde(
         default,
@@ -120,6 +123,33 @@ pub struct NeedsWork {
     /// When it was flagged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at: Option<DateOrTime>,
+    /// Keys this version doesn't know.
+    #[serde(flatten)]
+    #[schemars(skip)]
+    pub extra: Extra,
+}
+
+/// A handwritten note drawn on a card (FORMAT.md §5.10): its drawing and a picture of it are
+/// kept in `_System/drawings/<item-id>/`, named by `id`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CardDrawing {
+    /// The drawing's permanent identifier, which names its files.
+    pub id: Id,
+    /// The text recognised in the handwriting, so search and the librarian find it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// When it was first drawn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<DateOrTime>,
+    /// When it was last changed, if it has been since.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified: Option<DateOrTime>,
+    /// The person who drew it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub person: Option<Id>,
+    /// The device it was last drawn on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device: Option<Id>,
     /// Keys this version doesn't know.
     #[serde(flatten)]
     #[schemars(skip)]

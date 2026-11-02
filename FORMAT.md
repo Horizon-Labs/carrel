@@ -189,6 +189,7 @@ Fields are owned by programs unless marked as owner fields. Optional fields are 
 | `removed` | map | for `tombstone` | §10 |
 | `expanded_from` | map | no | The compressed file the item was expanded from when it was filed or with `carrel expand`: its `name`, `size` and `checksum` (§2.6) |
 | `needs_work` | `true`, string or map | no | The owner's mark that the item or its card needs work (§5.9) (owner field) |
+| `drawings` | list | no | Handwritten notes drawn on the card, with the text recognised in them (§5.10) |
 
 Programs **must** preserve fields they don't recognize when rewriting a card.
 
@@ -206,7 +207,7 @@ The body is the owner's. Programs may only write inside **managed sections**, de
 - A marker counts only when it is alone on its line (surrounding spaces allowed) and outside fenced code blocks, so documentation can show markers without creating sections. Section names use lowercase letters, digits and `-`. A section appears at most once per document, and sections never nest.
 - A program **must not** change anything outside managed sections, including whitespace.
 - If a managed section's markers are missing or unbalanced, a program **must not** guess; it leaves the body alone and reports the problem.
-- Version 1.0 defines one managed section, `history` (§5.5). New cards place it at the end of the body.
+- Version 1.0 defines two managed sections: `history` (§5.5), which new cards place at the end of the body, and `drawings` (§5.10), placed before `history` when a card's first drawing is added and removed with its last.
 - Markdown editors such as Obsidian realign tables by padding cells with spaces. Programs **must** treat differences in table cell padding and delimiter-row dash counts as insignificant, both inside managed sections and when detecting outside edits.
 
 ### 5.4 Links
@@ -321,6 +322,30 @@ needs_work:
 ```
 
 Written by hand, `needs_work: true` or `needs_work: "split this folder"` mean the same without who and when; `false` is the same as leaving it out. Programs write the map. A flag stays until the owner clears it; programs **may** offer to clear it when the owner corrects or edits the card, and **may** look at flagged items first when they reassess the archive, but **must not** clear it themselves.
+
+### 5.10 Drawings
+
+The owner may write or draw notes on a card by hand, such as with Apple Pencil on iPad. Each drawing is kept as two files in `_System/drawings/<item-id>/`, named by the drawing's identifier:
+
+- `<drawing-id>.drawing`: the drawing itself, as PencilKit's `PKDrawing` data representation, which programs on Apple platforms can open to change it;
+- `<drawing-id>.png`: a picture of it, dark ink on white, which any program or reader can show.
+
+The card lists its drawings, oldest first, in `drawings`:
+
+```yaml
+drawings:
+  - id: 019a4b2c-5d6e-7f80-9a1b-2c3d4e5f6a7b
+    text: "ask Ana for the raw latency data"   # optional: the text recognised in it
+    at: "2026-11-02T08:41:00-05:00"             # when it was first drawn
+    modified: "2026-11-02T09:05:12-05:00"       # optional: when it last changed
+    person: 01928f39-eeee-7fff-8000-000000000005
+    device: 01928f3a-0000-7000-8000-00000000d003   # the device it was last drawn on
+```
+
+- **Recognised text:** the device that saves a drawing recognises its handwriting and records the text in `text`, so search and other programs find the note by its words. It's a reading, not the owner's words: programs replace it whenever the drawing changes.
+- **The `drawings` section:** programs write a managed section (§5.3) showing each drawing, so people reading the card without Carrel see it. Each drawing is a level-3 heading with its date, its picture embedded by its path from the archive root (`![[_System/drawings/<item-id>/<drawing-id>.png]]`, which Obsidian shows and stays valid when the card moves), and its recognised text as a quotation. The section is rewritten from the field whenever a drawing is saved or removed.
+- **History:** saving or removing a drawing is one `edit` change (§8.2) recording the card and the drawing's files, which history tracks as `_System` files, so undo restores them.
+- **Removing an item:** when an item is purged (§10.2), its drawings folder is removed with it.
 
 ## 6. Collections and design documents
 
@@ -470,8 +495,10 @@ _System/
   inbox/<device-id>/    changes from devices that aren't the writer (§7.8)
   inbox-skipped/<device-id>/  inbox entries the writer skipped, and why (§7.8)
   holding/              replaced content waiting for a snapshot (§7.14)
+  feedback/<device-id>/ feedback the owner sends for development (§7.8)
   queue/                pending proposals, questions and tasks (§7.9)
   devices/<device-id>/  device profiles and desk-item registries (§7.10)
+  drawings/<item-id>/   handwritten notes drawn on cards (§5.10)
   index/                search index (§7.11)
   cache.nosync/         rebuildable caches, excluded from iCloud sync
   holding/              replaced content waiting for a snapshot, from devices without backups
@@ -634,6 +661,17 @@ The writer applies every device's entries in timestamp order, each as its sender
 | `expand` | `item`, `anyway` | Expands the compressed file |
 | `undo` | `change`: a commit | Undoes the change (§8.3) |
 | `record` | `operation`, `summary`, `items` | Records a change the device already made in its own files, such as its desk (§7.10), as one commit |
+| `edit-proposal` | `proposal`; `base`: the card's fields as the editor opened them, checked on the sending device; `fields`: as edited | Saves the edit while the proposal is still as it was |
+| `redraft` | `proposals` | Drafts the proposals still open again with its own models, keeping what the owner set |
+| `approve-findings`, `reject-findings` | `findings`: the crawler's (§7.9) | Makes their changes, or rejects them so they aren't proposed again |
+| `approve-restructure` | `proposal`; `only`: the changes approved, when not all | Makes the approved changes |
+| `reject-restructure` | `proposal` | Drops the proposal |
+| `undo-since` | `by`: an agent, such as `librarian` or `crawler`; `since`: seconds since the Unix epoch | Undoes every change the agent made on its own since then |
+| `create-collection` | `path`, `description`; `tags`: `[name, meaning]` pairs | Creates the collection and its design document (§6.3) |
+| `rename` | `item`, `name` | Renames the item and its card together |
+| `session-entries` | `item`; `entries`: pending work-session entries as they were; `decision`: `approve`, `drop` or `combine` | Decides the entries, while they're still pending as they were (§5.5) |
+| `edit-session-entry` | `item`; `was`: the entry as it was; `text` | Replaces the pending entry's text |
+| `raise` | `questions`: questions worked out on the sending device (§7.9) | Adds them to the question queue |
 
 **Skipped entries.** An entry that no longer applies, such as approving a proposal decided elsewhere meanwhile, editing a field changed elsewhere to something else, or returning an item no longer checked out to that device, is removed from the inbox and recorded in `_System/inbox-skipped/<device-id>/` under the same name, for that device to show:
 
@@ -647,6 +685,8 @@ The writer applies every device's entries in timestamp order, each as its sender
 ```
 
 The writer removes skipped records after 30 days. An entry that can't be applied for now, such as while the writer lease is busy, stays in its inbox to be tried again.
+
+Feedback the owner sends for development, from any screen of any program, is kept the same way, in `_System/feedback/<device-id>/`: one `<timestamp>-<id>.json` each, with `kind` (`bug`, `idea` or `confusing`), the owner's `words`, the `screen` and `step` they were on, `in_view` (the items and collections shown, by `kind`, `id` and `title`, never their contents), the `interface`, Carrel's `version` and `commit`, the `device` and `os`, the `model` in use, `recent_problems` from the device's own gap log, and `at`. A `screenshot` names a PNG beside it. `sent.json` maps the entries that device has marked sent to their issues' addresses. A device writes only its own folder, needs no writer lease to do so, and nothing applies or removes the entries; history doesn't track them (§8.1).
 
 ### 7.9 Queues
 
@@ -969,7 +1009,7 @@ On a device that has no backups set up, such as an iPad or iPhone, which can't r
 
 The archive's metadata history is a Git repository whose Git directory is `_System/history.git` and whose work tree is the archive root. Keeping the Git directory under `_System` leaves no `.git` folder at the root, so the root never looks like a code repository and never interferes with sealed bundles that are repositories themselves.
 
-The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/`, `inbox/` and `holding/` (which only pass through, and hold copies of contents) and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
+The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/`, `inbox/` and `holding/` (which only pass through, and hold copies of contents), `feedback/` and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
 
 - **Staging:** programs compute that set of files and stage exactly it for each commit, rather than relying on ignore patterns. The repository's `info/exclude` contains `*`, so Git tools never add item contents by accident.
 - **Work tree:** the repository's `core.worktree` is the relative path `../..`, so it stays valid when the archive is moved or synced to another device.
