@@ -257,7 +257,7 @@ impl ArchiveHandle {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use carrel_core::archive::Archive;
     use carrel_core::card::Id;
     use carrel_core::coordinator::{Coordinator as _, DEFAULT_LEASE, DiskLock, Holder};
@@ -266,7 +266,7 @@ mod tests {
     use crate::tests::Sample;
 
     /// Another device holding the writer lease of `sample`'s archive.
-    fn another_writer(sample: &Sample) -> carrel_core::coordinator::WriterLease {
+    pub(crate) fn another_writer(sample: &Sample) -> carrel_core::coordinator::WriterLease {
         let archive = Archive::open(&sample.root()).unwrap();
         let other = Holder {
             person: Id::new_v7(),
@@ -277,7 +277,8 @@ mod tests {
             .unwrap()
     }
 
-    fn sent(result: Result<impl std::fmt::Debug, CarrelError>) -> String {
+    /// The message of a call that went into the inbox; panics on anything else.
+    pub(crate) fn sent(result: Result<impl std::fmt::Debug, CarrelError>) -> String {
         match result {
             Err(CarrelError::SentToInbox { message }) => message,
             other => panic!("expected it sent to the inbox, got {other:?}"),
@@ -318,6 +319,67 @@ mod tests {
             sample.handle.flag_item(item, None).is_ok(),
             "done here again"
         );
+    }
+
+    #[test]
+    fn proposal_edits_renames_collections_and_undos_go_into_the_inbox() {
+        let sample = Sample::new();
+        let proposal = sample.first_proposal();
+        let item = sample.item_titled("Desk lamp parts list");
+        let mut fields = sample
+            .handle
+            .editable_proposal(proposal.clone())
+            .unwrap()
+            .fields;
+        let title = fields.title.clone();
+        fields.title = "Lamp parts".into();
+        let lease = another_writer(&sample);
+
+        sent(sample.handle.edit_proposal(proposal.clone(), fields));
+        assert_eq!(
+            sample
+                .handle
+                .editable_proposal(proposal)
+                .unwrap()
+                .fields
+                .title,
+            title,
+            "nothing is saved here"
+        );
+        assert!(
+            matches!(
+                sample
+                    .handle
+                    .rename_item(item.clone(), "lamp: parts".into()),
+                Err(CarrelError::Invalid { .. })
+            ),
+            "a name that isn't portable is refused here"
+        );
+        sent(sample.handle.rename_item(item.clone(), "lamp-parts".into()));
+        sent(sample.handle.create_collection(
+            "Projects/Optics".into(),
+            Some("Lenses".into()),
+            Vec::new(),
+        ));
+        sent(sample.handle.undo_librarian_changes(0));
+        sent(sample.handle.undo_crawler_changes(0));
+
+        let waiting = sample.handle.inbox_status().unwrap().waiting;
+        assert_eq!(waiting.len(), 5, "{waiting:?}");
+        assert!(
+            !sample.root().join("Projects/Optics").exists(),
+            "nothing is created here"
+        );
+        assert!(
+            sample
+                .handle
+                .items()
+                .unwrap()
+                .iter()
+                .any(|i| i.id == item && !i.card.contains("lamp-parts")),
+            "nothing is renamed here"
+        );
+        lease.release().unwrap();
     }
 
     #[test]

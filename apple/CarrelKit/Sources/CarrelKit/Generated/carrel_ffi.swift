@@ -934,8 +934,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] for an item that isn't active or an entry that isn't
-     * pending, [`CarrelError::Busy`] if another writer holds the archive, or
-     * [`CarrelError::Failed`].
+     * pending, [`CarrelError::SentToInbox`] when another device is the writer, which
+     * decides an archived item's entries, [`CarrelError::Busy`] if another writer holds the
+     * archive, or [`CarrelError::Failed`].
      */
     func decideEntries(item: String, numbers: [UInt32], decision: EntryDecision) throws  -> EntriesDecided
     
@@ -1108,6 +1109,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] for a path or tag that can't be used, or one that's taken,
+     * [`CarrelError::SentToInbox`] when another device is the writer, which creates it,
      * [`CarrelError::Busy`] if another writer holds the archive, or
      * [`CarrelError::Failed`] if it can't be written.
      */
@@ -1154,8 +1156,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] for an unknown item, a name that isn't portable or is taken,
-     * or an item that's checked out, [`CarrelError::Busy`] if another writer holds the
-     * archive, or [`CarrelError::Failed`] if it can't be renamed.
+     * or an item that's checked out, [`CarrelError::SentToInbox`] when another device is the
+     * writer, which renames it, [`CarrelError::Busy`] if another writer holds the archive, or
+     * [`CarrelError::Failed`] if it can't be renamed.
      */
     func renameItem(item: String, newName: String) throws  -> RenamedItem
     
@@ -1209,9 +1212,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-     * if it isn't found or the change can't be made, as when the item has gone; the finding
-     * is kept then.
+     * [`CarrelError::SentToInbox`] when another device is the writer, which approves it, or
+     * [`CarrelError::Failed`] if it isn't found or the change can't be made, as when the item
+     * has gone; the finding is kept then.
      */
     func approveCrawlerFinding(id: String, model: ModelProvider?) throws  -> String?
     
@@ -1274,6 +1277,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
+     * [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
      * [`CarrelError::Failed`] if it isn't found or can't be removed.
      */
     func rejectCrawlerFinding(id: String) throws 
@@ -1285,7 +1289,8 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`].
+     * [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+     * [`CarrelError::Failed`].
      */
     func undoCrawlerChanges(since: Int64) throws  -> LibrarianUndone
     
@@ -1449,7 +1454,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] for a decided proposal, or [`CarrelError::Failed`].
+     * [`CarrelError::Invalid`] for a decided proposal, [`CarrelError::SentToInbox`] when the
+     * edit, checked here, went into this device's inbox for the writer, or
+     * [`CarrelError::Failed`].
      */
     func editProposal(id: String, fields: CardFields) throws  -> EditOutcome
     
@@ -1857,8 +1864,8 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-     * if the history can't be read.
+     * [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+     * [`CarrelError::Failed`] if the history can't be read.
      */
     func undoLibrarianChanges(since: Int64) throws  -> LibrarianUndone
     
@@ -1992,7 +1999,8 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] if there's no such item or the question isn't open about it
-     * any more, or [`CarrelError::Failed`].
+     * any more, [`CarrelError::SentToInbox`] when another device is the writer, which puts
+     * it in the queue, or [`CarrelError::Failed`].
      */
     func askAboutItem(item: String, question: String) throws  -> Question
     
@@ -2093,8 +2101,9 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * # Errors
      *
      * [`CarrelError::Invalid`] when there's no text model, saying what to download, or when
-     * none could be drafted again, saying why; [`CarrelError::Failed`] if the queue can't be
-     * read.
+     * none could be drafted again, saying why; [`CarrelError::SentToInbox`] when another
+     * device is the writer, which drafts them again with its models; [`CarrelError::Failed`]
+     * if the queue can't be read.
      */
     func redraftProposals(ids: [String], model: ModelProvider?, memoryGb: UInt64?, progress: ProgressListener?) throws  -> RedraftOutcome
     
@@ -2138,8 +2147,8 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] for an unknown change, [`CarrelError::Busy`] if another
-     * writer holds the archive, or [`CarrelError::Failed`].
+     * [`CarrelError::Invalid`] for an unknown change, [`CarrelError::SentToInbox`] when
+     * another device is the writer, which approves it, or [`CarrelError::Failed`].
      */
     func approveRestructure(id: String, only: [String]?) throws  -> RestructureApproved
     
@@ -2184,6 +2193,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * # Errors
      *
+     * [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
      * [`CarrelError::Failed`] if there's no such proposal or the queue can't be written.
      */
     func rejectRestructure(id: String) throws 
@@ -2987,8 +2997,9 @@ open func checkOut(item: String, to: String?, due: String?)throws  -> CheckedOut
      * # Errors
      *
      * [`CarrelError::Invalid`] for an item that isn't active or an entry that isn't
-     * pending, [`CarrelError::Busy`] if another writer holds the archive, or
-     * [`CarrelError::Failed`].
+     * pending, [`CarrelError::SentToInbox`] when another device is the writer, which
+     * decides an archived item's entries, [`CarrelError::Busy`] if another writer holds the
+     * archive, or [`CarrelError::Failed`].
      */
 open func decideEntries(item: String, numbers: [UInt32], decision: EntryDecision)throws  -> EntriesDecided  {
     return try  FfiConverterTypeEntriesDecided_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3298,6 +3309,7 @@ open func verifyBackups(percent: UInt8, password: String?)throws  -> String  {
      * # Errors
      *
      * [`CarrelError::Invalid`] for a path or tag that can't be used, or one that's taken,
+     * [`CarrelError::SentToInbox`] when another device is the writer, which creates it,
      * [`CarrelError::Busy`] if another writer holds the archive, or
      * [`CarrelError::Failed`] if it can't be written.
      */
@@ -3379,8 +3391,9 @@ open func nameSuggestion(item: String)throws  -> NameSuggestion  {
      * # Errors
      *
      * [`CarrelError::Invalid`] for an unknown item, a name that isn't portable or is taken,
-     * or an item that's checked out, [`CarrelError::Busy`] if another writer holds the
-     * archive, or [`CarrelError::Failed`] if it can't be renamed.
+     * or an item that's checked out, [`CarrelError::SentToInbox`] when another device is the
+     * writer, which renames it, [`CarrelError::Busy`] if another writer holds the archive, or
+     * [`CarrelError::Failed`] if it can't be renamed.
      */
 open func renameItem(item: String, newName: String)throws  -> RenamedItem  {
     return try  FfiConverterTypeRenamedItem_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3479,9 +3492,9 @@ open func saveCorrection(correction: Correction)throws  -> SavedCorrection  {
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-     * if it isn't found or the change can't be made, as when the item has gone; the finding
-     * is kept then.
+     * [`CarrelError::SentToInbox`] when another device is the writer, which approves it, or
+     * [`CarrelError::Failed`] if it isn't found or the change can't be made, as when the item
+     * has gone; the finding is kept then.
      */
 open func approveCrawlerFinding(id: String, model: ModelProvider?)throws  -> String?  {
     return try  FfiConverterOptionString.lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3597,6 +3610,7 @@ open func crawlerStatus()throws  -> CrawlerStatus  {
      *
      * # Errors
      *
+     * [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
      * [`CarrelError::Failed`] if it isn't found or can't be removed.
      */
 open func rejectCrawlerFinding(id: String)throws   {try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3615,7 +3629,8 @@ open func rejectCrawlerFinding(id: String)throws   {try rustCallWithError(FfiCon
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`].
+     * [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+     * [`CarrelError::Failed`].
      */
 open func undoCrawlerChanges(since: Int64)throws  -> LibrarianUndone  {
     return try  FfiConverterTypeLibrarianUndone_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -3909,7 +3924,9 @@ open func editCardBody(item: String, base: String, body: String)throws  -> EditO
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] for a decided proposal, or [`CarrelError::Failed`].
+     * [`CarrelError::Invalid`] for a decided proposal, [`CarrelError::SentToInbox`] when the
+     * edit, checked here, went into this device's inbox for the writer, or
+     * [`CarrelError::Failed`].
      */
 open func editProposal(id: String, fields: CardFields)throws  -> EditOutcome  {
     return try  FfiConverterTypeEditOutcome_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -4638,8 +4655,8 @@ open func saveConversation(conversation: LibrarianConversation)throws  -> SavedC
      *
      * # Errors
      *
-     * [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-     * if the history can't be read.
+     * [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+     * [`CarrelError::Failed`] if the history can't be read.
      */
 open func undoLibrarianChanges(since: Int64)throws  -> LibrarianUndone  {
     return try  FfiConverterTypeLibrarianUndone_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -4885,7 +4902,8 @@ open func addQuestionRule(subject: String, collection: String)throws  -> String?
      * # Errors
      *
      * [`CarrelError::Invalid`] if there's no such item or the question isn't open about it
-     * any more, or [`CarrelError::Failed`].
+     * any more, [`CarrelError::SentToInbox`] when another device is the writer, which puts
+     * it in the queue, or [`CarrelError::Failed`].
      */
 open func askAboutItem(item: String, question: String)throws  -> Question  {
     return try  FfiConverterTypeQuestion_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -5057,8 +5075,9 @@ open func failedDrafts()throws  -> [String]  {
      * # Errors
      *
      * [`CarrelError::Invalid`] when there's no text model, saying what to download, or when
-     * none could be drafted again, saying why; [`CarrelError::Failed`] if the queue can't be
-     * read.
+     * none could be drafted again, saying why; [`CarrelError::SentToInbox`] when another
+     * device is the writer, which drafts them again with its models; [`CarrelError::Failed`]
+     * if the queue can't be read.
      */
 open func redraftProposals(ids: [String], model: ModelProvider?, memoryGb: UInt64?, progress: ProgressListener?)throws  -> RedraftOutcome  {
     return try  FfiConverterTypeRedraftOutcome_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -5141,8 +5160,8 @@ open func showsMenuBar() -> Bool  {
      *
      * # Errors
      *
-     * [`CarrelError::Invalid`] for an unknown change, [`CarrelError::Busy`] if another
-     * writer holds the archive, or [`CarrelError::Failed`].
+     * [`CarrelError::Invalid`] for an unknown change, [`CarrelError::SentToInbox`] when
+     * another device is the writer, which approves it, or [`CarrelError::Failed`].
      */
 open func approveRestructure(id: String, only: [String]?)throws  -> RestructureApproved  {
     return try  FfiConverterTypeRestructureApproved_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -5220,6 +5239,7 @@ open func proposeTagRestructure()throws  -> RestructureProposal?  {
      *
      * # Errors
      *
+     * [`CarrelError::SentToInbox`] when another device is the writer, which rejects it, or
      * [`CarrelError::Failed`] if there's no such proposal or the queue can't be written.
      */
 open func rejectRestructure(id: String)throws   {try rustCallWithError(FfiConverterTypeCarrelError_lift) {
@@ -29705,7 +29725,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_check_out() != 36547) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_decide_entries() != 46758) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_decide_entries() != 51103) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_edit_entry() != 60485) {
@@ -29753,7 +29773,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_verify_backups() != 19455) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_create_collection() != 22333) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_create_collection() != 26420) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_expand_item() != 63940) {
@@ -29765,7 +29785,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_name_suggestion() != 21639) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_rename_item() != 34041) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_rename_item() != 7065) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_learn() != 5796) {
@@ -29780,7 +29800,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_save_correction() != 27213) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_approve_crawler_finding() != 13073) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_approve_crawler_finding() != 5019) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_crawl_now() != 7047) {
@@ -29798,10 +29818,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_crawler_status() != 47333) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_reject_crawler_finding() != 48650) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_reject_crawler_finding() != 58814) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_crawler_changes() != 27024) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_crawler_changes() != 51515) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_activity() != 27389) {
@@ -29846,7 +29866,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_edit_card_body() != 45058) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_edit_proposal() != 65356) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_edit_proposal() != 42973) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_editable_card() != 40584) {
@@ -29966,7 +29986,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_save_conversation() != 58546) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_librarian_changes() != 45212) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_librarian_changes() != 41153) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_download_model_in() != 6836) {
@@ -30008,7 +30028,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_add_question_rule() != 28398) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_ask_about_item() != 4573) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_ask_about_item() != 45153) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_prepare_question_correction() != 37415) {
@@ -30035,7 +30055,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_failed_drafts() != 63838) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_redraft_proposals() != 44640) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_redraft_proposals() != 1419) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_mark_reminders_shown() != 62460) {
@@ -30050,7 +30070,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_shows_menu_bar() != 252) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_approve_restructure() != 42869) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_approve_restructure() != 27910) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_eagerness_at() != 33767) {
@@ -30062,7 +30082,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_propose_tag_restructure() != 48551) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_reject_restructure() != 43460) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_reject_restructure() != 63330) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_restructure_preview() != 31031) {

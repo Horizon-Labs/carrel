@@ -553,8 +553,9 @@ impl ArchiveHandle {
     /// # Errors
     ///
     /// [`CarrelError::Invalid`] for an item that isn't active or an entry that isn't
-    /// pending, [`CarrelError::Busy`] if another writer holds the archive, or
-    /// [`CarrelError::Failed`].
+    /// pending, [`CarrelError::SentToInbox`] when another device is the writer, which
+    /// decides an archived item's entries, [`CarrelError::Busy`] if another writer holds the
+    /// archive, or [`CarrelError::Failed`].
     pub fn decide_entries(
         &self,
         item: String,
@@ -564,15 +565,15 @@ impl ArchiveHandle {
         let archive = self.fresh()?;
         let active = self.active_item(&archive, &item)?;
         let numbers: Vec<usize> = numbers.into_iter().map(|n| n as usize).collect();
-        Ok(carrel_core::sessions::decide(
+        let decided = carrel_core::sessions::decide(
             &archive,
             &active.card,
             active.id,
             &numbers,
             decision.into(),
             self.holder()?,
-        )?
-        .into())
+        )?;
+        Ok(self.unless_sent(&archive, decided)?.into())
     }
 
     /// Replaces the text of the active item `item`'s pending entry `number` (from 1) with
@@ -594,15 +595,38 @@ impl ArchiveHandle {
             .pending
             .get((number as usize).wrapping_sub(1))
             .ok_or_else(|| CarrelError::invalid(format!("there's no pending entry {number}")))?;
-        Ok(carrel_core::sessions::edit_entry(
+        let edited = carrel_core::sessions::edit_entry(
             &archive,
             &active.card,
             active.id,
             was,
             &text,
             self.holder()?,
-        )?
-        .map(Into::into))
+        )?;
+        Ok(match edited {
+            Some(decided) => Some(self.unless_sent(&archive, decided)?.into()),
+            None => None,
+        })
+    }
+}
+
+impl ArchiveHandle {
+    /// `decided`, unless it went into this device's inbox for the writer: then
+    /// [`CarrelError::SentToInbox`], saying why.
+    fn unless_sent(
+        &self,
+        archive: &carrel_core::archive::Archive,
+        decided: carrel_core::sessions::Decided,
+    ) -> Result<carrel_core::sessions::Decided, CarrelError> {
+        if decided.sent.is_none() {
+            return Ok(decided);
+        }
+        Err(match self.sending(archive)? {
+            Some((_, sending)) => CarrelError::sent(&sending),
+            None => CarrelError::SentToInbox {
+                message: "Sent to the writer's inbox, to be made there.".into(),
+            },
+        })
     }
 }
 

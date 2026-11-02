@@ -660,6 +660,17 @@ The writer applies every device's entries in timestamp order, each as its sender
 | `expand` | `item`, `anyway` | Expands the compressed file |
 | `undo` | `change`: a commit | Undoes the change (§8.3) |
 | `record` | `operation`, `summary`, `items` | Records a change the device already made in its own files, such as its desk (§7.10), as one commit |
+| `edit-proposal` | `proposal`; `base`: the card's fields as the editor opened them, checked on the sending device; `fields`: as edited | Saves the edit while the proposal is still as it was |
+| `redraft` | `proposals` | Drafts the proposals still open again with its own models, keeping what the owner set |
+| `approve-findings`, `reject-findings` | `findings`: the crawler's (§7.9) | Makes their changes, or rejects them so they aren't proposed again |
+| `approve-restructure` | `proposal`; `only`: the changes approved, when not all | Makes the approved changes |
+| `reject-restructure` | `proposal` | Drops the proposal |
+| `undo-since` | `by`: an agent, such as `librarian` or `crawler`; `since`: seconds since the Unix epoch | Undoes every change the agent made on its own since then |
+| `create-collection` | `path`, `description`; `tags`: `[name, meaning]` pairs | Creates the collection and its design document (§6.3) |
+| `rename` | `item`, `name` | Renames the item and its card together |
+| `session-entries` | `item`; `entries`: pending work-session entries as they were; `decision`: `approve`, `drop` or `combine` | Decides the entries, while they're still pending as they were (§5.5) |
+| `edit-session-entry` | `item`; `was`: the entry as it was; `text` | Replaces the pending entry's text |
+| `raise` | `questions`: questions worked out on the sending device (§7.9) | Adds them to the question queue |
 
 **Skipped entries.** An entry that no longer applies, such as approving a proposal decided elsewhere meanwhile, editing a field changed elsewhere to something else, or returning an item no longer checked out to that device, is removed from the inbox and recorded in `_System/inbox-skipped/<device-id>/` under the same name, for that device to show:
 

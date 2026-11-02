@@ -296,10 +296,38 @@ pub fn decide(
         decision,
         holder(&identity),
     )?;
-    Ok(Report::new(
+    let report = Report::new(
         format!("{}\n", decided.summary),
         json!({ "item": card.id, "entries": decided.entries, "commit": decided.commit }),
-    ))
+    );
+    decided_report(&archive, report, decided.sent.as_deref())
+}
+
+/// `report` on a decision, saying so when it went to the writer through this device's inbox,
+/// as the entry `sent`, as an archived card's does while another device is the writer.
+fn decided_report(
+    archive: &Archive,
+    mut report: Report,
+    sent: Option<&Path>,
+) -> Result<Report, Failure> {
+    let Some(sent) = sent else {
+        return Ok(report);
+    };
+    let Some(through) = crate::through_inbox::check(archive)? else {
+        report
+            .text
+            .push_str("Sent to the writer through this device's inbox.\n");
+        report.json["inbox"] = json!(sent);
+        report.json["applied"] = json!(false);
+        return Ok(report);
+    };
+    writeln!(report.text, "{}", through.sending.describe()).unwrap();
+    if let Value::Object(said) = through.json(Some(sent)) {
+        for (key, value) in said {
+            report.json[key] = value;
+        }
+    }
+    Ok(report)
 }
 
 /// Where pending entry `n` (as `carrel sessions` numbers them, from 1) is among `pending`.
@@ -350,10 +378,11 @@ pub fn edit(archive: Option<&Path>, query: &str, n: usize) -> Result<Report, Fai
         }
         Ok(Some(decided)) => {
             let _ = std::fs::remove_file(&temp);
-            Ok(Report::new(
+            let report = Report::new(
                 format!("{}\n", decided.summary),
                 json!({ "item": card.id, "entries": 1, "commit": decided.commit }),
-            ))
+            );
+            decided_report(&archive, report, decided.sent.as_deref())
         }
         Err(carrel_core::sessions::SessionError::Invalid(why)) => {
             Err(Failure::new(if why.contains("nothing was saved") {

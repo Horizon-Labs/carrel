@@ -605,10 +605,16 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
-    /// [`CarrelError::Busy`] if another writer holds the archive, or [`CarrelError::Failed`]
-    /// if the history can't be read.
+    /// [`CarrelError::SentToInbox`] when another device is the writer, which undoes them, or
+    /// [`CarrelError::Failed`] if the history can't be read.
     pub fn undo_librarian_changes(&self, since: i64) -> Result<LibrarianUndone, CarrelError> {
         let archive = self.fresh()?;
+        self.through_inbox(&archive, || {
+            Ok(carrel_core::inbox::Request::UndoSince {
+                by: changes::AGENT.to_owned(),
+                since,
+            })
+        })?;
         let lease =
             DiskLock::for_archive(&archive).acquire(self.holder()?, "undo", DEFAULT_LEASE)?;
         let done = changes::undo_since(&archive, since, &lease);
