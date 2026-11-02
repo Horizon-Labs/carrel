@@ -36,7 +36,7 @@ struct DrawingEditor: View {
             }
             .navigationTitle(existing == nil ? "New Note" : "Note")
             #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -51,17 +51,17 @@ struct DrawingEditor: View {
                     }
                 }
                 #if os(macOS)
-                    ToolbarItem {
-                        Button("Undo Stroke", systemImage: "arrow.uturn.backward") {
-                            _ = drawing.strokes.popLast()
-                        }
-                        .disabled(drawing.strokes.isEmpty)
+                ToolbarItem {
+                    Button("Undo Stroke", systemImage: "arrow.uturn.backward") {
+                        _ = drawing.strokes.popLast()
                     }
+                    .disabled(drawing.strokes.isEmpty)
+                }
                 #endif
             }
         }
         #if os(macOS)
-            .frame(minWidth: 640, minHeight: 480)
+        .frame(minWidth: 640, minHeight: 480)
         #endif
         .task {
             guard let existing,
@@ -74,11 +74,11 @@ struct DrawingEditor: View {
 
     @ViewBuilder private var canvas: some View {
         #if os(iOS)
-            PencilCanvas(drawing: $drawing)
-                .accessibilityLabel("Drawing")
+        PencilCanvas(drawing: $drawing)
+            .accessibilityLabel("Drawing")
         #else
-            PointerCanvas(drawing: $drawing)
-                .accessibilityLabel("Drawing")
+        PointerCanvas(drawing: $drawing)
+            .accessibilityLabel("Drawing")
         #endif
     }
 
@@ -107,18 +107,18 @@ private let pictureScale: CGFloat = 2
 @MainActor
 func lightPicture(of drawing: PKDrawing, in rect: CGRect) -> CGImage? {
     #if os(iOS)
-        var image: UIImage?
-        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+    var image: UIImage?
+    UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+        image = drawing.image(from: rect, scale: pictureScale)
+    }
+    return image?.cgImage
+    #else
+    var image: NSImage?
+    (NSAppearance(named: .aqua) ?? NSAppearance.currentDrawing())
+        .performAsCurrentDrawingAppearance {
             image = drawing.image(from: rect, scale: pictureScale)
         }
-        return image?.cgImage
-    #else
-        var image: NSImage?
-        (NSAppearance(named: .aqua) ?? NSAppearance.currentDrawing())
-            .performAsCurrentDrawingAppearance {
-                image = drawing.image(from: rect, scale: pictureScale)
-            }
-        return image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    return image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
     #endif
 }
 
@@ -168,92 +168,92 @@ private func recognisedText(in picture: CGImage) async -> String {
 }
 
 #if os(iOS)
-    /// PencilKit's canvas, with the tool picker, on white.
-    private struct PencilCanvas: UIViewRepresentable {
-        @Binding var drawing: PKDrawing
+/// PencilKit's canvas, with the tool picker, on white.
+private struct PencilCanvas: UIViewRepresentable {
+    @Binding var drawing: PKDrawing
 
-        func makeCoordinator() -> Coordinator { Coordinator(drawing: $drawing) }
+    func makeCoordinator() -> Coordinator { Coordinator(drawing: $drawing) }
 
-        func makeUIView(context: Context) -> PKCanvasView {
-            let canvas = PKCanvasView()
-            canvas.drawing = drawing
-            #if targetEnvironment(simulator)
-                canvas.drawingPolicy = .anyInput
-            #else
-                canvas.drawingPolicy = .default
-            #endif
-            canvas.tool = PKInkingTool(.pen, color: .black, width: 4)
-            canvas.backgroundColor = .white
-            canvas.isOpaque = true
-            canvas.overrideUserInterfaceStyle = .light
-            canvas.alwaysBounceVertical = true
-            canvas.delegate = context.coordinator
-            let picker = context.coordinator.picker
-            picker.overrideUserInterfaceStyle = .light
-            picker.setVisible(true, forFirstResponder: canvas)
-            picker.addObserver(canvas)
-            Task { @MainActor in canvas.becomeFirstResponder() }
-            return canvas
-        }
+    func makeUIView(context: Context) -> PKCanvasView {
+        let canvas = PKCanvasView()
+        canvas.drawing = drawing
+        #if targetEnvironment(simulator)
+        canvas.drawingPolicy = .anyInput
+        #else
+        canvas.drawingPolicy = .default
+        #endif
+        canvas.tool = PKInkingTool(.pen, color: .black, width: 4)
+        canvas.backgroundColor = .white
+        canvas.isOpaque = true
+        canvas.overrideUserInterfaceStyle = .light
+        canvas.alwaysBounceVertical = true
+        canvas.delegate = context.coordinator
+        let picker = context.coordinator.picker
+        picker.overrideUserInterfaceStyle = .light
+        picker.setVisible(true, forFirstResponder: canvas)
+        picker.addObserver(canvas)
+        Task { @MainActor in canvas.becomeFirstResponder() }
+        return canvas
+    }
 
-        func updateUIView(_ canvas: PKCanvasView, context: Context) {
-            if canvas.drawing != drawing { canvas.drawing = drawing }
-        }
+    func updateUIView(_ canvas: PKCanvasView, context: Context) {
+        if canvas.drawing != drawing { canvas.drawing = drawing }
+    }
 
-        @MainActor
-        final class Coordinator: NSObject, PKCanvasViewDelegate {
-            let drawing: Binding<PKDrawing>
-            let picker = PKToolPicker()
+    @MainActor
+    final class Coordinator: NSObject, PKCanvasViewDelegate {
+        let drawing: Binding<PKDrawing>
+        let picker = PKToolPicker()
 
-            init(drawing: Binding<PKDrawing>) { self.drawing = drawing }
+        init(drawing: Binding<PKDrawing>) { self.drawing = drawing }
 
-            func canvasViewDrawingDidChange(_ canvas: PKCanvasView) {
-                drawing.wrappedValue = canvas.drawing
-            }
+        func canvasViewDrawingDidChange(_ canvas: PKCanvasView) {
+            drawing.wrappedValue = canvas.drawing
         }
     }
+}
 #else
-    /// A canvas drawn on with the pointer or trackpad, adding PencilKit strokes, since a Mac
-    /// has no PencilKit canvas.
-    private struct PointerCanvas: View {
-        @Binding var drawing: PKDrawing
-        @State private var points: [CGPoint] = []
-        @State private var started = Date.now
+/// A canvas drawn on with the pointer or trackpad, adding PencilKit strokes, since a Mac
+/// has no PencilKit canvas.
+private struct PointerCanvas: View {
+    @Binding var drawing: PKDrawing
+    @State private var points: [CGPoint] = []
+    @State private var started = Date.now
 
-        var body: some View {
-            Canvas { context, size in
-                let all = CGRect(origin: .zero, size: size)
-                if !drawing.strokes.isEmpty, let ink = lightPicture(of: drawing, in: all) {
-                    context.draw(Image(decorative: ink, scale: pictureScale), in: all)
+    var body: some View {
+        Canvas { context, size in
+            let all = CGRect(origin: .zero, size: size)
+            if !drawing.strokes.isEmpty, let ink = lightPicture(of: drawing, in: all) {
+                context.draw(Image(decorative: ink, scale: pictureScale), in: all)
+            }
+            var path = Path()
+            path.addLines(points)
+            context.stroke(
+                path, with: .color(.black),
+                style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+        }
+        .background(.white)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if points.isEmpty { started = .now }
+                    points.append(value.location)
                 }
-                var path = Path()
-                path.addLines(points)
-                context.stroke(
-                    path, with: .color(.black),
-                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-            }
-            .background(.white)
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        if points.isEmpty { started = .now }
-                        points.append(value.location)
-                    }
-                    .onEnded { _ in addStroke() }
-            )
-        }
-
-        private func addStroke() {
-            guard !points.isEmpty else { return }
-            let controlPoints = points.enumerated().map { index, point in
-                PKStrokePoint(
-                    location: point, timeOffset: TimeInterval(index) / 60,
-                    size: CGSize(width: 3, height: 3), opacity: 1, force: 1, azimuth: 0,
-                    altitude: .pi / 2)
-            }
-            let path = PKStrokePath(controlPoints: controlPoints, creationDate: started)
-            drawing.strokes.append(PKStroke(ink: PKInk(.pen, color: .black), path: path))
-            points = []
-        }
+                .onEnded { _ in addStroke() }
+        )
     }
+
+    private func addStroke() {
+        guard !points.isEmpty else { return }
+        let controlPoints = points.enumerated().map { index, point in
+            PKStrokePoint(
+                location: point, timeOffset: TimeInterval(index) / 60,
+                size: CGSize(width: 3, height: 3), opacity: 1, force: 1, azimuth: 0,
+                altitude: .pi / 2)
+        }
+        let path = PKStrokePath(controlPoints: controlPoints, creationDate: started)
+        drawing.strokes.append(PKStroke(ink: PKInk(.pen, color: .black), path: path))
+        points = []
+    }
+}
 #endif

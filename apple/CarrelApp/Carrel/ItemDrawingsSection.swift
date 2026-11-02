@@ -9,7 +9,15 @@ import SwiftUI
 
 struct ItemDrawingsSection: View {
     /// The item a link asked to write a note on (`action=draw`), opened when its card shows.
-    static var noteToWrite: String?
+    private static var noteToWrite: String?
+    private static let writeNoteAsked = Notification.Name("CarrelWriteNote")
+
+    /// Opens the editor for a new note on the item `id`'s card, now if it's showing, or else
+    /// when it shows.
+    static func writeNote(on id: String) {
+        noteToWrite = id
+        NotificationCenter.default.post(name: writeNoteAsked, object: nil)
+    }
 
     let archive: ArchiveModel
     let item: String
@@ -46,17 +54,23 @@ struct ItemDrawingsSection: View {
             }
         }
         .task(id: item) {
-            if Self.noteToWrite == item {
-                Self.noteToWrite = nil
-                editing = EditedDrawing(existing: nil)
-            }
+            takeNoteToWrite()
             await reload()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Self.writeNoteAsked)) { _ in
+            takeNoteToWrite()
         }
         .sheet(item: $editing) { edited in
             DrawingEditor(existing: edited.existing) { drawn in
                 try await save(drawn, over: edited.existing)
             }
         }
+    }
+
+    private func takeNoteToWrite() {
+        guard Self.noteToWrite == item else { return }
+        Self.noteToWrite = nil
+        editing = EditedDrawing(existing: nil)
     }
 
     private func reload() async {
