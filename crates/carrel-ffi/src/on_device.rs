@@ -277,12 +277,9 @@ mod tests {
             first.url.starts_with("https://huggingface.co/"),
             "{first:?}"
         );
-        assert!(
-            first
-                .to
-                .starts_with(&text(&sample.dir.path().join("config/models/mlx"))),
-            "{first:?}"
-        );
+        // Compared by components: Windows may name the temporary folder by its short form.
+        let models = std::path::Path::new(&first.to).ancestors().nth(2).unwrap();
+        assert!(models.ends_with("config/models/mlx"), "{first:?}");
         assert!(download_host_allowed(
             "cas-bridge.xethub.hf.co".into(),
             first.hosts.clone()

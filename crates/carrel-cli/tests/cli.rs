@@ -4213,7 +4213,10 @@ fn questions_name_the_path_of_what_they_ask_about() {
     assert_eq!(subject["card"], ASKED_ABOUT);
     assert_eq!(subject["restricted"], false);
     let path = subject["path"].as_str().unwrap();
-    assert!(path.ends_with("Projects/Hardware/notes"), "{path}");
+    assert!(
+        path.replace('\\', "/").ends_with("Projects/Hardware/notes"),
+        "{path}"
+    );
     let text = sandbox.ok(&root, &["questions"]);
     assert!(text.contains(&format!(": {path}")), "{text}");
 }
@@ -4638,7 +4641,8 @@ fn ingest_text_files_a_written_note_as_an_item_from_the_flag_or_standard_input()
     let queued = json_of(&out);
     let path = queued["queued"][0]["path"].as_str().unwrap();
     assert!(
-        path.ends_with("/Piped in from another program.md"),
+        path.replace('\\', "/")
+            .ends_with("/Piped in from another program.md"),
         "{path}"
     );
 }
