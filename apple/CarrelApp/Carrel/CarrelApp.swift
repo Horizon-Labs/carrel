@@ -45,6 +45,8 @@ struct CarrelApp: App {
     init() {
         // This device's decision log for the usage report, unless `report.log` is off.
         startDecisionLog()
+        // iCloud Drive's evicted files are downloaded through file coordination.
+        CloudFiles.register()
         #if os(iOS)
         // Background tasks are registered before the app finishes launching.
         BackgroundWork.register()
@@ -63,6 +65,7 @@ struct CarrelApp: App {
             BrowseCommands()
             LibrarianCommands()
             FeedbackCommands()
+            ICloudMoveCommands()
         }
     }
     #else
@@ -90,6 +93,7 @@ struct CarrelApp: App {
             BrowseCommands()
             LibrarianCommands()
             FeedbackCommands()
+            ICloudMoveCommands()
         }
 
         Settings {

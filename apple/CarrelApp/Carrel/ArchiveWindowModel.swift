@@ -110,6 +110,8 @@ final class ArchiveWindowModel {
     let feedbackMarks = FeedbackMarks()
     /// The filed item whose card the inspector is editing (⌘E).
     var editing: CardEditModel?
+    /// Move to iCloud Drive…'s sheet, while it's open.
+    var icloudMove: ICloudMoveModel?
 
     // Restructure proposals (#327).
     private(set) var restructure: RestructureModel?
