@@ -13,6 +13,7 @@ mod discover;
 mod embedding;
 mod flagging;
 mod gaps;
+mod held;
 mod intake;
 mod item;
 mod librarian;
@@ -551,6 +552,7 @@ fn background(app: &mut App, effect: Effect) -> Option<Done> {
         effect @ (Effect::BackupNow
         | Effect::BackupVerify(_)
         | Effect::BackupRestore { .. }
+        | Effect::RestoreHeld(_)
         | Effect::BackupSetup { .. }) => backup_work(root, effect),
         Effect::ApproveAllHigh => (
             "Filing every high-confidence proposal…".into(),
@@ -718,6 +720,7 @@ fn backup_work(root: PathBuf, effect: Effect) -> (String, Work) {
                 crate::backup::restore(Some(&root), &item, Some(&at), to.as_deref(), None)
             }),
         ),
+        Effect::RestoreHeld(id) => held::restore_held_work(root, id),
         Effect::BackupSetup {
             repository,
             password,

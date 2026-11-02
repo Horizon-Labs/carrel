@@ -62,8 +62,22 @@ pub fn restore(
                 ))
             })?,
     };
-    let target = to.map_or_else(|| holding::restore_beside(archive, &held), Path::to_owned);
-    holding::restore(archive, &held, &target).map_err(|e| Failure::io(&target, &e))?;
+    restore_version(archive, &held, to)
+}
+
+/// The kept version `held` copied to `to`, or beside the archive, as `carrel backup restore
+/// --held` and the interactive mode's Backups screen do. Nothing in the archive changes.
+///
+/// # Errors
+///
+/// [`Failure`] if it can't be copied, or something is already there.
+pub fn restore_version(
+    archive: &Archive,
+    held: &Held,
+    to: Option<&Path>,
+) -> Result<Report, Failure> {
+    let target = to.map_or_else(|| holding::restore_beside(archive, held), Path::to_owned);
+    holding::restore(archive, held, &target).map_err(|e| Failure::io(&target, &e))?;
     Ok(Report::new(
         format!(
             "Restored {}, kept when it was {} ({}), from the holding folder to {}\nNothing in the archive changed; compare, then move it in yourself if you want it.\n",
@@ -72,6 +86,6 @@ pub fn restore(
             held.at.get(..10).unwrap_or_default(),
             target.display()
         ),
-        json!({"item": item.id, "held": held.id, "to": target}),
+        json!({"item": held.item, "held": held.id, "to": target}),
     ))
 }

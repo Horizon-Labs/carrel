@@ -933,6 +933,14 @@ pub fn collection_new(
                 .ok_or_else(|| Failure::new(format!("give a tag as name=meaning, not “{t}”")))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = carrel_core::inbox::Request::CreateCollection {
+            path: path.trim().trim_matches('/').to_owned(),
+            description,
+            tags,
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "collection", DEFAULT_LEASE)?;
@@ -979,6 +987,18 @@ pub fn rename(
         }
         suggestion
     };
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        // The writer checks it again, but a name that can't work is said here, at once.
+        let problems = carrel_core::names::problems(&new_name);
+        if !problems.is_empty() {
+            return Err(carrel_core::rename::RenameError::NotPortable(problems).into());
+        }
+        let request = carrel_core::inbox::Request::Rename {
+            item: item.id,
+            name: new_name,
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "rename", DEFAULT_LEASE)?;
