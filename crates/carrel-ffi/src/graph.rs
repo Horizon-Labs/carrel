@@ -3,7 +3,6 @@
 //! connections between them and what makes them, and the strongest ties between items in
 //! different collections. The app draws it.
 
-use carrel_core::discover::Catalog;
 use carrel_core::graph::{Graph, ItemNode};
 
 use crate::records::Sensitivity;
