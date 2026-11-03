@@ -36,7 +36,7 @@ final class FlaggingTests: XCTestCase {
         XCTAssertEqual(flagged.flag?.note, "wrong title")
         XCTAssertEqual(sample.model.flaggedItems.map(\.id), [item.id])
         sample.model.screen = .flagged
-        XCTAssertEqual(sample.model.screenTitle, "Flagged")
+        XCTAssertEqual(sample.model.screenTitle, "Flags")
 
         browse.askToUnflag(flagged)
         let request = try XCTUnwrap(browse.unflagging)

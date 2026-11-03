@@ -1,5 +1,6 @@
-//! The Discover screen (`docs/design/librarian.md`, "Discovery"): the views the core computes,
-//! drawn as `carrel discover` draws them. `d` shows on this day, `w` wanders the stacks, one
+//! The views of the Library and of a collection (`docs/design/library-home.md`), Discover's
+//! pages before: what the core computes, drawn as `carrel discover` draws them, for the whole
+//! archive or the collection `v` was pressed on (`views.rs`). `d` shows on this day, `w` wanders the stacks, one
 //! key per step (`Space` or `Enter`), with the item's preview where the terminal draws
 //! images, `t` the timeline (`p` changes its periods, `/` narrows it by words and filters and
 //! `b` chooses its date), `m` the archive map as a sized tree, `h` activity as a block
@@ -40,6 +41,8 @@ pub enum View {
     Activity,
     /// The strongest connections, between collections or items.
     Graph,
+    /// Every item, by title: the Library's Items view.
+    Items,
 }
 
 impl View {
@@ -59,6 +62,8 @@ impl View {
 pub struct Stacks {
     /// The view shown.
     pub view: View,
+    /// The collection the views look at, with those inside it; `None` for the whole archive.
+    pub scope: Option<String>,
     /// The view's lines, for every view but a wander.
     pub lines: Vec<String>,
     /// How far they're scrolled.
@@ -98,10 +103,10 @@ fn new_seed() -> u64 {
 impl App {
     /// Draws the chosen view's lines again, as the archive is now.
     pub(super) fn load_discover(&mut self) {
-        let catalog = match Catalog::read(&self.archive) {
+        let catalog = match self.scoped_catalog() {
             Ok(catalog) => catalog,
             Err(e) => {
-                self.stacks.lines = vec![e.to_string()];
+                self.stacks.lines = vec![e];
                 return;
             }
         };
@@ -131,11 +136,34 @@ impl App {
                 self.stacks.graph_items,
                 GRAPH_SHOWN,
             ),
+            View::Items => items_text(&catalog),
             View::Wander => return,
         }
         .lines()
         .map(str::to_owned)
         .collect();
+    }
+
+    /// The catalog the views look at: the archive's, or the scope's.
+    fn scoped_catalog(&self) -> Result<Catalog, String> {
+        crate::discover::catalog_in(&self.archive, self.stacks.scope.as_deref()).map_err(|e| e.0)
+    }
+
+    /// Starts a new walk from an item chosen at random in the scope, as the Library's and a
+    /// collection's Wander do.
+    pub(super) fn wander_anywhere(&mut self) {
+        let seed = new_seed();
+        let start = self.scoped_catalog().ok().and_then(|c| c.pick(seed));
+        if start.is_none() {
+            self.message = Some("There's nothing here to wander from yet".into());
+            return;
+        }
+        self.stacks.walk = Some(Walk::new(seed, start).remembering(&self.records.visits));
+        self.stacks.view = View::Wander;
+        self.stacks.done = false;
+        self.stacks.asked_at = None;
+        self.tab = Tab::Discover;
+        self.wander_step();
     }
 
     /// The timeline, as `carrel discover timeline` draws it with the words, filters and date
@@ -330,14 +358,7 @@ impl App {
 
     /// The Discover screen's keys, for the help line.
     pub(super) fn discover_keys(&self) -> Vec<(&'static str, &'static str)> {
-        let mut keys = vec![
-            ("d", "today"),
-            ("w", "wander"),
-            ("t", "timeline"),
-            ("m", "map"),
-            ("h", "activity"),
-            ("g", "graph"),
-        ];
+        let mut keys = vec![("v", "next view"), ("Esc", "back"), ("w", "wander")];
         match self.stacks.view {
             View::Wander => {
                 keys.push(("Space", "next step"));
@@ -371,6 +392,18 @@ impl App {
     }
 }
 
+/// Every item in the catalog by title, with its collection: the Library's Items view.
+fn items_text(catalog: &Catalog) -> String {
+    let mut items: Vec<&carrel_core::discover::Item> =
+        catalog.entries.iter().map(|e| &e.item).collect();
+    items.sort_by_key(|i| i.title.to_lowercase());
+    let mut text = format!("{} items\n\n", items.len());
+    for item in items {
+        writeln!(text, "{}  ({})", item.title, item.collection).unwrap();
+    }
+    text
+}
+
 #[cfg(test)]
 pub(super) mod tests {
     use carrel_core::questions::QuestionEntry;
@@ -399,10 +432,10 @@ pub(super) mod tests {
     #[test]
     fn discover_shows_each_view_as_the_command_draws_it() {
         let (_dir, mut app) = sample(true);
-        app.key(key(KeyCode::Char('D')));
-        assert_eq!(app.tab, Tab::Discover);
+        app.tab = Tab::Discover;
+        app.load_discover();
         let text = screen(&app, 120, 30);
-        assert!(text.contains("d on this day"), "{text}");
+        assert!(text.contains("v next view"), "{text}");
         assert!(
             text.contains("On this day") || text.contains("in other years"),
             "{text}"
@@ -441,7 +474,6 @@ pub(super) mod tests {
     #[test]
     fn wander_takes_a_step_a_key_and_asks_now_and_then() {
         let (_dir, mut app) = sample(true);
-        app.key(key(KeyCode::Char('D')));
         app.key(key(KeyCode::Char('w')));
         assert_eq!(app.stacks.view, View::Wander);
         let first = app.stacks.item.card.clone().expect("the first step");

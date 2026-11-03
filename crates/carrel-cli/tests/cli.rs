@@ -4774,7 +4774,10 @@ fn library_lists_whats_waiting_the_collections_and_whats_new() {
     let sandbox = Sandbox::new();
     let root = sandbox.sample();
     let text = sandbox.ok(&root, &["library"]);
-    assert!(text.starts_with("Waiting: 1 to review."), "{text}");
+    assert!(
+        text.starts_with("The librarian has 1 item for you to approve."),
+        "{text}"
+    );
     assert!(
         text.find("  Projects").unwrap() < text.find("  Holding").unwrap(),
         "Holding comes last: {text}"

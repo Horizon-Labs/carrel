@@ -192,13 +192,13 @@ pub fn lists_line(app: &App) -> String {
         ReviewList::Proposals if findings + restructures == 0 => return String::new(),
         ReviewList::Proposals => "Proposals to file",
         ReviewList::Crawler => "From the crawler",
-        ReviewList::Restructure => "Restructure",
+        ReviewList::Restructure => "Suggestions",
     };
     format!(
-        "{shown}. f switches: {} to file, {} from the crawler, {} to restructure.",
+        "{shown}. f switches: {} to file, {} from the crawler, {}.",
         plural(app.queue.len(), "proposal"),
         plural(findings, "finding"),
-        plural(restructures, "proposal")
+        plural(restructures, "suggestion")
     )
 }
 
@@ -381,7 +381,7 @@ mod tests {
         );
         assert!(propose(&app.archive, &finding).unwrap());
         app.reload().unwrap();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         assert_eq!(app.tab, Tab::Review);
         assert!(
             screen(&app, 140, 30).contains("1 finding from the crawler"),

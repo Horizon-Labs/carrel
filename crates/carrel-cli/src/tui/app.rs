@@ -23,14 +23,13 @@ pub enum Tab {
     Library,
     /// What's checked out and on the desk, and their pending history entries.
     Active,
-    /// The review queue.
-    Review,
-    /// The question queue.
+    /// The librarian's questions for the owner.
     Questions,
+    /// To Approve: the review queue, the crawler's findings and, as Suggestions, restructure
+    /// proposals.
+    Review,
     /// Collections and their items.
     Browse,
-    /// Discovery: on this day, wander, the timeline, the map and activity.
-    Discover,
     /// What `carrel status` shows.
     Status,
     /// Recorded changes.
@@ -43,18 +42,22 @@ pub enum Tab {
     Librarian,
     /// Items waiting to be drafted, and adding more: a mode `+` shows, not one of the tabs.
     Ingest,
+    /// A view of the Library or a collection other than its own (`docs/design/library-home.md`):
+    /// the timeline, the map, connections, activity, on this day or a wander. A mode `v` shows
+    /// from the Library or Browse, not one of the tabs.
+    Discover,
 }
 
 impl Tab {
-    /// Every tab in the row, in order: the Library, then what's checked out and waiting, the
-    /// collections and Discover, then looking after the archive, as the apps' sidebar has them.
-    pub const ALL: [Self; 11] = [
+    /// Every tab in the row, in order: the Library, then what's checked out and what the
+    /// librarian is asking, the collections, then looking after the archive, as the apps'
+    /// sidebar has them.
+    pub const ALL: [Self; 10] = [
         Self::Library,
         Self::Active,
-        Self::Review,
         Self::Questions,
+        Self::Review,
         Self::Browse,
-        Self::Discover,
         Self::Status,
         Self::History,
         Self::Backups,
@@ -62,18 +65,18 @@ impl Tab {
         Self::Librarian,
     ];
 
-    /// How many screens there are, Ingest included.
-    pub const COUNT: usize = Self::ALL.len() + 1;
+    /// How many screens there are, adding and the views included.
+    pub const COUNT: usize = Self::ALL.len() + 2;
 
     /// The tab's name.
     pub fn title(self) -> &'static str {
         match self {
             Self::Library => "Library",
             Self::Active => "Checked Out",
-            Self::Review => "Review",
+            Self::Review => "To Approve",
             Self::Questions => "Questions",
             Self::Browse => "Browse",
-            Self::Discover => "Discover",
+            Self::Discover => "Views",
             Self::Status => "Status",
             Self::History => "History",
             Self::Backups => "Backups",
@@ -83,16 +86,16 @@ impl Tab {
         }
     }
 
-    /// The key that shows it: a number, or `D` for Discover, `L` for the librarian and `+`
-    /// for adding.
+    /// The key that shows it: a number, `L` for the librarian, `+` for adding and `v` for the
+    /// views, which only the Library and Browse take.
     pub fn key(self) -> char {
         match self {
             Self::Library => '1',
             Self::Active => '2',
-            Self::Review => '3',
-            Self::Questions => '4',
+            Self::Questions => '3',
+            Self::Review => '4',
             Self::Browse => '5',
-            Self::Discover => 'D',
+            Self::Discover => 'v',
             Self::Status => '6',
             Self::History => '7',
             Self::Backups => '8',
@@ -674,8 +677,8 @@ pub struct App {
     pub stacks: super::discover::Stacks,
     /// The Library, where the interactive mode opens.
     pub library: super::library::LibraryView,
-    /// The tab `+` was pressed on, which Esc goes back to from adding.
-    pub before_adding: Option<Tab>,
+    /// Where adding and the views were opened from, and the views last shown.
+    pub modes: super::views::Modes,
     /// Whether every key is shown.
     pub help: bool,
     /// Whether to leave.
@@ -807,7 +810,7 @@ impl App {
             librarian_changes: Vec::new(),
             stacks: super::discover::Stacks::default(),
             library: super::library::LibraryView::default(),
-            before_adding: None,
+            modes: super::views::Modes::default(),
             help: false,
             quit: false,
         };
@@ -1164,8 +1167,8 @@ impl App {
             self.archive_picker();
             return None;
         }
-        if self.adding_key(key) {
-            return None;
+        if let Handled::Yes(effect) = self.mode_key(key) {
+            return effect;
         }
         let handled = match self.tab {
             Tab::Library => self.library_key(key),

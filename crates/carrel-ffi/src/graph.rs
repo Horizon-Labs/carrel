@@ -3,7 +3,6 @@
 //! connections between them and what makes them, and the strongest ties between items in
 //! different collections. The app draws it.
 
-use carrel_core::discover::Catalog;
 use carrel_core::graph::{Graph, ItemNode};
 
 use crate::records::Sensitivity;
@@ -120,9 +119,16 @@ impl ArchiveHandle {
     /// # Errors
     ///
     /// [`CarrelError::Failed`] if the archive can't be read.
-    pub fn discovery_graph(&self, limit: u32) -> Result<DiscoveryGraph, CarrelError> {
+    pub fn discovery_graph(
+        &self,
+        limit: u32,
+        within: Option<String>,
+    ) -> Result<DiscoveryGraph, CarrelError> {
         let archive = self.fresh()?;
-        let graph = Graph::build(&Catalog::read(&archive)?);
+        let graph = Graph::build(&crate::discover::catalog_within(
+            &archive,
+            within.as_deref(),
+        )?);
         let limit = limit as usize;
         let ties = graph
             .strongest_item_edges()
@@ -184,7 +190,7 @@ mod tests {
     #[test]
     fn the_sample_has_its_collections_and_connections() {
         let sample = Sample::new();
-        let graph = sample.handle.discovery_graph(20).unwrap();
+        let graph = sample.handle.discovery_graph(20, None).unwrap();
         assert!(graph.collections.iter().any(|c| c.path == "Projects"));
         assert!(graph.connections.len() <= 20);
         for connection in &graph.connections {
@@ -197,7 +203,7 @@ mod tests {
         for tie in &graph.ties {
             assert_ne!(tie.a.collection, tie.b.collection);
         }
-        let none = sample.handle.discovery_graph(0).unwrap();
+        let none = sample.handle.discovery_graph(0, None).unwrap();
         assert!(none.connections.is_empty() && none.ties.is_empty());
     }
 }

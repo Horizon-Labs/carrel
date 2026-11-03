@@ -100,6 +100,10 @@ final class DiscoverModel {
     /// A collection not opened in a long time, for Status.
     private(set) var resurfaced: Resurfaced?
 
+    /// The collection the views look at, with those inside it; `nil` for the whole archive,
+    /// as the Library's views do.
+    var scope: String?
+
     /// What went wrong with the last view read, for the page to say.
     var problem: String?
 
@@ -121,22 +125,25 @@ final class DiscoverModel {
         case .wander: if walk == nil, !isStartingWalk { await startWalk() }
         case .timeline: await refreshTimeline()
         case .map:
+            let scope = scope
             await read {
-                try $0.archiveMap()
+                try $0.archiveMap(within: scope)
             } into: {
                 self.map = $0
             }
         case .activity:
             let from = activityFrom.map(Self.dayText)
             let to = activityTo.map(Self.dayText)
+            let scope = scope
             await read {
-                try $0.activity(from: from, to: to)
+                try $0.activity(from: from, to: to, within: scope)
             } into: {
                 self.activity = $0
             }
         case .graph:
+            let scope = scope
             await read {
-                try $0.discoveryGraph(limit: Self.graphLimit)
+                try $0.discoveryGraph(limit: Self.graphLimit, within: scope)
             } into: {
                 self.graph = $0
             }
@@ -156,8 +163,9 @@ final class DiscoverModel {
         let query = timelineQuery
         let by = timelineDate == .own ? nil : timelineDate.rawValue
         let per = timelineGrouping.rawValue
+        let scope = scope
         await read {
-            try $0.timeline(query: query, by: by, per: per)
+            try $0.timeline(query: query, by: by, per: per, within: scope)
         } into: {
             self.timeline = $0
         }
@@ -172,21 +180,31 @@ final class DiscoverModel {
         }
     }
 
-    /// Starts a new walk, from the item `start` or from somewhere not visited in a while, and
-    /// takes its first step.
-    func startWalk(from start: String? = nil, seed: UInt64? = nil) async {
+    /// Starts a new walk, from the item `start`, from a random item in the collection `within`,
+    /// or from somewhere not visited in a while, and takes its first step.
+    func startWalk(from start: String? = nil, seed: UInt64? = nil, within: String? = nil) async {
         walk = nil
         steps = []
         walkIsDone = false
         isStartingWalk = true
         defer { isStartingWalk = false }
         do {
-            walk = try await archive.call { try $0.startWander(start: start, seed: seed) }
+            walk = try await archive.call {
+                try $0.startWander(start: start, seed: seed, within: within)
+            }
         } catch {
             take(error)
             return
         }
         await step()
+    }
+
+    /// Starts a walk from a random item in `scope` (the whole archive for `nil`), as the
+    /// Library's and a collection's Wander do, marked as starting at once so that showing the
+    /// Wander page doesn't start another.
+    func wander(within scope: String?) {
+        isStartingWalk = true
+        Task { await startWalk(within: scope ?? "") }
     }
 
     /// Starts a walk from the item `id`, marked as starting at once so that showing the

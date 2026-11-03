@@ -155,7 +155,7 @@ impl App {
     fn decide_restructure(&mut self, code: KeyCode) -> Handled {
         let review = &mut self.restructure;
         let Some(proposal) = review.shown().cloned() else {
-            self.message = Some("No restructure proposals are waiting; t or p proposes one".into());
+            self.message = Some("No suggestions are waiting; t or p proposes one".into());
             return Handled::Yes(None);
         };
         match code {
@@ -453,7 +453,7 @@ mod tests {
         ];
         carrel_core::restructure::queue(&app.archive, &proposal).unwrap();
         app.reload().unwrap();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         assert_eq!(app.tab, Tab::Review);
         app.key(key(KeyCode::Char('f')));
         app.key(key(KeyCode::Char('f')));

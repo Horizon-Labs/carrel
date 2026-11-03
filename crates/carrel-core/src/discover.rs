@@ -297,6 +297,41 @@ impl Catalog {
         self.by_id.get(&id).map(|&i| &self.entries[i])
     }
 
+    /// The part of the catalog in the collection at `path` and those inside it, for a view of
+    /// that collection.
+    #[must_use]
+    pub fn within(&self, path: &str) -> Self {
+        let inside = |collection: &str| {
+            collection == path
+                || collection
+                    .strip_prefix(path)
+                    .is_some_and(|rest| rest.starts_with('/'))
+        };
+        Self::new(
+            self.entries
+                .iter()
+                .filter(|e| inside(&e.item.collection))
+                .cloned()
+                .collect(),
+            self.collections
+                .iter()
+                .filter(|c| inside(&c.path))
+                .cloned()
+                .collect(),
+        )
+    }
+
+    /// An item chosen at random by `seed`, for a walk that starts anywhere; `None` when the
+    /// catalog has none.
+    #[must_use]
+    pub fn pick(&self, seed: u64) -> Option<Id> {
+        (!self.entries.is_empty()).then(|| {
+            self.entries[Rng::new(seed).below(self.entries.len())]
+                .item
+                .id
+        })
+    }
+
     /// The collection at `path`, if there is one.
     #[must_use]
     pub fn collection(&self, path: &str) -> Option<&CollectionEntry> {

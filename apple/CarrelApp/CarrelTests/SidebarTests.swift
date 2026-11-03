@@ -49,33 +49,73 @@ final class SidebarTests: XCTestCase {
         let library = try XCTUnwrap(model.library)
         XCTAssertEqual(library.shelves.map(\.path), ["Projects", "Reading", "Holding"])
         XCTAssertFalse(library.recent.isEmpty)
-        XCTAssertEqual(waitingLine(counts: model.waitingCounts), "1 to review")
+        XCTAssertEqual(
+            waitingLine(counts: model.waitingCounts),
+            "The librarian has 1 item for you to approve.")
         model.show(linked: .library)
         XCTAssertEqual(model.screen, .library)
         model.show(linked: .ingest)
         XCTAssertTrue(model.showingAdd, "adding is the Add panel, not a screen")
     }
 
-    func testAShowingQueueKeepsItsRowAndDiscoverOpensWhenAsked() async throws {
+    func testAShowingQueueKeepsItsRowUnderTheLibrariansNames() async throws {
+        let sample = try await SampleWindow(questions: [
+            QuestionsModelTests.term: question(
+                QuestionsModelTests.term, kind: "term", subject: "PLA")
+        ])
+        defer { sample.remove() }
+        let model = sample.model
+        XCTAssertEqual(model.waitingRows.map(\.queue), [.questions, .review])
+        XCTAssertEqual(model.waitingRows.map(\.queue.title), ["Questions", "To Approve"])
+        XCTAssertEqual(
+            waitingLine(counts: model.waitingCounts),
+            "The librarian has 1 question and 1 item for you to approve.")
+        XCTAssertEqual(model.archive?.restructureProposals.count, 0)
+        model.screen = .restructure
+        XCTAssertEqual(
+            model.waitingRows.map(\.queue), [.questions, .review, .restructure],
+            "the row stays while its screen shows")
+        XCTAssertEqual(model.screenTitle, "Suggestions")
+    }
+
+    func testTheLibraryAndEachCollectionRememberTheirView() async throws {
         let sample = try await SampleWindow()
         defer { sample.remove() }
         let model = sample.model
-        XCTAssertEqual(model.archive?.restructureProposals.count, 0)
-        XCTAssertFalse(model.waitingRows.contains { $0.queue == .restructure })
-        model.screen = .restructure
-        XCTAssertEqual(
-            model.waitingRows.map(\.queue), [.review, .restructure],
-            "the row stays while its screen shows")
+        defer { UserDefaults.app.removeObject(forKey: ArchiveWindowModel.viewsKey) }
+        XCTAssertEqual(model.view(of: nil), .covers)
+        XCTAssertEqual(model.view(of: "Reading"), .items)
+        XCTAssertTrue(model.showsLibraryPage)
 
-        // Discover is collapsed until opened, and remembers being opened.
-        let key = ArchiveSidebar.discoverExpandedKey
-        defer { UserDefaults.app.removeObject(forKey: key) }
-        UserDefaults.app.removeObject(forKey: key)
-        model.screen = nil
-        let collapsed = try rows(of: model)
-        UserDefaults.app.set(true, forKey: key)
-        let expanded = try rows(of: model)
-        XCTAssertEqual(expanded - collapsed, DiscoverPage.allCases.count)
+        model.show(.timeline, of: nil)
+        model.show(.map, of: "Reading")
+        XCTAssertEqual(model.currentView, .timeline)
+        XCTAssertFalse(model.showsLibraryPage, "the Library's other views have the inspector")
+        model.screen = .collection("Reading")
+        XCTAssertEqual(model.currentView, .map)
+        XCTAssertEqual(model.viewScope, "Reading")
+        model.screen = .collection("Projects")
+        XCTAssertEqual(model.currentView, .items, "each collection has its own")
+
+        // The Library's Items are every item.
+        model.screen = .library
+        model.show(.items, of: nil)
+        XCTAssertEqual(model.listedItems.count, model.items.count)
+
+        // Discover's links open the matching view of the Library.
+        model.show(linked: .discover(.graph))
+        XCTAssertEqual(model.screen, .library)
+        XCTAssertEqual(model.currentView, .connections)
+        model.show(linked: .discover(.today))
+        XCTAssertEqual(model.screen, .library)
+        XCTAssertEqual(model.currentView, .covers)
+
+        // A scoped view reads only the collection.
+        let discover = try XCTUnwrap(model.discover)
+        discover.scope = "Reading"
+        await discover.refresh(.map)
+        let regions = try XCTUnwrap(discover.map).regions.map(\.path)
+        XCTAssertFalse(regions.contains { $0.hasPrefix("Projects") }, "\(regions)")
     }
 
     /// How many rows the sidebar shows.
@@ -85,13 +125,10 @@ final class SidebarTests: XCTestCase {
     }
 
     /// Selects each of the sidebar's rows in turn and checks the window follows to its screen,
-    /// and that the content column shows something for it. Discover is opened, so its pages
-    /// are among them. Returns the screens chosen, in order.
+    /// and that the content column shows something for it. Returns the screens chosen, in
+    /// order.
     @discardableResult
     private func checkEveryScreen(_ model: ArchiveWindowModel) async throws -> [Screen] {
-        let key = ArchiveSidebar.discoverExpandedKey
-        UserDefaults.app.set(true, forKey: key)
-        defer { UserDefaults.app.removeObject(forKey: key) }
         model.screen = nil
         let waiting = model.waitingRows.map(\.queue.screen)
         let checkedOut: [Screen] = model.showsCheckedOut ? [.active] : []
@@ -113,7 +150,7 @@ final class SidebarTests: XCTestCase {
         let expected: [Screen] =
             [.library] + checkedOut + waiting
             + model.tree.map { .collection($0.collection.path) }
-            + DiscoverPage.allCases.map { .discover($0) } + [.status, .history, .backups]
+            + [.status, .history, .backups]
         XCTAssertEqual(chosen, expected)
         return chosen
     }

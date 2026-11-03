@@ -1,4 +1,4 @@
-// The Active and History menus: every action on those screens, with a key, for the key
+// The Checked Out (Active) and History menus: every action on those screens, with a key, for the key
 // archive window.
 
 import CarrelKit
@@ -8,7 +8,7 @@ struct ActiveCommands: Commands {
     @FocusedValue(\.activeWindow) private var window
 
     var body: some Commands {
-        CommandMenu("Active") {
+        CommandMenu("Checked Out") {
             ActiveMenu(window: window)
         }
         CommandMenu("History") {

@@ -1,10 +1,11 @@
 //! The Library (`docs/design/library-home.md`), where the apps open an archive: its top-level
 //! collections with their counts and cover items, and what was filed most recently, computed
 //! by [`carrel_core::library`] as `carrel library` and the interactive mode show them. Also
-//! which of the sidebar's Waiting rows show, and the Library's banner, in the core's words.
+//! which of the sidebar's Librarian rows show and their names, the librarian's line on the
+//! Library, and the views of the Library and of a collection.
 
 use carrel_core::discover::Catalog;
-use carrel_core::library::{self, Queue, Waiting};
+use carrel_core::library::{self, Queue, View, Waiting};
 
 use crate::discover::DiscoveredItem;
 use crate::{ArchiveHandle, CarrelError};
@@ -39,17 +40,133 @@ pub struct ArchiveLibrary {
     pub flagged: u32,
 }
 
-/// A queue of decisions in the sidebar's Waiting section.
+/// Something the librarian asks of the owner: a row of the sidebar's Librarian section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
 pub enum WaitingQueue {
-    /// Proposals to file items, and the crawler's findings.
-    Review,
-    /// Questions to answer.
+    /// Its questions (Questions).
     Questions,
-    /// Restructure proposals.
+    /// Proposals to file items, and the crawler's findings (To Approve).
+    Review,
+    /// Restructure proposals (Suggestions).
     Restructure,
-    /// What's flagged as needing work.
+    /// What's flagged as needing work, and its answers (Flags).
     Flagged,
+}
+
+impl From<WaitingQueue> for Queue {
+    fn from(queue: WaitingQueue) -> Self {
+        match queue {
+            WaitingQueue::Questions => Self::Questions,
+            WaitingQueue::Review => Self::Review,
+            WaitingQueue::Restructure => Self::Restructure,
+            WaitingQueue::Flagged => Self::Flagged,
+        }
+    }
+}
+
+/// The name of `queue` in the sidebar, titles and menus: Questions, To Approve, Suggestions or
+/// Flags.
+#[uniffi::export]
+#[must_use]
+pub fn waiting_queue_title(queue: WaitingQueue) -> String {
+    Queue::from(queue).title().to_owned()
+}
+
+/// A part of the librarian's line, which opens its queue's screen.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct LibrarianAsks {
+    /// Its queue.
+    pub queue: WaitingQueue,
+    /// It in words, such as "5 items for you to approve".
+    pub words: String,
+}
+
+/// What the librarian is asking, each part with its queue, in the line's order.
+#[uniffi::export]
+#[must_use]
+pub fn librarian_asks(counts: WaitingCounts) -> Vec<LibrarianAsks> {
+    Waiting::from(counts)
+        .parts()
+        .into_iter()
+        .map(|(queue, words)| LibrarianAsks {
+            queue: queue.into(),
+            words,
+        })
+        .collect()
+}
+
+/// A view of the Library or of a collection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
+pub enum ArchiveView {
+    /// The collections as covers: the Library's own.
+    Covers,
+    /// The items, as a list or a grid: a collection's own.
+    Items,
+    /// Items by when they're from.
+    Timeline,
+    /// The structure, sized by contents.
+    Map,
+    /// How items and collections relate.
+    Connections,
+    /// What was added and changed, and when.
+    Activity,
+}
+
+impl From<View> for ArchiveView {
+    fn from(view: View) -> Self {
+        match view {
+            View::Covers => Self::Covers,
+            View::Items => Self::Items,
+            View::Timeline => Self::Timeline,
+            View::Map => Self::Map,
+            View::Connections => Self::Connections,
+            View::Activity => Self::Activity,
+        }
+    }
+}
+
+impl From<ArchiveView> for View {
+    fn from(view: ArchiveView) -> Self {
+        match view {
+            ArchiveView::Covers => Self::Covers,
+            ArchiveView::Items => Self::Items,
+            ArchiveView::Timeline => Self::Timeline,
+            ArchiveView::Map => Self::Map,
+            ArchiveView::Connections => Self::Connections,
+            ArchiveView::Activity => Self::Activity,
+        }
+    }
+}
+
+/// The views of the Library (`collection` false) or of a collection, its own first.
+#[uniffi::export]
+#[must_use]
+pub fn archive_views(collection: bool) -> Vec<ArchiveView> {
+    View::of(collection.then_some(""))
+        .iter()
+        .map(|v| (*v).into())
+        .collect()
+}
+
+/// `view`'s name in the switcher, such as "Timeline".
+#[uniffi::export]
+#[must_use]
+pub fn archive_view_title(view: ArchiveView) -> String {
+    View::from(view).title().to_owned()
+}
+
+/// `view`'s name as it's remembered and as links carry it, such as `timeline`.
+#[uniffi::export]
+#[must_use]
+pub fn archive_view_name(view: ArchiveView) -> String {
+    View::from(view).name().to_owned()
+}
+
+/// The view named `name`, also by Discover's old page names; `None` for one that isn't.
+#[uniffi::export]
+#[must_use]
+pub fn archive_view_named(name: String) -> Option<ArchiveView> {
+    View::named(&name).map(Into::into)
 }
 
 impl From<Queue> for WaitingQueue {
@@ -101,8 +218,8 @@ fn count(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)
 }
 
-/// The Waiting section's rows: the queues with anything in them, in the sidebar's order. None
-/// when nothing waits, and the section isn't shown.
+/// The Librarian section's rows: the queues with anything in them, in the sidebar's order.
+/// None when it's asking nothing, and the section isn't shown.
 #[uniffi::export]
 #[must_use]
 pub fn waiting_rows(counts: WaitingCounts) -> Vec<WaitingRow> {
@@ -116,7 +233,8 @@ pub fn waiting_rows(counts: WaitingCounts) -> Vec<WaitingRow> {
         .collect()
 }
 
-/// The Library's banner, such as "5 to review · 1 question"; `None` when nothing waits.
+/// The librarian's line on the Library, such as "The librarian has 1 question and 5 items for
+/// you to approve."; `None` when it's asking nothing.
 #[uniffi::export]
 #[must_use]
 pub fn waiting_line(counts: WaitingCounts) -> Option<String> {
@@ -181,23 +299,19 @@ mod tests {
             restructure: 1,
             flagged: 0,
         };
+        let rows: Vec<(String, u32)> = waiting_rows(counts)
+            .into_iter()
+            .map(|r| (waiting_queue_title(r.queue), r.count))
+            .collect();
         assert_eq!(
-            waiting_rows(counts),
-            [
-                WaitingRow {
-                    queue: WaitingQueue::Review,
-                    count: 2
-                },
-                WaitingRow {
-                    queue: WaitingQueue::Restructure,
-                    count: 1
-                },
-            ]
+            rows,
+            [("To Approve".to_owned(), 2), ("Suggestions".to_owned(), 1)]
         );
         assert_eq!(
             waiting_line(counts).as_deref(),
-            Some("2 to review · 1 restructure proposal")
+            Some("The librarian has 2 items for you to approve and 1 suggestion.")
         );
+        assert_eq!(librarian_asks(counts)[1].queue, WaitingQueue::Restructure);
         let none = WaitingCounts {
             review: 0,
             questions: 0,
@@ -206,5 +320,25 @@ mod tests {
         };
         assert_eq!(waiting_rows(none), []);
         assert_eq!(waiting_line(none), None);
+    }
+
+    #[test]
+    fn views_have_their_names_and_scopes() {
+        assert_eq!(archive_views(false)[0], ArchiveView::Covers);
+        assert_eq!(archive_views(true)[0], ArchiveView::Items);
+        assert_eq!(archive_view_title(ArchiveView::Connections), "Connections");
+        assert_eq!(
+            archive_view_named(archive_view_name(ArchiveView::Map)),
+            Some(ArchiveView::Map)
+        );
+        assert_eq!(
+            archive_view_named("graph".into()),
+            Some(ArchiveView::Connections)
+        );
+        let sample = Sample::new();
+        let map = sample.handle.archive_map(Some("Reading".into())).unwrap();
+        assert!(sample.handle.archive_map(Some("Nowhere".into())).is_err());
+        let all = sample.handle.archive_map(None).unwrap();
+        assert_ne!(map, all, "the view of a collection is its own");
     }
 }

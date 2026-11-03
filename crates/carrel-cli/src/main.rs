@@ -812,6 +812,9 @@ enum DiscoverAction {
         /// Go on with the last walk.
         #[arg(long, conflicts_with_all = ["item", "seed"])]
         next: bool,
+        /// Start from a random item in this collection or those inside it.
+        #[arg(long = "in", value_name = "COLLECTION", conflicts_with_all = ["item", "next"])]
+        within: Option<String>,
     },
     /// Items by date, by year, month or day, narrowed by words and search's filters such as
     /// collection:Finances, tag:receipts, after:2025-01 and before:2026.
@@ -835,6 +838,10 @@ enum DiscoverAction {
         /// Show only this many levels of collections.
         #[arg(long, value_name = "LEVELS")]
         depth: Option<usize>,
+        /// Look only at this collection and those inside it, as the apps' views of a
+        /// collection do.
+        #[arg(long = "in", value_name = "COLLECTION")]
+        within: Option<String>,
     },
     /// When items were filed and worked on, by day, as a heatmap. Defaults to the last year.
     Activity {
@@ -844,6 +851,10 @@ enum DiscoverAction {
         /// The last day.
         #[arg(long, value_name = "DATE")]
         to: Option<String>,
+        /// Look only at this collection and those inside it, as the apps' views of a
+        /// collection do.
+        #[arg(long = "in", value_name = "COLLECTION")]
+        within: Option<String>,
     },
     /// The tag and link graph: which collections connect and why, through the tags their
     /// items share, the links between them and the days they were worked on together,
@@ -855,6 +866,10 @@ enum DiscoverAction {
         /// List at most this many connections.
         #[arg(short = 'n', long, value_name = "COUNT", default_value_t = 10)]
         limit: usize,
+        /// Look only at this collection and those inside it, as the apps' views of a
+        /// collection do.
+        #[arg(long = "in", value_name = "COLLECTION")]
+        within: Option<String>,
     },
 }
 
@@ -1398,6 +1413,7 @@ fn discover_command(
             seed,
             steps,
             next,
+            within,
         } => discover::wander(
             archive,
             &discover::WanderArgs {
@@ -1405,6 +1421,7 @@ fn discover_command(
                 seed,
                 steps,
                 next,
+                within,
             },
             json,
         ),
@@ -1422,11 +1439,15 @@ fn discover_command(
                 items,
             },
         ),
-        DiscoverAction::Map { depth } => discover::map(archive, depth),
-        DiscoverAction::Activity { from, to } => {
-            discover::activity(archive, from.as_deref(), to.as_deref())
+        DiscoverAction::Map { depth, within } => discover::map(archive, depth, within.as_deref()),
+        DiscoverAction::Activity { from, to, within } => {
+            discover::activity(archive, from.as_deref(), to.as_deref(), within.as_deref())
         }
-        DiscoverAction::Graph { items, limit } => discover::graph(archive, items, limit),
+        DiscoverAction::Graph {
+            items,
+            limit,
+            within,
+        } => discover::graph(archive, items, limit, within.as_deref()),
     }
 }
 

@@ -67,7 +67,7 @@ Collections are made in the app too (see [Browse](#browse)), but their design do
 
 The window has three columns:
 
-- **The sidebar:** the screens, in the interactive mode's order, around what you do most: **Library**, where the window opens; **Checked Out**, while anything is checked out or on the desk; **Waiting**, with **Review**, **Questions**, **Restructure** and **Flagged** and their counts, shown only when something waits for you, and each row only when it has any; your **Collections** (Browse); **Discover**'s views, collapsed until you open the heading (the app remembers); and under **Archive**, **Status**, **History** and **Backups**.
+- **The sidebar:** the screens, in the interactive mode's order, around what you do most: **Library**, where the window opens; **Checked Out**, while anything is checked out or on the desk; **Librarian**, with what it's asking: **Questions**, **To Approve** (proposals and the crawler's findings), **Suggestions** (restructure proposals) and **Flags**, with their counts, shown only when it's asking anything, and each row only when it has any; your **Collections** (Browse); and under **Archive**, **Status**, **History** and **Backups**. Discover's pages are views of the Library and of each collection, in the toolbar (see [Views](#views)).
 - **The list** for the chosen screen.
 - **The inspector:** the chosen thing in full, such as a proposal's card, an item's preview and card, or what a change did.
 
@@ -81,10 +81,10 @@ Every action is in the menus, so you can find it there and see its key. In lists
 
 Each archive opens on its Library:
 
-- **A banner** when something waits for you, such as "5 to review · 1 question". Click it to go to the first of them. It goes when nothing waits.
+- **A line from the librarian** when it's asking anything, such as "The librarian has 1 question and 5 items for you to approve." Click a part of it to go there. It goes when nothing is asked.
 - **Collections:** each top-level collection as a cover of its newest items' thumbnails, with its title, description and how many items it holds, nested collections included. Holding comes last. Click one to open it in Browse.
 - **Recently Added:** the items filed most recently. Click one to see it in Browse.
-- **On This Day:** what you made, filed or worked on on this day in other years, when there's anything, with **Show All** for Discover's page.
+- **On This Day:** what you made, filed or worked on on this day in other years, when there's anything.
 
 An empty archive invites you to add: drop files on the window, or choose **+**.
 
@@ -219,14 +219,13 @@ With `librarian.changes` on in **Settings → General**, it makes the changes it
 
 A **restricted** item is found by its card only: the librarian can say it exists, but never reads or quotes its text.
 
-### Discover
+### Views
 
-The **Discover** section of the sidebar has the discovery views ([Discovering the archive](user-guide.md#discovering-the-archive)). Choose an item in any of them to see its preview and card in the inspector; its context menu has **Show in Browse** and **Ask About This**.
+The Library and every collection have a **view switcher** in the toolbar, as Finder's and Photos' view modes are ([Discovering the archive](user-guide.md#discovering-the-archive)): **Covers** (the Library's own), **Items** (a collection's own, as a list or a grid; every item in the Library), **Timeline**, **Map**, **Connections** and **Activity**. In a collection, each looks only at that collection and those inside it. The app remembers the last view of the Library and of each collection. **Wander** beside the switcher starts a walk from a random item there. Choose an item in any of them to see its preview and card in the inspector; its context menu has **Show in Browse** and **Ask About This**.
 
-- **On This Day:** what was made, filed or worked on on today's date in other years, by year. The date picker in the toolbar looks back from another day.
 - **Wander:** a walk through the stacks, one item at a time: its title, why it came next, its preview, its card's summary, the start of its text and its tags, with **Show in Browse** and **Ask About This**. **Next** (→) takes the next step, and **Start Again** starts a new walk. The items visited so far are along the bottom, to go back to. A restricted item shows its card only.
 - **Timeline:** items by date, newest period first, each period with a bar for how many it has. Type words or search's filters, such as `tag:receipts after:2024`, and press Return; **By** places items by when they were made, filed or worked on, and **Per** groups them by year, month or day. Below, it says how many items have no such date.
-- **Archive Map:** collections as a treemap, each sized by how much space it takes or how many items it holds (**Measure** in the toolbar). Hover for a collection's items and size. Click one to zoom into it (or, with nothing inside, to show it in Browse), and double-click to show it in Browse; the path above the map takes you back out.
+- **Map:** collections as a treemap, each sized by how much space it takes or how many items it holds (**Measure** in the toolbar). Hover for a collection's items and size. Click one to zoom into it (or, with nothing inside, to show it in Browse), and double-click to show it in Browse; the path above the map takes you back out.
 - **Activity:** when you filed and worked on things over the last year, as a heatmap, a column a week, darker for busier days. Hover over a day for what happened on it.
 - **Connections:** the tag and link graph, drawn: collections round a circle, sized by how many items they hold, with a line between two as thick as what ties their items (shared tags, links, and days you worked on both). A dashed line joins a collection to one inside it. Click a collection to see only its connections, or choose a connection in the list for why they connect and the items that tie them, each a click from Browse. `carrel discover graph` lists the same.
 
