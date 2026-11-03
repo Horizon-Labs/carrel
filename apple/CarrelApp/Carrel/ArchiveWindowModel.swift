@@ -274,6 +274,43 @@ final class ArchiveWindowModel {
         await reloadLibrary()
     }
 
+    /// Reads everything again, after something outside this window changed the archive: the
+    /// command line or the TUI, the worker drafting proposals, or another device through iCloud.
+    func reloadAll() async {
+        guard let archive else { return }
+        await refreshItems()
+        try? await archive.refreshAll()
+        await refreshFlags()
+    }
+
+    #if os(macOS)
+    /// Follows changes made to the archive outside this window until the window closes,
+    /// reading everything again a second after each.
+    func followOutsideChanges() async {
+        let (changes, continuation) = AsyncStream.makeStream(
+            of: Void.self, bufferingPolicy: .bufferingNewest(1))
+        let watcher = FileWatcher(folders: [root], latency: 1) { paths in
+            if paths.contains(where: Self.shows) { continuation.yield() }
+        }
+        defer { watcher?.stop() }
+        for await _ in changes { await reloadAll() }
+    }
+    #endif
+
+    /// Whether a change at `path` can change what the window shows: not the caches, the
+    /// search index, the devices' profiles or the history's own files, only where its branch
+    /// points.
+    nonisolated static func shows(_ path: String) -> Bool {
+        let quiet = [
+            "/_System/cache.nosync/", "/_System/index/", "/_System/devices/", "/.DS_Store",
+        ]
+        if quiet.contains(where: path.contains) { return false }
+        if let history = path.range(of: "/_System/history.git/") {
+            return path[history.upperBound...].hasPrefix("refs/")
+        }
+        return true
+    }
+
     /// How many items the Library lists as recently added.
     static let recentlyAdded: UInt32 = 12
 
