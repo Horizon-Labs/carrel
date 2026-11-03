@@ -204,7 +204,7 @@ mod tests {
             restructure: 0,
             flagged: 0,
         };
-        assert!(waiting_rows(none).is_empty());
+        assert_eq!(waiting_rows(none), []);
         assert_eq!(waiting_line(none), None);
     }
 }
