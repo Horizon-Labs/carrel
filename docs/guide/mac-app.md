@@ -67,19 +67,34 @@ Collections are made in the app too (see [Browse](#browse)), but their design do
 
 The window has three columns:
 
-- **The sidebar:** the screens, in the interactive mode's order, with counts beside Review, Questions, Restructure and Active: **Status**, **Review**, **Questions**, **Restructure**, **Active**, then your **Collections** (Browse), then **Discover**'s views, then **History** and **Backups**.
+- **The sidebar:** the screens, in the interactive mode's order, around what you do most: **Library**, where the window opens; **Checked Out**, while anything is checked out or on the desk; **Waiting**, with **Review**, **Questions**, **Restructure** and **Flagged** and their counts, shown only when something waits for you, and each row only when it has any; your **Collections** (Browse); **Discover**'s views, collapsed until you open the heading (the app remembers); and under **Archive**, **Status**, **History** and **Backups**.
 - **The list** for the chosen screen.
 - **The inspector:** the chosen thing in full, such as a proposal's card, an item's preview and card, or what a change did.
 
 Beside them, the **Librarian** panel opens on the right when you want it (see [The librarian](#the-librarian)).
 
+On iPad and iPhone the window has the same sidebar, and on iPhone the Library is the first screen. The **+** menu there adds photos, a photo you take, a scanned document, files, a web address, a note or the clipboard, and **Show Queue…** opens the Add panel.
+
 Every action is in the menus, so you can find it there and see its key. In lists, single letters work too, as in the interactive mode, where they can't be mistaken for typing. Right-click anything in a list for its actions.
+
+### Library
+
+Each archive opens on its Library:
+
+- **A banner** when something waits for you, such as "5 to review · 1 question". Click it to go to the first of them. It goes when nothing waits.
+- **Collections:** each top-level collection as a cover of its newest items' thumbnails, with its title, description and how many items it holds, nested collections included. Holding comes last. Click one to open it in Browse.
+- **Recently Added:** the items filed most recently. Click one to see it in Browse.
+- **On This Day:** what you made, filed or worked on on this day in other years, when there's anything, with **Show All** for Discover's page.
+
+An empty archive invites you to add: drop files on the window, or choose **+**.
+
+`carrel library` prints the same, and the interactive mode opens on it too.
 
 ### Status
 
 What the archive holds: its name and folder, whether it's read only, its format version, how many items, collections and items in Holding it has, and items by kind.
 
-**Intake** shows the worker drafting new items, with its progress, how many are waiting, and how many failed (hover over the count to see why). When items are waiting and nothing is drafting them, because the agent is off or paused, **Draft Now** drafts them in the app.
+**Adding** says in one line what's being added: the worker's progress, or how many items wait to be drafted and how many failed. **Show Queue** opens the Add panel.
 
 **Not Opened in a While** appears now and then: a collection you haven't opened in six months, with an item or two from it, as `carrel status` names it ([Discovering the archive](user-guide.md#discovering-the-archive)). Choose the collection or an item to open it in Browse, which counts as opening it.
 
@@ -133,9 +148,9 @@ Proposals to reorganize the archive wait here, as `carrel restructure` lists the
 - **Each change,** with why it's proposed and how invasive it is, from rewriting tags and design documents (one dot) to moving top-level collections (five), the items it changes and those it leaves alone, and why. Untick a change to leave it out; one that needs it is dropped too, and the inspector says so.
 - **Approve Chosen** or **Approve All** makes the changes as one change in History, which undoes them together; **Reject** drops the proposal and changes nothing.
 
-### Active
+### Checked Out
 
-What you're working on: items **checked out** to a working copy, and folders and files **on the desk**, where they are. Each shows when it was checked out, when it's due back and whether it has changed. Under each are its **pending entries**: work sessions Carrel noticed, waiting for you to approve them into the item's Journal. See [Working on items](user-guide.md#working-on-items) for how these work.
+Shown in the sidebar while anything is checked out or on the desk (called Active in the app's links and `carrel tui active`). What you're working on: items **checked out** to a working copy, and folders and files **on the desk**, where they are. Each shows when it was checked out, when it's due back and whether it has changed. Under each are its **pending entries**: work sessions Carrel noticed, waiting for you to approve them into the item's Journal. See [Working on items](user-guide.md#working-on-items) for how these work.
 
 | Key | Active menu | What it does |
 | --- | --- | --- |
@@ -165,7 +180,7 @@ With no item chosen, the inspector shows the **collection**: what it holds, and 
 | --- | --- | --- |
 | Edit Card | ⌘E | Edits the chosen item's card in the inspector: every field you set, links, location, URL and snapshots among them where the kind has them, and its notes and body too. Saving (⌘S) runs the same checks `carrel edit` does, and shows problems beside the field. A field saved another way meanwhile is kept unless you changed it too; then nothing is saved: **Keep Mine** saves yours over it, and **Reload** takes the card as it is now. If the notes were saved another way meanwhile, on the same lines, **Keep Both** puts both versions in the editor to tidy and save, and **Reload** takes the card as it is now |
 | Correct… | ⌘K | Opens a sheet: say what's wrong in your own words, such as a title, a date or where it belongs. The model works out the changes, you see them, then confirm or change your words |
-| Check Out… | ⌥⌘C | As on [Active](#active) |
+| Check Out… | ⌥⌘C | As on [Checked Out](#checked-out) |
 | New Collection… | ⌥⌘N | Asks for its path, what belongs there and its tags; it's made inside the collection you're in |
 | Rename… | ⇧⌘R | Renames the item, starting from a name that works on every system |
 | Expand… | ⇧⌘E | For a filed zip or other compressed file, asks first, then expands it in place |
@@ -240,7 +255,9 @@ What `carrel backup` does (see [Backups](user-guide.md#backups)), using the Kopi
 
 ## Adding items
 
-Drag files or folders onto an archive's window, or choose **File → Add to Archive…** (⌘O). A sheet lists them, with a **note** for their cards (given to the model drafting each one, and kept in the card) and, for folders, how they go in. **Add** (Return) puts them in the intake queue, just as `carrel ingest` adds them. Nothing moves yet.
+Adding is something you switch on, not a place to go. **+** in the toolbar, or **File → Add Items…** (⌘N), opens the **Add panel**: **Files and Folders…**, **Web Address…**, **Note…** and **From the Clipboard**, and below them the intake queue. The queue shows the worker drafting new items, with its progress, how many are waiting, and how many failed (hover over one to see why); right-click an entry to try it again, move it to the front or remove it. When items are waiting and nothing is drafting them, because the agent is off or paused, **Draft Now** drafts them in the app.
+
+Drag files or folders anywhere onto an archive's window, or choose **File → Add to Archive…** (⌘O). A sheet lists them, with a **note** for their cards (given to the model drafting each one, and kept in the card) and, for folders, how they go in. **Add** (Return) puts them in the intake queue, just as `carrel ingest` adds them. Nothing moves yet.
 
 - A **folder** goes in as one item unless its name suggests a pile, such as Downloads, whose entries go in one by one. The sheet's **Folders** menu chooses either way, as `carrel ingest --each` and `--whole` do.
 - **File → Add Web Address…** (⇧⌘U) adds a web address, with an optional title and note, filed as a `url` item: a card with no file, drafted from the address and title alone. Nothing is fetched.
@@ -248,7 +265,7 @@ Drag files or folders onto an archive's window, or choose **File → Add to Arch
 - **Paste** onto the window (⌘V), or choose **File → Add from Clipboard** (⇧⌘V): files and folders open the add sheet, a web address Add Web Address and text Add Note, filled in for you to add.
 - While **another device is the writer**, what you add goes into this Mac's inbox, and the alert says so; that device adds it to its queue.
 - An alert says what was added, and what was left out and why: duplicates of items already in the archive, items already waiting, files your rules ignore.
-- **Drafts arrive by themselves.** The agent, or the command line's worker, drafts each item in the background; Status → Intake shows the progress. Each proposal appears in Review as soon as it's ready, with the count beside Review going up. If nothing is drafting, Status offers **Draft Now**.
+- **Drafts arrive by themselves.** The agent, or the command line's worker, drafts each item in the background; the Add panel shows the progress, and Status says it in a line. Each proposal appears in Review as soon as it's ready, under Waiting in the sidebar, with its count going up. If nothing is drafting, the Add panel offers **Draft Now**.
 
 ## The background agent
 
@@ -265,7 +282,7 @@ It looks after the archives the app has open or opened lately.
 
 Turn it on in **Settings → Agent** with **Run the Carrel agent at login**. It starts at once, and at every login after. macOS may ask you to allow it: Settings then says so, with a button to open System Settings → General → Login Items, where you switch it on. Turn the switch off to stop it and keep it from starting at login.
 
-With the agent off, the app drafts new items while it's open (Draft Now on Status), as the command line does, and work sessions are noticed when the app or the command line runs.
+With the agent off, the app drafts new items while it's open (Draft Now in the Add panel), as the command line does, and work sessions are noticed when the app or the command line runs.
 
 ### The menu bar list
 

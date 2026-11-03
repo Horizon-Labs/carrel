@@ -5,11 +5,13 @@ import CarrelKit
 
 extension ArchiveWindowModel {
     /// Shows the screen a link asked for. The window has no Ingest or Librarian screen:
-    /// Ingest is Status, where the intake queue is, and the librarian is its panel. Settings
+    /// Ingest is the Add panel, where the intake queue is, and the librarian is its panel. Settings
     /// is its own window, which the archive's window opens.
     func show(linked screen: AgentLink.Screen) {
         switch screen {
-        case .status, .ingest: self.screen = .status
+        case .library: self.screen = .library
+        case .status: self.screen = .status
+        case .ingest: showingAdd = true
         case .review: self.screen = .review
         case .active: self.screen = .active
         case .questions: self.screen = .questions

@@ -1,5 +1,6 @@
-// Status: the reminders due, what the archive holds, the intake queue and the worker's
-// progress, Recent, problems and suggestions, as `carrel status` shows them.
+// Status: the reminders due, what the archive holds, a line saying what's being added (the
+// queue itself is in the Add panel), Recent, problems and suggestions, as `carrel status` shows
+// them.
 
 import CarrelKit
 import SwiftUI
@@ -50,7 +51,7 @@ struct StatusView: View {
                 }
             }
             if let intake = model.intake {
-                IntakeSection(intake: intake, isReadOnly: model.isReadOnly)
+                IntakeStatusLine(model: model, intake: intake)
             }
             InboxStatusSection(model: model)
             StatusArchiveSections(model: model)

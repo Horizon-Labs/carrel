@@ -2056,6 +2056,15 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
     func undoLibrarianChanges(since: Int64) throws  -> LibrarianUndone
     
     /**
+     * The Library: the shelves, and up to `recent` recently added items.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the archive can't be read.
+     */
+    func library(recent: UInt32) throws  -> ArchiveLibrary
+    
+    /**
      * Downloads the catalog model `name` in `format` into this device's models folder, as
      * [`download_model`](Self::download_model) does. Call it only once the owner has
      * confirmed, having seen the size. Returns where it was saved.
@@ -5214,6 +5223,23 @@ open func undoLibrarianChanges(since: Int64)throws  -> LibrarianUndone  {
     uniffi_carrel_ffi_fn_method_archivehandle_undo_librarian_changes(
             self.uniffiCloneHandle(),
         FfiConverterInt64.lower(since),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The Library: the shelves, and up to `recent` recently added items.
+     *
+     * # Errors
+     *
+     * [`CarrelError::Failed`] if the archive can't be read.
+     */
+open func library(recent: UInt32)throws  -> ArchiveLibrary  {
+    return try  FfiConverterTypeArchiveLibrary_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_method_archivehandle_library(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(recent),uniffiCallStatus
     )
 })
 }
@@ -9454,6 +9480,95 @@ public func FfiConverterTypeArchiveActivity_lift(_ buf: RustBuffer) throws -> Ar
 #endif
 public func FfiConverterTypeArchiveActivity_lower(_ value: ArchiveActivity) -> RustBuffer {
     return FfiConverterTypeArchiveActivity.lower(value)
+}
+
+
+/**
+ * What an archive opens on.
+ */
+public struct ArchiveLibrary: Equatable, Hashable {
+    /**
+     * The top-level collections by title, with Holding last.
+     */
+    public var shelves: [LibraryShelf]
+    /**
+     * The items filed most recently, newest first.
+     */
+    public var recent: [DiscoveredItem]
+    /**
+     * How many items the archive holds.
+     */
+    public var items: UInt32
+    /**
+     * How many items and collections are flagged as needing work.
+     */
+    public var flagged: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The top-level collections by title, with Holding last.
+         */shelves: [LibraryShelf], 
+        /**
+         * The items filed most recently, newest first.
+         */recent: [DiscoveredItem], 
+        /**
+         * How many items the archive holds.
+         */items: UInt32, 
+        /**
+         * How many items and collections are flagged as needing work.
+         */flagged: UInt32) {
+        self.shelves = shelves
+        self.recent = recent
+        self.items = items
+        self.flagged = flagged
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ArchiveLibrary: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeArchiveLibrary: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ArchiveLibrary {
+        return
+            try ArchiveLibrary(
+                shelves: FfiConverterSequenceTypeLibraryShelf.read(from: &buf), 
+                recent: FfiConverterSequenceTypeDiscoveredItem.read(from: &buf), 
+                items: FfiConverterUInt32.read(from: &buf), 
+                flagged: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ArchiveLibrary, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeLibraryShelf.write(value.shelves, into: &buf)
+        FfiConverterSequenceTypeDiscoveredItem.write(value.recent, into: &buf)
+        FfiConverterUInt32.write(value.items, into: &buf)
+        FfiConverterUInt32.write(value.flagged, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeArchiveLibrary_lift(_ buf: RustBuffer) throws -> ArchiveLibrary {
+    return try FfiConverterTypeArchiveLibrary.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeArchiveLibrary_lower(_ value: ArchiveLibrary) -> RustBuffer {
+    return FfiConverterTypeArchiveLibrary.lower(value)
 }
 
 
@@ -19228,6 +19343,115 @@ public func FfiConverterTypeLibrarianUndone_lower(_ value: LibrarianUndone) -> R
 
 
 /**
+ * A top-level collection, as the Library shows it.
+ */
+public struct LibraryShelf: Equatable, Hashable {
+    /**
+     * Its folder, relative to the archive root.
+     */
+    public var path: String
+    /**
+     * Its title.
+     */
+    public var title: String
+    /**
+     * What it holds, as its design document says.
+     */
+    public var description: String?
+    /**
+     * How many items it holds, nested collections' included.
+     */
+    public var items: UInt32
+    /**
+     * How many collections are inside it, at any depth.
+     */
+    public var collections: UInt32
+    /**
+     * A few of its items for its cover, the most recently filed first; never restricted ones.
+     */
+    public var covers: [DiscoveredItem]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its folder, relative to the archive root.
+         */path: String, 
+        /**
+         * Its title.
+         */title: String, 
+        /**
+         * What it holds, as its design document says.
+         */description: String?, 
+        /**
+         * How many items it holds, nested collections' included.
+         */items: UInt32, 
+        /**
+         * How many collections are inside it, at any depth.
+         */collections: UInt32, 
+        /**
+         * A few of its items for its cover, the most recently filed first; never restricted ones.
+         */covers: [DiscoveredItem]) {
+        self.path = path
+        self.title = title
+        self.description = description
+        self.items = items
+        self.collections = collections
+        self.covers = covers
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension LibraryShelf: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLibraryShelf: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LibraryShelf {
+        return
+            try LibraryShelf(
+                path: FfiConverterString.read(from: &buf), 
+                title: FfiConverterString.read(from: &buf), 
+                description: FfiConverterOptionString.read(from: &buf), 
+                items: FfiConverterUInt32.read(from: &buf), 
+                collections: FfiConverterUInt32.read(from: &buf), 
+                covers: FfiConverterSequenceTypeDiscoveredItem.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: LibraryShelf, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterOptionString.write(value.description, into: &buf)
+        FfiConverterUInt32.write(value.items, into: &buf)
+        FfiConverterUInt32.write(value.collections, into: &buf)
+        FfiConverterSequenceTypeDiscoveredItem.write(value.covers, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLibraryShelf_lift(_ buf: RustBuffer) throws -> LibraryShelf {
+    return try FfiConverterTypeLibraryShelf.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLibraryShelf_lower(_ value: LibraryShelf) -> RustBuffer {
+    return FfiConverterTypeLibraryShelf.lower(value)
+}
+
+
+/**
  * An item another links to.
  */
 public struct LinkedItem: Equatable, Hashable {
@@ -26107,6 +26331,164 @@ public func FfiConverterTypeUsageReportText_lower(_ value: UsageReportText) -> R
 
 
 /**
+ * What waits in each queue, which only the core counts here.
+ */
+public struct WaitingCounts: Equatable, Hashable {
+    /**
+     * Proposals and crawler findings to review.
+     */
+    public var review: UInt32
+    /**
+     * Questions to answer.
+     */
+    public var questions: UInt32
+    /**
+     * Restructure proposals.
+     */
+    public var restructure: UInt32
+    /**
+     * Flagged items and collections.
+     */
+    public var flagged: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Proposals and crawler findings to review.
+         */review: UInt32, 
+        /**
+         * Questions to answer.
+         */questions: UInt32, 
+        /**
+         * Restructure proposals.
+         */restructure: UInt32, 
+        /**
+         * Flagged items and collections.
+         */flagged: UInt32) {
+        self.review = review
+        self.questions = questions
+        self.restructure = restructure
+        self.flagged = flagged
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension WaitingCounts: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeWaitingCounts: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WaitingCounts {
+        return
+            try WaitingCounts(
+                review: FfiConverterUInt32.read(from: &buf), 
+                questions: FfiConverterUInt32.read(from: &buf), 
+                restructure: FfiConverterUInt32.read(from: &buf), 
+                flagged: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: WaitingCounts, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.review, into: &buf)
+        FfiConverterUInt32.write(value.questions, into: &buf)
+        FfiConverterUInt32.write(value.restructure, into: &buf)
+        FfiConverterUInt32.write(value.flagged, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWaitingCounts_lift(_ buf: RustBuffer) throws -> WaitingCounts {
+    return try FfiConverterTypeWaitingCounts.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWaitingCounts_lower(_ value: WaitingCounts) -> RustBuffer {
+    return FfiConverterTypeWaitingCounts.lower(value)
+}
+
+
+/**
+ * A row of the Waiting section.
+ */
+public struct WaitingRow: Equatable, Hashable {
+    /**
+     * Its queue.
+     */
+    public var queue: WaitingQueue
+    /**
+     * How many wait in it.
+     */
+    public var count: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its queue.
+         */queue: WaitingQueue, 
+        /**
+         * How many wait in it.
+         */count: UInt32) {
+        self.queue = queue
+        self.count = count
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension WaitingRow: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeWaitingRow: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WaitingRow {
+        return
+            try WaitingRow(
+                queue: FfiConverterTypeWaitingQueue.read(from: &buf), 
+                count: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: WaitingRow, into buf: inout [UInt8]) {
+        FfiConverterTypeWaitingQueue.write(value.queue, into: &buf)
+        FfiConverterUInt32.write(value.count, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWaitingRow_lift(_ buf: RustBuffer) throws -> WaitingRow {
+    return try FfiConverterTypeWaitingRow.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWaitingRow_lower(_ value: WaitingRow) -> RustBuffer {
+    return FfiConverterTypeWaitingRow.lower(value)
+}
+
+
+/**
  * One step of a walk through the stacks.
  */
 public struct WanderStep: Equatable, Hashable {
@@ -28938,6 +29320,101 @@ public func FfiConverterTypeSuggestionOutcome_lower(_ value: SuggestionOutcome) 
 
 
 /**
+ * A queue of decisions in the sidebar's Waiting section.
+ */
+
+public enum WaitingQueue: Equatable, Hashable {
+    
+    /**
+     * Proposals to file items, and the crawler's findings.
+     */
+    case review
+    /**
+     * Questions to answer.
+     */
+    case questions
+    /**
+     * Restructure proposals.
+     */
+    case restructure
+    /**
+     * What's flagged as needing work.
+     */
+    case flagged
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension WaitingQueue: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeWaitingQueue: FfiConverterRustBuffer {
+    typealias SwiftType = WaitingQueue
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WaitingQueue {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .review
+        
+        case 2: return .questions
+        
+        case 3: return .restructure
+        
+        case 4: return .flagged
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: WaitingQueue, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .review:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .questions:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .restructure:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .flagged:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWaitingQueue_lift(_ buf: RustBuffer) throws -> WaitingQueue {
+    return try FfiConverterTypeWaitingQueue.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWaitingQueue_lower(_ value: WaitingQueue) -> RustBuffer {
+    return FfiConverterTypeWaitingQueue.lower(value)
+}
+
+
+
+/**
  * Why a walk's step came next.
  */
 
@@ -31308,6 +31785,31 @@ fileprivate struct FfiConverterSequenceTypeLibrarianSuggestion: FfiConverterRust
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeLibraryShelf: FfiConverterRustBuffer {
+    typealias SwiftType = [LibraryShelf]
+
+    public static func write(_ value: [LibraryShelf], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeLibraryShelf.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [LibraryShelf] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [LibraryShelf]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeLibraryShelf.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeLinkedItem: FfiConverterRustBuffer {
     typealias SwiftType = [LinkedItem]
 
@@ -32229,6 +32731,31 @@ fileprivate struct FfiConverterSequenceTypeUnreadType: FfiConverterRustBuffer {
         return seq
     }
 }
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeWaitingRow: FfiConverterRustBuffer {
+    typealias SwiftType = [WaitingRow]
+
+    public static func write(_ value: [WaitingRow], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeWaitingRow.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [WaitingRow] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [WaitingRow]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeWaitingRow.read(from: &buf))
+        }
+        return seq
+    }
+}
 /**
  * The Carrel version and the archive format version, as shown in the apps' About window.
  */
@@ -32330,6 +32857,29 @@ public func embeddingModelChoices() -> [String]  {
     return try!  FfiConverterSequenceString.lift(try! rustCall() {
         uniffiCallStatus in
     uniffi_carrel_ffi_fn_func_embedding_model_choices(uniffiCallStatus
+    )
+})
+}
+/**
+ * The Library's banner, such as "5 to review · 1 question"; `None` when nothing waits.
+ */
+public func waitingLine(counts: WaitingCounts) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_waiting_line(
+        FfiConverterTypeWaitingCounts_lower(counts),uniffiCallStatus
+    )
+})
+}
+/**
+ * The Waiting section's rows: the queues with anything in them, in the sidebar's order. None
+ * when nothing waits, and the section isn't shown.
+ */
+public func waitingRows(counts: WaitingCounts) -> [WaitingRow]  {
+    return try!  FfiConverterSequenceTypeWaitingRow.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_waiting_rows(
+        FfiConverterTypeWaitingCounts_lower(counts),uniffiCallStatus
     )
 })
 }
@@ -32530,6 +33080,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_func_embedding_model_choices() != 15439) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_waiting_line() != 46784) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_waiting_rows() != 53117) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_func_download_host_allowed() != 3219) {
@@ -32920,6 +33476,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_undo_librarian_changes() != 41153) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_library() != 49916) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_download_model_in() != 6836) {

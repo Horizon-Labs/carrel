@@ -36,7 +36,7 @@ public struct AgentLink: Sendable, Equatable {
 
     /// A screen a link can ask for, with the names `carrel gui` and `carrel tui` use.
     public enum Screen: Sendable, Equatable, Hashable {
-        case status, review, active, questions, browse, history, ingest, settings, backups
+        case library, status, review, active, questions, browse, history, ingest, settings, backups
         case librarian
         /// Discover, on a view when one is named.
         case discover(DiscoverView?)
@@ -59,7 +59,7 @@ public struct AgentLink: Sendable, Equatable {
                 return
             }
             let screens: [String: Self] = [
-                "status": .status, "review": .review, "active": .active,
+                "library": .library, "status": .status, "review": .review, "active": .active,
                 "questions": .questions, "browse": .browse, "history": .history,
                 "ingest": .ingest, "settings": .settings, "backups": .backups,
                 "librarian": .librarian,
@@ -71,6 +71,7 @@ public struct AgentLink: Sendable, Equatable {
         /// Its name, as the link carries it.
         public var name: String {
             switch self {
+            case .library: "library"
             case .status: "status"
             case .review: "review"
             case .active: "active"

@@ -1,4 +1,4 @@
-// Status's Intake section: what waits in the intake queue on this device, each entry with
+// The Add panel's Intake section: what waits in the intake queue on this device, each entry with
 // Remove, Move to Front and Try Again as `carrel ingest` and the interactive mode's queue
 // offer them, failures with their reasons, and the worker's progress drafting it, read from
 // the worker's status file.

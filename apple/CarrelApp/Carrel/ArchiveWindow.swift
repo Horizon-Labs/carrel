@@ -17,6 +17,8 @@ struct ArchiveWindow: View {
     @Environment(MobileLibrary.self) private var library
     #endif
     @State private var model: ArchiveWindowModel
+    /// On iPhone, the Library comes first rather than the sidebar.
+    @State private var compactColumn = NavigationSplitViewColumn.content
 
     init(url: URL) {
         _model = State(initialValue: ArchiveWindowModel(url: url))
@@ -24,7 +26,7 @@ struct ArchiveWindow: View {
 
     var body: some View {
         @Bindable var model = model
-        NavigationSplitView {
+        NavigationSplitView(preferredCompactColumn: $compactColumn) {
             ArchiveSidebar(model: model)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220)
                 .feedbackToolbarItem(model)
@@ -48,6 +50,7 @@ struct ArchiveWindow: View {
         .modifier(ArchiveWindowActions(model: model))
         .browseSheets(model.browse)
         .librarianPanel(model)
+        .addPanel(model)
         #if os(macOS)
         .toolbarSearchField(model)
         #endif
@@ -125,33 +128,38 @@ extension ArchiveWindow {
     }
 }
 
+/// The sidebar, in the order of what owners do most (docs/design/library-home.md): the
+/// Library, Checked Out, what's Waiting, the collections, Discover, then looking after the
+/// archive. Checked Out and Waiting's rows show only when they have something.
 struct ArchiveSidebar: View {
+    static let discoverExpandedKey = "sidebarDiscoverExpanded"
+
     @Bindable var model: ArchiveWindowModel
+    @AppStorage(ArchiveSidebar.discoverExpandedKey, store: .app) private var discoverExpanded =
+        false
 
     var body: some View {
         // A row's tag goes last, after its badge: a tag with a modifier after it isn't the
         // row's, so the row can't be chosen (#334).
         List(selection: $model.screen) {
             Section {
-                Label("Status", systemImage: "gauge.with.dots.needle.33percent").tag(Screen.status)
-                Label("Review", systemImage: "tray.full")
-                    .badge(
-                        (model.archive?.reviewCount ?? 0)
-                            + (model.archive?.crawlerFindings.count ?? 0)
-                    )
-                    .tag(Screen.review)
-                Label("Questions", systemImage: "questionmark.bubble")
-                    .badge(model.archive?.questions.count ?? 0)
-                    .tag(Screen.questions)
-                Label("Restructure", systemImage: "rectangle.3.group")
-                    .badge(model.archive?.restructureProposals.count ?? 0)
-                    .tag(Screen.restructure)
-                Label("Active", systemImage: "arrow.up.forward.square")
-                    .badge(model.activeScreen?.pendingCount ?? 0)
-                    .tag(Screen.active)
-                Label("Flagged", systemImage: "flag")
-                    .badge(model.flaggedCollections.count + model.flaggedItems.count)
-                    .tag(Screen.flagged)
+                Label("Library", systemImage: "books.vertical").tag(Screen.library)
+                if model.showsCheckedOut {
+                    Label("Checked Out", systemImage: "arrow.up.forward.square")
+                        .badge(model.archive?.active.count ?? 0)
+                        .tag(Screen.active)
+                }
+            }
+            let waiting = model.waitingRows
+            if !waiting.isEmpty {
+                Section("Waiting") {
+                    ForEach(waiting, id: \.queue) { row in
+                        Label(row.queue.title, systemImage: row.queue.symbol)
+                            .badge(Int(row.count))
+                            .tag(row.queue.screen)
+                    }
+                }
+                .tint(.orange)
             }
             Section("Collections") {
                 OutlineGroup(model.tree, children: \.children) { node in
@@ -172,17 +180,28 @@ struct ArchiveSidebar: View {
                     .tag(Screen.collection(node.collection.path))
                 }
             }
-            Section("Discover") {
+            Section("Discover", isExpanded: discoverShown) {
                 ForEach(DiscoverPage.allCases, id: \.self) { page in
                     Label(page.title, systemImage: page.symbol).tag(Screen.discover(page))
                 }
             }
-            Section {
+            Section("Archive") {
+                Label("Status", systemImage: "gauge.with.dots.needle.33percent").tag(Screen.status)
                 Label("History", systemImage: "clock.arrow.circlepath").tag(Screen.history)
                 Label("Backups", systemImage: "externaldrive.badge.timemachine").tag(Screen.backups)
             }
         }
         .listStyle(.sidebar)
+    }
+
+    /// Discover opens when its heading is, and while one of its pages is showing.
+    private var discoverShown: Binding<Bool> {
+        Binding(
+            get: {
+                if case .discover = model.screen { return true }
+                return discoverExpanded
+            },
+            set: { discoverExpanded = $0 })
     }
 }
 
@@ -200,7 +219,9 @@ struct ArchiveScreenContent: View {
 
     @ViewBuilder private var screen: some View {
         switch model.screen {
-        case .status, nil:
+        case .library, nil:
+            LibraryView(model: model)
+        case .status:
             StatusView(model: model)
         case .collection:
             Group {

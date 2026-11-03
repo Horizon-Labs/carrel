@@ -129,7 +129,7 @@ final class AgentLinkTests: XCTestCase {
         let screens: [(AgentLink.Screen, Screen?)] = [
             (.review, .review), (.questions, .questions), (.active, .active),
             (.history, .history), (.backups, .backups), (.discover(.map), .discover(.map)),
-            (.discover(nil), .discover(.today)), (.ingest, .status), (.status, .status),
+            (.discover(nil), .discover(.today)), (.status, .status), (.library, .library),
         ]
         for (linked, screen) in screens {
             model.show(linked: linked)

@@ -13,10 +13,11 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Capability | Command line | Interactive mode | Mac app | iPad and iPhone app |
 | --- | --- | --- | --- | --- |
 | Create, open and switch archives | `init`, `open` | ✓ `Ctrl-O`, Settings | ✓ | ✓ Archives: on this device, or in another place such as iCloud Drive |
-| Open the interactive mode or the app at a screen, with the same names (#450) | `tui SCREEN`, `gui SCREEN [--item]` | ✓ starts on it | ✓ `carrel://open?screen=`; Ingest is Status, the librarian its panel, Settings its window | ✓ `carrel://open?screen=`; Settings is its sheet |
+| Open the interactive mode or the app at a screen, with the same names (#450) | `tui SCREEN`, `gui SCREEN [--item]` | ✓ starts on it | ✓ `carrel://open?screen=`; Ingest is the Add panel, the librarian its panel, Settings its window | ✓ `carrel://open?screen=`; Settings is its sheet |
 | Create an archive with a chosen embedding model, or start history for one that has none | `init --embedding-model`, `init` in the archive | ✓ `Ctrl-O` | ✓ New Archive…'s embedding model; Start History on Status and History | ✓ New Archive's embedding model; Start History on Status and History |
+| The Library, where every interface opens: what waits, the collections with their counts and covers, Recently Added, On This Day (#512) | `library` | ✓ Library (`1`), tabs in the sidebar's order, empty queues left out | ✓ Library, the sidebar's Library, Checked Out, Waiting, Collections, Discover and Archive | ✓ the same sidebar; on iPhone the Library comes first |
 | Status, problems and Recent | `status` | ✓ Status | ✓ Status: Recent, cards with problems, names to rename, restructure signals, desk suggestions | ✓ |
-| Add items to the intake queue | `ingest` | ✓ Ingest | ✓ drag, ⌘O (#236), a folder entry by entry or whole | ✓ the + menu: Photos, Take Photo, Scan Document, Files |
+| Add items to the intake queue | `ingest` | ✓ `i` anywhere, `+` for the queue | ✓ + and ⌘N for the Add panel, drag, ⌘O (#236), a folder entry by entry or whole | ✓ the + menu: Photos, Take Photo, Scan Document, Files |
 | Add a web address as a `url` item, and a note for the cards | `ingest --url`, `--title`, `--note` | ✓ a web address on the Ingest line, `n` for a note | ✓ File → Add Web Address…, the add sheet's note, pasting; Send to Archive and Add to Archive in Shortcuts | ✓ Web Address… and Paste in the + menu, the add sheet's note; the share sheet |
 | Add a note you write as an item of its own | `ingest --text` (`-` for standard input) | ✓ `a` on Ingest | ✓ File → Add Note…, pasting text; the share sheet's text | ✓ Note… and Paste in the + menu; the share sheet's text |
 | Add while another device is the writer, through this device's inbox | `ingest` | ✓ Ingest | ✓ the window, Send to Archive, the Quick Action, Shortcuts | ✓ the share sheet and the + menu |
@@ -24,9 +25,9 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | This device's inbox: what waits for the writer, and what it skipped and why (#467) | `status` | ✓ Status | ✓ Status | ✓ Status |
 | The holding folder, on a device without Kopia: how much waits for a snapshot, with warnings (#470) | `status` | ✓ Status | ✓ Status | ✓ Status |
 | Restore a version from the holding folder (#470) | `backup restore --held` | ✓ Backups (#483) | ✓ Status's holding folder | ✓ Status's holding folder |
-| The intake queue: list, remove, move to the front, try again | `ingest --status`, `--remove`, `--first`, `--retry` | ✓ Ingest | ✓ Status, with each failure's reason | ✓ |
+| The intake queue: list, remove, move to the front, try again | `ingest --status`, `--remove`, `--first`, `--retry` | ✓ `+` | ✓ the Add panel, with each failure's reason; a line on Status | ✓ the Add panel (Show Queue… in the + menu) |
 | The worker's progress | `ingest --status` | ✓ | ✓ (#236) | ✓ |
-| Draft the queue with this device's models | `ingest`, `worker` | ✓ Ingest | ✓ Draft Now on Status; the agent | ✓ Draft Now on Status; background tasks. Apple's model or an MLX model, in the app's own process, which Settings → This Device lists (#481) |
+| Draft the queue with this device's models | `ingest`, `worker` | ✓ Ingest | ✓ Draft Now in the Add panel; the agent | ✓ Draft Now in the Add panel; background tasks. Apple's model or an MLX model, in the app's own process, which Settings → This Device lists (#481) |
 | Review: approve, hold, move, reject | `review` | ✓ Review | ✓ (#234) | ✓ |
 | Review: edit and correct a proposal | `review edit`, `review correct` | ✓ | ✓ (#234) | ✓ |
 | Review: expand or keep compressed files | `review expand`, `keep-compressed` | ✓ | ✓ (#234) | ✓ |
