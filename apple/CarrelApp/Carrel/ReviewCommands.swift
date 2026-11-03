@@ -93,9 +93,11 @@ extension ArchiveWindowModel {
 extension CorrectionModel: Identifiable {}
 
 extension View {
-    /// Shows the core's error from the last call that failed.
-    func archiveErrorAlert(_ archive: ArchiveModel?) -> some View {
-        alert(
+    /// Shows the core's error from the last call that failed, with Report… to send it to
+    /// development as a bug, through Send Feedback.
+    func archiveErrorAlert(_ window: ArchiveWindowModel) -> some View {
+        let archive = window.archive
+        return alert(
             problemTitle("Something Went Wrong", archive),
             isPresented: Binding {
                 archive?.lastError != nil
@@ -103,8 +105,12 @@ extension View {
                 if !$0 { archive?.lastError = nil }
             },
             presenting: archive?.lastError
-        ) { _ in
-            Button("OK") { archive?.lastError = nil }
+        ) { error in
+            Button("Report…") {
+                archive?.lastError = nil
+                window.startFeedback(reporting: error.message)
+            }
+            Button("OK", role: .cancel) { archive?.lastError = nil }
         } message: { error in
             Text(error.message)
         }
