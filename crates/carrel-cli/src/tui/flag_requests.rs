@@ -1,8 +1,11 @@
 //! The Flags view on the interactive mode's Status (#454): what's flagged, by where the
 //! librarian is with each, as `carrel flagged` lists it. `f` opens it; on the chosen flag, `a`
-//! hands it to the librarian now, `Enter` answers its question, a number accepts its fix, `r`
+//! hands it to the librarian now, `Enter` answers its question or accepts the fix `[` and `]`
+//! chose, `r`
 //! asks it to look again, `c` clears the flag, and `p` reports what Carrel can't do to
 //! development, through the Gaps view. The work is `carrel flagged`'s.
+
+use std::fmt::Write as _;
 
 use carrel_core::flags::Flaggable;
 use carrel_core::flags::request::{self, Listed, State};
@@ -26,6 +29,24 @@ pub struct FlagsView {
     pub listed: Vec<Listed>,
     /// The chosen flag.
     pub chosen: usize,
+    /// The chosen flag's fix `[` and `]` chose, which Enter accepts.
+    pub fix: Option<usize>,
+}
+
+/// How many of the librarian's fixes for the flag wait to be accepted, numbered as
+/// `carrel flagged` numbers them.
+fn open_fixes(listed: &Listed) -> usize {
+    listed.request.as_ref().map_or(0, |r| {
+        r.suggestions
+            .iter()
+            .filter(|s| {
+                matches!(
+                    s.outcome,
+                    carrel_core::librarian::changes::Outcome::Proposed { .. }
+                )
+            })
+            .count()
+    })
 }
 
 /// The item's card or the collection's folder, as `carrel flagged` takes it.
@@ -44,6 +65,12 @@ impl App {
             .flags
             .chosen
             .min(self.flags.listed.len().saturating_sub(1));
+        let fixes = self
+            .flags
+            .listed
+            .get(self.flags.chosen)
+            .map_or(0, open_fixes);
+        self.flags.fix = self.flags.fix.filter(|i| *i < fixes);
     }
 
     /// The Flags view's keys, when it's shown; `f` on Status opens it.
@@ -65,10 +92,20 @@ impl App {
             }
             (KeyCode::Down | KeyCode::Char('j'), _) => {
                 self.flags.chosen = (self.flags.chosen + 1).min(last);
+                self.flags.fix = None;
                 None
             }
             (KeyCode::Up | KeyCode::Char('k'), _) => {
                 self.flags.chosen = self.flags.chosen.saturating_sub(1);
+                self.flags.fix = None;
+                None
+            }
+            (KeyCode::Char(c @ ('[' | ']')), l) => {
+                let fixes = l.as_ref().map_or(0, open_fixes);
+                if fixes == 0 {
+                    self.message = Some("The librarian hasn't suggested a fix for this".into());
+                }
+                self.flags.fix = super::screens::cycle(self.flags.fix, fixes, c == ']');
                 None
             }
             (KeyCode::Char('a'), Some(l)) => {
@@ -93,12 +130,7 @@ impl App {
                 });
                 None
             }
-            (KeyCode::Char(c @ '1'..='9'), Some(l)) if l.state == State::Suggested => {
-                Some(Effect::Flag(Flagging::Accept {
-                    target: target(&l),
-                    n: c.to_digit(10).unwrap_or(1) as usize,
-                }))
-            }
+            (KeyCode::Enter, Some(l)) if l.state == State::Suggested => self.accept_fix(&l),
             (KeyCode::Char('c'), Some(l)) => {
                 self.confirm = Some(Confirm::Unflag {
                     target: target(&l),
@@ -138,6 +170,18 @@ impl App {
         Some(Handled::Yes(effect))
     }
 
+    /// Accepts the fix `[` and `]` chose for `listed`'s flag.
+    fn accept_fix(&mut self, listed: &Listed) -> Option<Effect> {
+        let Some(i) = self.flags.fix.take() else {
+            self.message = Some("Choose a fix with [ or ] first".into());
+            return None;
+        };
+        Some(Effect::Flag(Flagging::Accept {
+            target: target(listed),
+            n: i + 1,
+        }))
+    }
+
     /// The Flags view's keys, for the help line.
     pub(super) fn flags_keys(&self) -> Vec<(&'static str, &'static str)> {
         let mut keys = vec![("Esc", "back")];
@@ -147,7 +191,7 @@ impl App {
         keys.extend([("↑↓", "choose"), ("a", "ask the librarian")]);
         match l.state {
             State::Asked => keys.push(("Enter", "answer")),
-            State::Suggested => keys.push(("1-9", "accept fix")),
+            State::Suggested => keys.extend([("[ ]", "choose fix"), ("Enter", "accept it")]),
             _ => {}
         }
         if l.request.is_some() {
@@ -213,10 +257,15 @@ pub fn draw_flags(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
         &mut state,
     );
     if let Some(l) = flags.listed.get(flags.chosen) {
-        frame.render_widget(
-            Paragraph::new(crate::flag_librarian::describe(l, false)).wrap(Wrap { trim: false }),
-            detail_area,
-        );
+        let mut text = crate::flag_librarian::describe(l, false);
+        match flags.fix {
+            Some(i) => {
+                let _ = write!(text, "\nFix {} is chosen; Enter accepts it.", i + 1);
+            }
+            None if open_fixes(l) > 0 => text.push_str("\n[ ] choose a fix to accept."),
+            None => {}
+        }
+        frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }), detail_area);
     }
 }
 

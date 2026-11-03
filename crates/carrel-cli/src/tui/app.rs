@@ -129,6 +129,17 @@ pub enum Preferences {
     InMemory,
 }
 
+impl Preferences {
+    /// Saved, except in tests, which never write the real preferences.
+    fn here() -> Self {
+        if cfg!(test) {
+            Self::InMemory
+        } else {
+            Self::Saved
+        }
+    }
+}
+
 /// What the file picker is choosing for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Picking {
@@ -582,6 +593,8 @@ pub struct App {
     pub resting: usize,
     /// The chosen question.
     pub asked_chosen: usize,
+    /// The suggested answer `[` and `]` highlighted, which Enter picks.
+    pub asked_suggestion: Option<usize>,
     /// What the chosen question is about.
     pub question_subjects: Vec<carrel_core::questions::subjects::QuestionSubject>,
     /// The collections, for Browse.
@@ -758,6 +771,7 @@ impl App {
             asked_settles: Vec::new(),
             resting: 0,
             asked_chosen: 0,
+            asked_suggestion: None,
             question_subjects: Vec::new(),
             collections: Vec::new(),
             browse_collection: 0,
@@ -790,11 +804,7 @@ impl App {
             start_folder: std::path::PathBuf::from("."),
             picking: Picking::Ingest,
             checking_out: None,
-            preferences: if cfg!(test) {
-                Preferences::InMemory
-            } else {
-                Preferences::Saved
-            },
+            preferences: Preferences::here(),
             service: if cfg!(test) {
                 super::agent::Service::default()
             } else {
@@ -1069,9 +1079,7 @@ impl App {
                 ]);
                 keys.extend(self.held_keys());
             }
-            Tab::Questions => {
-                keys.extend([("↑↓", "choose"), ("Enter", "answer"), ("d", "dismiss")]);
-            }
+            Tab::Questions => keys.extend(self.questions_keys()),
             Tab::Browse => return self.browse_keys(),
             Tab::Status => keys.extend(self.status_keys()),
             Tab::Library => keys.extend([("↑↓", "choose"), ("Enter", "open"), ("+", "adding")]),
@@ -1090,6 +1098,7 @@ impl App {
             self.active_move(delta);
         } else if self.tab == Tab::Questions {
             self.asked_chosen = step(self.asked_chosen, delta, self.asked.len());
+            self.asked_suggestion = None;
             self.question_shown();
         } else if self.tab == Tab::Browse {
             self.browse_move(delta);
