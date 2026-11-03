@@ -1,5 +1,6 @@
 // A proposal in the inspector: its card, editable in place, where it would go and why, what
-// needs settling, and the decisions on it.
+// needs settling, and the decisions on it in a bar along the bottom that stays put however far
+// the card scrolls.
 
 import CarrelKit
 import SwiftUI
@@ -62,20 +63,48 @@ struct ProposalInspector: View {
             if let edit, edit.target == .proposal(proposal.id) {
                 CardEditor(edit: edit)
             }
-            Section {
-                HStack {
-                    Button("Correct…", action: correct)
-                    Spacer()
-                    ReviewActions(review: review, ids: [proposal.id])
-                }
-            }
         }
         .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            DecisionBar(proposal: proposal, review: review, correct: correct)
+        }
         .task(id: proposal.id) {
             let edit = CardEditModel(archive: review.archive, target: .proposal(proposal.id))
             self.edit = edit
             await edit.load()
         }
+    }
+}
+
+/// The decisions on a proposal, pinned below its card: Approve first and prominent, Hold and
+/// Reject beside it, and the rest under More.
+private struct DecisionBar: View {
+    let proposal: Proposal
+    let review: ReviewModel
+    let correct: () -> Void
+
+    private var ids: [Proposal.ID] { [proposal.id] }
+
+    var body: some View {
+        HStack {
+            Menu("More") {
+                Button("Correct…", action: correct)
+                Button("Move To…") { review.moving = ids }
+                Button("Approve Batch") { Task { await review.approveBatch(of: proposal.id) } }
+                Button("Draft Again") { Task { await review.redraft(ids) } }
+            }
+            .menuStyle(.button)
+            .fixedSize()
+            Spacer()
+            Button("Reject") { Task { await review.reject(ids) } }
+            Button("Hold") { Task { await review.hold(ids) } }
+            Button("Approve") { Task { await review.approve(ids) } }
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
     }
 }
 

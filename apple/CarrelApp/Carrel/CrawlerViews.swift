@@ -16,6 +16,8 @@ struct ReviewSourcePicker: View {
             Text("From the Crawler (\(crawler.findings.count))").tag(true)
         }
         .pickerStyle(.segmented)
+        // The segments say what they show; a label beside them only squeezes into the column.
+        .labelsHidden()
         .help("Switch between drafted proposals and the crawler’s findings (f)")
     }
 }
