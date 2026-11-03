@@ -97,11 +97,19 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
     ])
     .areas(area);
     draw_tabs(frame, app, theme, top);
-    let block = Block::bordered().title(if app.tab == Tab::Discover {
+    let mut block = Block::bordered().title(if app.tab == Tab::Discover {
         format!(" {} · {} ", app.archive.doc().name, app.views_title())
     } else {
         format!(" {} ", app.archive.doc().name)
     });
+    // A test build says which one it is, for reports.
+    if let Some(label) = carrel_core::build_label() {
+        block = block.title_top(
+            Line::from(format!(" {label} "))
+                .right_aligned()
+                .style(theme.dim()),
+        );
+    }
     let inner = block.inner(body);
     frame.render_widget(block, body);
     match app.tab {

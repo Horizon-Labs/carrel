@@ -131,6 +131,23 @@ pub const FORMAT_VERSION: FormatVersion = FormatVersion { major: 1, minor: 0 };
 /// The version of this crate, which is also the Carrel version.
 pub const CARREL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The flag a test build shows, such as "v1.0 Beta (5a81b54c1d)": its version without the
+/// patch number, and the git commit it was built from, so a report names the exact build. A
+/// release, with no pre-release part in its version, shows none.
+#[must_use]
+pub fn build_label() -> Option<String> {
+    label(CARREL_VERSION, feedback::GIT_COMMIT)
+}
+
+fn label(version: &str, commit: Option<&str>) -> Option<String> {
+    let (release, _) = version.split_once('-')?;
+    let short = release.rsplit_once('.').map_or(release, |(v, _)| v);
+    Some(format!(
+        "v{short} Beta ({})",
+        commit.unwrap_or("local build")
+    ))
+}
+
 /// An archive format version, `MAJOR.MINOR` (FORMAT.md §12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FormatVersion {
@@ -239,6 +256,19 @@ pub fn human_size(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_builds_are_labelled_with_their_commit() {
+        assert_eq!(
+            label("1.0.0-rc.1", Some("5a81b54c1d")).as_deref(),
+            Some("v1.0 Beta (5a81b54c1d)")
+        );
+        assert_eq!(
+            label("1.2.0-beta.3", None).as_deref(),
+            Some("v1.2 Beta (local build)")
+        );
+        assert_eq!(label("1.0.0", Some("5a81b54c1d")), None);
+    }
 
     #[test]
     fn parses_and_displays_format_versions() {

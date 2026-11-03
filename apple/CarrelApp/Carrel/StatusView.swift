@@ -21,6 +21,9 @@ struct StatusView: View {
                 }
                 LabeledContent("Access", value: model.isReadOnly ? "Read only" : "Read and write")
                 LabeledContent("Version", value: versionSummary())
+                if let build = BuildInfo.label {
+                    LabeledContent("Build", value: build).textSelection(.enabled)
+                }
                 if let archive = model.archive, archive.status?.hasHistory == false {
                     LabeledContent {
                         Button("Start History") { Task { try? await archive.startHistory() } }
