@@ -15,6 +15,7 @@ struct ArchiveWindow: View {
     @Environment(\.controlActiveState) private var activeState
     #else
     @Environment(MobileLibrary.self) private var library
+    @Environment(\.scenePhase) private var scenePhase
     #endif
     @State private var model: ArchiveWindowModel
     /// On iPhone, the chosen screen comes first rather than the sidebar: the Library when the
@@ -100,7 +101,16 @@ struct ArchiveWindow: View {
             #endif
             await model.load()
             choosePendingItem()
+            #if os(macOS)
+            await model.followOutsideChanges()
+            #endif
         }
+        #if os(iOS)
+        // What changed on other devices arrives through iCloud while the app is away.
+        .onChange(of: scenePhase) {
+            if scenePhase == .active { Task { await model.reloadAll() } }
+        }
+        #endif
         .onChange(of: app.pendingLink) { choosePendingItem() }
         .onChange(of: app.pendingScreen, initial: true) {
             if let screen = app.takePendingScreen(for: model.root) { model.screen = screen }
