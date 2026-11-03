@@ -102,7 +102,7 @@ private struct AgentTab: View {
                 .foregroundStyle(.secondary)
                 if !loginItem.isOn {
                     Text(
-                        "With it off, Carrel drafts new items while the app is open, as the command line does, and work sessions are noticed when the app or the command line runs."
+                        "With it off, the app starts the agent when it opens, since archives in iCloud Drive take their writer lock through it, and it runs until you log out or quit it from its menu."
                     )
                     .foregroundStyle(.secondary)
                 }

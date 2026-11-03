@@ -47,6 +47,11 @@ struct CarrelApp: App {
         startDecisionLog()
         // iCloud Drive's evicted files are downloaded through file coordination.
         CloudFiles.register()
+        #if os(macOS)
+        // The agent holds the writer lock of archives in iCloud Drive, so it runs while the app
+        // does, whether or not it runs at login.
+        AgentLoginItem.startIfNeeded()
+        #endif
         #if os(iOS)
         // Background tasks are registered before the app finishes launching.
         BackgroundWork.register()
