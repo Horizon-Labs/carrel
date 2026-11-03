@@ -16,6 +16,7 @@
 		CA0000000000000000481101 /* CarrelAppleProviders in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, ); productRef = CA0000000000000000481105 /* CarrelAppleProviders */; };
 		CA0000000000000000481102 /* CarrelMLXProvider in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, ); productRef = CA0000000000000000481106 /* CarrelMLXProvider */; };
 		CA0000000000000000000302 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = CA0000000000000000000203 /* AppIcon.icon */; };
+		CA0000000000000000000399 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = CA0000000000000000000203 /* AppIcon.icon */; };
 		CA0000000000000000000303 /* CarrelKit in Frameworks */ = {isa = PBXBuildFile; productRef = CA0000000000000000000602 /* CarrelKit */; };
 		CA0000000000000000000304 /* Carrel Agent.app in Embed Login Item */ = {isa = PBXBuildFile; fileRef = CA0000000000000000000204 /* Carrel Agent.app */; platformFilters = (macos, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		CA0000000000000000004107 /* CarrelKit in Frameworks */ = {isa = PBXBuildFile; productRef = CA0000000000000000004108 /* CarrelKit */; };
@@ -526,6 +527,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA0000000000000000000399 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -941,6 +943,7 @@
 		CA0000000000000000000932 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -968,6 +971,7 @@
 		CA0000000000000000000933 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;

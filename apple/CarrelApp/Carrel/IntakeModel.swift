@@ -1,5 +1,5 @@
-// Adding items: files and folders dropped on the window or chosen with File → Add to
-// Archive…, with the owner's note, a web address (File → Add Web Address…) and a note written
+// Adding items: files and folders dropped on the window, straight away so the owner can keep
+// dropping, or chosen with File → Add to Archive…, with the owner's note, a web address (File → Add Web Address…) and a note written
 // in the window (File → Add Note…), or any of these pasted onto it, join the intake queue as
 // `carrel ingest` adds them, and a worker drafts them. While another device is the writer they
 // go into this device's inbox instead. The agent runs the worker; Status shows its progress, read
@@ -23,6 +23,9 @@ final class IntakeModel {
     private(set) var worker: WorkerStatus?
     /// What the last add did, in words, until it's dismissed.
     var report: AddReport?
+    /// What the drops since the banner last closed added, for the banner that says so without
+    /// stopping the next drop.
+    var dropped: AddReport?
 
     init(archive: ArchiveModel) {
         self.archive = archive
@@ -54,6 +57,20 @@ final class IntakeModel {
     func add(_ urls: [URL]) async {
         guard !urls.isEmpty else { return }
         adding = PendingAdd(urls: urls, hasFolders: urls.contains(where: Self.isFolder))
+    }
+
+    /// Adds what was dropped straight away, with no note and folders as Carrel decides, so the
+    /// owner can keep dropping; anything Carrel needs to know comes later, as questions. The
+    /// banner says what the drops added, counting each drop while it shows.
+    func drop(_ urls: [URL]) async {
+        guard !urls.isEmpty else { return }
+        let added = await run {
+            try await $0.share(urls, each: false, whole: false, note: nil)
+        } named: {
+            URL(filePath: $0).lastPathComponent
+        }
+        dropped = dropped.map { $0.adding(added) } ?? added
+        await refresh()
     }
 
     /// Adds the files and folders at `urls` to the intake queue, folders as `how` says, as
@@ -99,12 +116,19 @@ final class IntakeModel {
     private func report(
         _ share: (ArchiveModel) async throws -> Shared, named: (String) -> String
     ) async {
-        do {
-            report = AddReport(try await share(archive), named: named)
-        } catch {
-            report = AddReport(problem: message(for: error))
-        }
+        report = await run(share, named: named)
         await refresh()
+    }
+
+    /// What `share` did, or what went wrong.
+    private func run(
+        _ share: (ArchiveModel) async throws -> Shared, named: (String) -> String
+    ) async -> AddReport {
+        do {
+            return AddReport(try await share(archive), named: named)
+        } catch {
+            return AddReport(problem: message(for: error))
+        }
     }
 
     // MARK: - Writing a web address or a note
@@ -263,6 +287,20 @@ struct AddReport: Equatable {
     init(problem: String) {
         self.problem = problem
     }
+
+    /// This report and `later`'s together, as one banner counts several drops.
+    func adding(_ later: Self) -> Self {
+        var both = self
+        both.added += later.added
+        both.leftOut += later.leftOut
+        both.problem = later.problem ?? problem
+        both.writer = later.writer ?? writer
+        return both
+    }
+
+    /// Whether the banner should stay until it's closed: something was left out or went
+    /// wrong.
+    var needsReading: Bool { problem != nil || !leftOut.isEmpty }
 
     var title: String {
         if problem != nil { return "Couldn’t Add to the Archive" }
