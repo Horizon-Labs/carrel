@@ -7,7 +7,6 @@ use crate::start_screen::StartScreen;
 /// The tab a screen is on, and for Discover, which view.
 fn tab_and_view(screen: StartScreen) -> (Tab, Option<View>) {
     match screen {
-        StartScreen::Library => (Tab::Library, None),
         StartScreen::Status => (Tab::Status, None),
         StartScreen::Review => (Tab::Review, None),
         StartScreen::Active => (Tab::Active, None),
