@@ -20,6 +20,8 @@ final class MobileLibrary {
     private let defaults: UserDefaults
     /// The root of the archive that's open.
     private(set) var open: URL?
+    /// The name of the archive being opened, while it is.
+    private(set) var opening: String?
     /// What went wrong opening or creating an archive, until it's dismissed.
     var problem: String?
     /// Whether Settings is showing, as a sheet over the archive.
@@ -44,11 +46,7 @@ final class MobileLibrary {
             problem = "“\(url.lastPathComponent)” isn’t where it was. Choose it again to open it."
             return
         }
-        do {
-            show(try app.resolve(url))
-        } catch {
-            problem = message(for: error)
-        }
+        open(url)
     }
 
     /// `url` moved to where the app's container is now, if it was in the container's
@@ -66,15 +64,19 @@ final class MobileLibrary {
     func open(_ url: URL) {
         let url = Self.current(url)
         _ = access(url)
-        do {
-            let root = try app.resolve(url)
-            remember(root)
-            show(root)
-        } catch {
-            if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
-                app.recents.remove(url)
+        opening = url.lastPathComponent
+        Task {
+            defer { opening = nil }
+            do {
+                let root = try await app.resolveInBackground(url)
+                remember(root)
+                show(root)
+            } catch {
+                if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
+                    app.recents.remove(url)
+                }
+                problem = message(for: error)
             }
-            problem = message(for: error)
         }
     }
 
@@ -274,6 +276,14 @@ struct MobileWelcomeView: View {
                     Text(
                         "An archive is a folder of plain files. Keep it in iCloud Drive to use it on your Mac, iPad and iPhone."
                     )
+                }
+            }
+            .disabled(library.opening != nil)
+            .overlay {
+                if let name = library.opening {
+                    ProgressView("Opening “\(name)”…")
+                        .padding()
+                        .background(.regularMaterial, in: .rect(cornerRadius: 12))
                 }
             }
             .navigationTitle("Archives")
