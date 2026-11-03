@@ -445,7 +445,8 @@ final class DiscoverTests: XCTestCase {
         XCTAssertTrue(weeks.columns.allSatisfy { $0.count == 7 })
         XCTAssertTrue(activity.days.allSatisfy { (0...4).contains($0.level) })
 
-        let october = try sample.archive.handle.activity(from: "2026-10-01", to: "2026-10-31", within: nil)
+        let october = try sample.archive.handle.activity(
+            from: "2026-10-01", to: "2026-10-31", within: nil)
         XCTAssertTrue(october.days.contains { $0.date == "2026-10-20" && $0.filed > 0 })
         let busiest = try XCTUnwrap(
             october.days.max { $0.filed + $0.sessions < $1.filed + $1.sessions })

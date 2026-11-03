@@ -66,6 +66,10 @@ In the apps the Library's Covers is a page as wide as the window, beside the sid
 | --- | --- |
 | ![The Library on a Mac: the sidebar, the librarian's line, and the sample archive's collections as covers](library-home/mac.jpg) | ![The Library on iPad: the same sidebar, line, collections and Recently Added](library-home/ipad.jpg) |
 
+A collection's Map view, looking only inside Projects:
+
+![The Projects collection's Map view on a Mac, starting inside it at Hardware, beside an item's card](library-home/mac-collection-map.jpg)
+
 ## Discover becomes views
 
 Discover leaves the sidebar. Its pages are ways of looking at the archive, as Finder's and Photos' view modes are, so the Library and every collection have a **view switcher** in the toolbar:

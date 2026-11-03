@@ -332,6 +332,12 @@ private struct ArchiveMapPage: View {
     /// The collection the map has zoomed into, or `nil` for the whole archive.
     @State private var inside: String?
 
+    /// Where the map starts: inside the collection a collection's view looks at, when it has
+    /// collections inside it, else the top.
+    private func top(_ map: ArchiveMap) -> String? {
+        discover.scope.flatMap { map.regions(in: $0).isEmpty ? nil : $0 }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -348,7 +354,7 @@ private struct ArchiveMapPage: View {
             .padding(8)
             if let map = discover.map {
                 TreemapView(
-                    regions: map.regions(in: inside), measure: effectiveMeasure(map),
+                    regions: map.regions(in: inside ?? top(map)), measure: effectiveMeasure(map),
                     hasInside: { path in !map.regions(in: path).isEmpty },
                     zoom: { inside = $0 },
                     open: { window.screen = .collection($0) }
