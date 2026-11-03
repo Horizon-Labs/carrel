@@ -381,7 +381,7 @@ mod tests {
         );
         assert!(propose(&app.archive, &finding).unwrap());
         app.reload().unwrap();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         assert_eq!(app.tab, Tab::Review);
         assert!(
             screen(&app, 140, 30).contains("1 finding from the crawler"),

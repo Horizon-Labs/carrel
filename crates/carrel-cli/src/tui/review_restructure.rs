@@ -453,7 +453,7 @@ mod tests {
         ];
         carrel_core::restructure::queue(&app.archive, &proposal).unwrap();
         app.reload().unwrap();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         assert_eq!(app.tab, Tab::Review);
         app.key(key(KeyCode::Char('f')));
         app.key(key(KeyCode::Char('f')));

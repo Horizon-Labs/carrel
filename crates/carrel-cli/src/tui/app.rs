@@ -15,77 +15,104 @@ pub use super::review::Picker;
 pub use super::screens::Input;
 use crate::Failure;
 
-/// The screens, in the order of their number keys.
+/// The screens, in the order of the row of tabs, then adding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
-    /// What `carrel status` shows.
-    Status,
-    /// The review queue.
-    Review,
+    /// What the archive opens on: what's waiting, the collections, what's new and On This Day
+    /// (`docs/design/library-home.md`).
+    Library,
     /// What's checked out and on the desk, and their pending history entries.
     Active,
+    /// The review queue.
+    Review,
     /// The question queue.
     Questions,
     /// Collections and their items.
     Browse,
-    /// Recorded changes.
-    History,
-    /// Items waiting to be drafted, and adding more.
-    Ingest,
-    /// This device's and the archive's settings.
-    Settings,
-    /// Backups: snapshots, and taking, checking and restoring from them.
-    Backups,
-    /// A conversation with the librarian, and the item it's discussing.
-    Librarian,
     /// Discovery: on this day, wander, the timeline, the map and activity.
     Discover,
+    /// What `carrel status` shows.
+    Status,
+    /// Recorded changes.
+    History,
+    /// Backups: snapshots, and taking, checking and restoring from them.
+    Backups,
+    /// This device's and the archive's settings.
+    Settings,
+    /// A conversation with the librarian, and the item it's discussing.
+    Librarian,
+    /// Items waiting to be drafted, and adding more: a mode `+` shows, not one of the tabs.
+    Ingest,
 }
 
 impl Tab {
-    /// Every tab, in order.
+    /// Every tab in the row, in order: the Library, then what's checked out and waiting, the
+    /// collections and Discover, then looking after the archive, as the apps' sidebar has them.
     pub const ALL: [Self; 11] = [
-        Self::Status,
-        Self::Review,
+        Self::Library,
         Self::Active,
+        Self::Review,
         Self::Questions,
         Self::Browse,
-        Self::History,
-        Self::Ingest,
-        Self::Settings,
-        Self::Backups,
-        Self::Librarian,
         Self::Discover,
+        Self::Status,
+        Self::History,
+        Self::Backups,
+        Self::Settings,
+        Self::Librarian,
     ];
+
+    /// How many screens there are, Ingest included.
+    pub const COUNT: usize = Self::ALL.len() + 1;
 
     /// The tab's name.
     pub fn title(self) -> &'static str {
         match self {
-            Self::Status => "Status",
+            Self::Library => "Library",
+            Self::Active => "Checked Out",
             Self::Review => "Review",
-            Self::Active => "Active",
             Self::Questions => "Questions",
             Self::Browse => "Browse",
-            Self::History => "History",
-            Self::Ingest => "Ingest",
-            Self::Settings => "Settings",
-            Self::Backups => "Backups",
-            Self::Librarian => "Librarian",
             Self::Discover => "Discover",
+            Self::Status => "Status",
+            Self::History => "History",
+            Self::Backups => "Backups",
+            Self::Settings => "Settings",
+            Self::Librarian => "Librarian",
+            Self::Ingest => "Add",
         }
     }
 
-    /// The key that shows it: its number, or for the librarian and discovery, `L` and `D`.
+    /// The key that shows it: a number, or `D` for Discover, `L` for the librarian and `+`
+    /// for adding.
     pub fn key(self) -> char {
         match self {
-            Self::Librarian => 'L',
+            Self::Library => '1',
+            Self::Active => '2',
+            Self::Review => '3',
+            Self::Questions => '4',
+            Self::Browse => '5',
             Self::Discover => 'D',
-            tab => char::from(b'1' + u8::try_from(tab.index()).unwrap_or(0)),
+            Self::Status => '6',
+            Self::History => '7',
+            Self::Backups => '8',
+            Self::Settings => '9',
+            Self::Librarian => 'L',
+            Self::Ingest => '+',
         }
     }
 
+    /// Where its state is kept, such as how far it's scrolled.
     pub(super) fn index(self) -> usize {
-        Self::ALL.iter().position(|t| *t == self).unwrap_or(0)
+        self as usize
+    }
+
+    /// The tab whose key is `c`.
+    pub fn of_key(c: char) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .chain([Self::Ingest])
+            .find(|t| t.key() == c)
     }
 }
 
@@ -496,7 +523,7 @@ pub struct App {
     /// What `carrel status` shows.
     pub status: Vec<String>,
     /// How far each report screen is scrolled.
-    pub scroll: [u16; Tab::ALL.len()],
+    pub scroll: [u16; Tab::COUNT],
     /// The history, newest first.
     pub history: Vec<Entry>,
     /// The selected change.
@@ -645,6 +672,10 @@ pub struct App {
     pub librarian_changes: Vec<Entry>,
     /// The Discover screen.
     pub stacks: super::discover::Stacks,
+    /// The Library, where the interactive mode opens.
+    pub library: super::library::LibraryView,
+    /// The tab `+` was pressed on, which Esc goes back to from adding.
+    pub before_adding: Option<Tab>,
     /// Whether every key is shown.
     pub help: bool,
     /// Whether to leave.
@@ -693,9 +724,9 @@ impl App {
         let archive_for_records = archive.clone();
         let mut app = Self {
             archive,
-            tab: Tab::Status,
+            tab: Tab::Library,
             status: Vec::new(),
-            scroll: [0; Tab::ALL.len()],
+            scroll: [0; Tab::COUNT],
             history: Vec::new(),
             selected: 0,
             waiting: (0, 0),
@@ -775,6 +806,8 @@ impl App {
             asking: super::librarian::Asking::default(),
             librarian_changes: Vec::new(),
             stacks: super::discover::Stacks::default(),
+            library: super::library::LibraryView::default(),
+            before_adding: None,
             help: false,
             quit: false,
         };
@@ -836,6 +869,7 @@ impl App {
         self.load_intake();
         self.load_settings();
         self.load_active();
+        self.load_library();
         self.load_reminders();
         self.load_rechecks();
         if !self.stacks.lines.is_empty() {
@@ -1019,6 +1053,7 @@ impl App {
                 ("x", "remove"),
                 ("t", "to front"),
                 ("r", "retry"),
+                ("Esc", "back"),
             ]),
             Tab::History => keys.extend([("↑↓", "choose"), ("u", "undo")]),
             Tab::Backups => {
@@ -1036,6 +1071,7 @@ impl App {
             }
             Tab::Browse => return self.browse_keys(),
             Tab::Status => keys.extend(self.status_keys()),
+            Tab::Library => keys.extend([("↑↓", "choose"), ("Enter", "open"), ("+", "adding")]),
             _ => keys.push(("↑↓", "scroll")),
         }
         keys.extend([("^R", "refresh"), ("?", "help"), ("q", "quit")]);
@@ -1043,7 +1079,9 @@ impl App {
     }
 
     pub(super) fn move_by(&mut self, delta: i32) {
-        if self.tab == Tab::Review {
+        if self.tab == Tab::Library {
+            self.library_move(delta);
+        } else if self.tab == Tab::Review {
             self.choose(delta);
         } else if self.tab == Tab::Active {
             self.active_move(delta);
@@ -1126,7 +1164,11 @@ impl App {
             self.archive_picker();
             return None;
         }
+        if self.adding_key(key) {
+            return None;
+        }
         let handled = match self.tab {
+            Tab::Library => self.library_key(key),
             Tab::Review => self.review_key(key),
             Tab::Active => self.active_key(key),
             Tab::Questions => self.questions_key(key),
@@ -1160,15 +1202,11 @@ impl App {
                 });
             }
             KeyCode::Char('i') => return self.start_ingest(),
-            KeyCode::Char(c) if Tab::ALL.iter().any(|t| t.key() == c) => {
+            KeyCode::Char(c) if Tab::of_key(c).is_some() => {
                 self.switch_tab_carrying_view(c);
             }
-            KeyCode::Tab | KeyCode::Right => {
-                self.tab = Tab::ALL[(self.tab.index() + 1) % Tab::ALL.len()];
-            }
-            KeyCode::BackTab | KeyCode::Left => {
-                self.tab = Tab::ALL[(self.tab.index() + Tab::ALL.len() - 1) % Tab::ALL.len()];
-            }
+            KeyCode::Tab | KeyCode::Right => self.next_tab(1),
+            KeyCode::BackTab | KeyCode::Left => self.next_tab(-1),
             KeyCode::Down | KeyCode::Char('j') => self.move_by(1),
             KeyCode::Up | KeyCode::Char('k') => self.move_by(-1),
             KeyCode::PageDown => self.move_by(10),
@@ -1230,8 +1268,10 @@ impl App {
             MouseEventKind::ScrollDown => self.move_by(3),
             MouseEventKind::ScrollUp => self.move_by(-3),
             MouseEventKind::Down(_) if event.row == 0 && self.confirm.is_none() => {
-                if let Some(i) = tab_starts.iter().rposition(|start| event.column >= *start) {
-                    self.tab = Tab::ALL[i];
+                if let Some(i) = tab_starts.iter().rposition(|start| event.column >= *start)
+                    && let Some(tab) = self.shown_tabs().get(i)
+                {
+                    self.tab = *tab;
                 }
             }
             _ => {}

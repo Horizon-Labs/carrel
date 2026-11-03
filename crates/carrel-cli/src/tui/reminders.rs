@@ -50,6 +50,7 @@ mod tests {
     #[test]
     fn status_lists_the_reminders_and_enter_goes_to_the_item() {
         let (_dir, mut app) = sample(false);
+        app.tab = crate::tui::app::Tab::Status;
         let shown = screen(&app, 120, 40);
         assert!(shown.contains("Reminders:"), "{shown}");
         assert!(

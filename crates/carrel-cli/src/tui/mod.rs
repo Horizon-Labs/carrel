@@ -20,6 +20,7 @@ mod held;
 mod intake;
 mod item;
 mod librarian;
+mod library;
 mod model_changes;
 mod option_lines;
 mod preview;
@@ -200,7 +201,6 @@ fn event_loop(
     app: &mut App,
     theme: ui::Theme,
 ) -> Result<(), Failure> {
-    let starts = ui::tab_starts();
     let mut running: Option<Done> = None;
     let mut preparing: Option<Preparing> = None;
     let mut checked = std::time::Instant::now();
@@ -246,6 +246,7 @@ fn event_loop(
         {
             Event::Key(key) if key.kind == KeyEventKind::Press => app.key(key),
             Event::Mouse(mouse) => {
+                let starts = ui::tab_starts(app);
                 app.mouse(mouse, &starts);
                 None
             }
@@ -1010,17 +1011,19 @@ mod tests {
 
     #[test]
     fn status_shows_the_archive_what_waits_and_the_keys() {
-        let (_dir, app) = sample(false);
-        let text = screen(&app, 100, 30);
+        let (_dir, mut app) = sample(false);
+        let text = screen(&app, 140, 30);
         assert!(
             text.starts_with(
-                "  1 Status   2 Review   3 Active   4 Questions   5 Browse   6 History"
+                "  1 Library   2 Checked Out   3 Review   4 Questions   5 Browse   D Discover   6 Status"
             ),
             "{text}"
         );
+        app.key(key(KeyCode::Char('6')));
+        let text = screen(&app, 100, 30);
         assert!(text.contains(" Sample archive "), "{text}");
         assert!(
-            text.contains("Waiting for you: 1 proposal (2 to review), 1 question (4 to answer)."),
+            text.contains("Waiting for you: 1 proposal (3 to review), 1 question (4 to answer)."),
             "{text}"
         );
         assert!(text.contains("items in"), "the status report");
@@ -1056,23 +1059,26 @@ mod tests {
             "the tree, indented:\n{browse}"
         );
         app.key(key(KeyCode::BackTab));
-        app.key(key(KeyCode::BackTab));
-        assert_eq!(app.tab, Tab::Active);
+        assert_eq!(app.tab, Tab::Questions);
         app.key(key(KeyCode::BackTab));
         assert_eq!(app.tab, Tab::Review);
         assert!(screen(&app, 100, 30).contains("Desk lamp diffuser (print file)"));
+        app.key(key(KeyCode::BackTab));
+        assert_eq!(app.tab, Tab::Active);
+        app.key(key(KeyCode::BackTab));
+        assert_eq!(app.tab, Tab::Library);
 
-        let starts = ui::tab_starts();
+        let starts = ui::tab_starts(&app);
         let click = |column| MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column,
             row: 0,
             modifiers: KeyModifiers::NONE,
         };
-        app.mouse(click(starts[5] + 2), &starts);
+        app.mouse(click(starts[7] + 2), &starts);
         assert_eq!(app.tab, Tab::History);
         app.mouse(click(starts[0]), &starts);
-        assert_eq!(app.tab, Tab::Status);
+        assert_eq!(app.tab, Tab::Library);
 
         app.key(key(KeyCode::Char('?')));
         assert!(screen(&app, 100, 30).contains("Keys (any key closes)"));
@@ -1086,7 +1092,7 @@ mod tests {
     #[test]
     fn undo_from_history_asks_first() {
         let (_dir, mut app) = sample(true);
-        app.key(key(KeyCode::Char('6')));
+        app.key(key(KeyCode::Char('7')));
         let text = screen(&app, 100, 30);
         assert!(text.contains("Start history of “Sample archive”"), "{text}");
         app.key(key(KeyCode::Char('u')));
@@ -1163,7 +1169,7 @@ mod tests {
         }];
         queue.save(&entry).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         let chosen = app.queue.iter().position(|e| e.id == entry.id).unwrap();
         app.chosen = chosen;
         app.load_detail();
@@ -1192,7 +1198,7 @@ mod tests {
     fn backups_are_set_up_with_a_masked_password_typed_twice() {
         let (_dir, mut app) = sample(false);
         app.picker_preference = Some("builtin".into());
-        app.key(key(KeyCode::Char('9')));
+        app.key(key(KeyCode::Char('8')));
         assert_eq!(app.tab, Tab::Backups);
         let text = screen(&app, 120, 30);
         assert!(text.contains("No backups set up"), "{text}");
@@ -1267,7 +1273,7 @@ mod tests {
         let parent = app.archive.root().parent().unwrap().to_owned();
         std::fs::create_dir_all(parent.join("Backups")).unwrap();
         app.start_folder = parent.clone();
-        app.key(key(KeyCode::Char('9')));
+        app.key(key(KeyCode::Char('8')));
         assert_eq!(app.key(key(KeyCode::Char('s'))), None);
         let browser = app.browser.as_ref().expect("the built-in browser opens");
         let at = browser
@@ -1339,7 +1345,7 @@ mod tests {
 
         // A backup folder isn't remembered for ingest.
         app.key(key(KeyCode::Esc));
-        app.key(key(KeyCode::Char('9')));
+        app.key(key(KeyCode::Char('8')));
         app.key(key(KeyCode::Char('s')));
         app.key(key(KeyCode::Left));
         app.key(key(KeyCode::Esc));
@@ -1349,7 +1355,7 @@ mod tests {
     #[test]
     fn review_shows_the_queue_by_destination_beside_the_chosen_proposal() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         let text = screen(&app, 120, 30);
         assert!(text.contains("Holding"), "{text}");
         let holding = text.find("Holding").unwrap();
@@ -1367,7 +1373,7 @@ mod tests {
     #[test]
     fn review_keys_decide_the_chosen_or_the_marked_proposals() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         let ids: Vec<Id> = app.queue.iter().map(|e| e.id).collect();
         assert_eq!(
             app.key(key(KeyCode::Char('a'))),
@@ -1425,7 +1431,7 @@ mod tests {
     fn z_keeps_a_compressed_file_compressed_or_expands_it() {
         use carrel_core::compressed::plan::{Choice, Plan};
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         assert_eq!(app.key(key(KeyCode::Char('z'))), None);
         assert_eq!(app.message.as_deref(), Some("Not a compressed file"));
         let queue = carrel_core::review::ReviewQueue::of(&app.archive);
@@ -1459,7 +1465,7 @@ mod tests {
     #[test]
     fn the_picker_narrows_collections_as_you_type() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         let id = app.queue[app.chosen].id;
         app.key(key(KeyCode::Char('m')));
         assert!(screen(&app, 120, 30).contains("Move to (type to narrow)"));
@@ -1487,7 +1493,7 @@ mod tests {
     #[test]
     fn c_opens_a_line_for_the_correction_without_leaving_the_screen() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         let first = app.queue[0].id;
         assert_eq!(app.key(key(KeyCode::Char('c'))), None);
         assert!(screen(&app, 120, 30).contains("What's wrong with it?"));
@@ -1529,7 +1535,7 @@ mod tests {
     #[test]
     fn the_correction_pops_up_and_saves_only_on_y() {
         let (dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         let id = app.queue[0].id.to_string();
         let prepared =
             crate::correct::prepare_review(&app.archive, &id, "created: 2019-03-31").unwrap();
@@ -2129,7 +2135,7 @@ mod tests {
     #[test]
     fn settings_are_shown_and_changed_the_way_the_command_does() {
         let (_dir, mut app) = sample(false);
-        app.key(key(KeyCode::Char('8')));
+        app.key(key(KeyCode::Char('9')));
         assert_eq!(app.tab, Tab::Settings);
         let screen_text = screen(&app, 120, 30);
         assert!(screen_text.contains("This device"), "{screen_text}");
@@ -2228,7 +2234,7 @@ mod tests {
     #[test]
     fn active_lists_checkouts_and_desk_items_with_their_pending_entries() {
         let (_dir, mut app) = active_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('2')));
         assert_eq!(app.tab, Tab::Active);
         assert_eq!(
             app.active.len(),
@@ -2296,7 +2302,7 @@ mod tests {
     #[test]
     fn active_keys_open_decide_entries_and_return_after_asking() {
         let (_dir, mut app) = active_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('2')));
         let item = choose_parts_list(&mut app);
         let row = app.active_chosen;
         assert_eq!(

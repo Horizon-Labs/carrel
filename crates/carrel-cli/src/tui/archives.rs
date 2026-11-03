@@ -249,7 +249,7 @@ mod tests {
         app.known_archives = vec![sample_root.clone(), other.clone()];
 
         // On any screen: the recent archives other than this one, a path, or a new one.
-        app.key(key(KeyCode::Char('6')));
+        app.key(key(KeyCode::Char('7')));
         app.key(ctrl_o());
         let picker = app.picker.clone().unwrap();
         assert!(matches!(picker.purpose, Purpose::Archive(_)));
@@ -366,7 +366,7 @@ mod tests {
             unread: 2,
             ..Here::default()
         });
-        app.key(key(KeyCode::Char('8')));
+        app.key(key(KeyCode::Char('9')));
         app.load_settings();
         let row = |app: &App, label: &str| {
             app.settings

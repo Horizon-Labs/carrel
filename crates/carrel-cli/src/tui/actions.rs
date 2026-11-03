@@ -577,7 +577,7 @@ mod tests {
         let (dir, mut app) = active_sample();
         app.picker_preference = Some("builtin".into());
         app.start_folder = dir.path().to_owned();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('2')));
         app.key(key(KeyCode::End));
         let desk = app.active_item().unwrap().clone();
         assert_eq!(desk.title, "Thesis");
@@ -675,7 +675,7 @@ mod tests {
         let (dir, mut app) = active_sample();
         app.picker_preference = Some("builtin".into());
         app.start_folder = dir.path().to_owned();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('2')));
         let notes = dir.path().join("Notes");
         std::fs::create_dir_all(&notes).unwrap();
         // As `carrel desk add --title --summary` gives them.

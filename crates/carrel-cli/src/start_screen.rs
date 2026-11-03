@@ -4,6 +4,8 @@
 /// A screen of the interactive mode and the app.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum StartScreen {
+    /// What the archive opens on: its collections, what's new and what's waiting.
+    Library,
     /// What `carrel status` shows.
     Status,
     /// Proposals waiting for review.
@@ -63,6 +65,10 @@ mod tests {
     #[test]
     fn names_are_the_links_names() {
         assert_eq!(StartScreen::Questions.name(), "questions");
+        assert_eq!(
+            StartScreen::from_str("library", false),
+            Ok(StartScreen::Library)
+        );
         assert_eq!(StartScreen::DiscoverWander.name(), "discover:wander");
         assert_eq!(
             StartScreen::from_str("discover:timeline", false),

@@ -33,6 +33,7 @@ mod gui;
 mod held;
 mod index;
 mod ingest;
+mod library;
 mod models;
 mod paths;
 mod picker;
@@ -102,6 +103,9 @@ enum Command {
         /// The archive, or any folder inside it.
         path: Option<PathBuf>,
     },
+    /// What the archive opens on: what's waiting, the collections with their counts, the items
+    /// filed most recently and On This Day.
+    Library,
     /// Summarize the archive: contents, problems, history and who is writing.
     Status,
     /// Show an item's card.
@@ -1237,6 +1241,7 @@ fn main() -> ExitCode {
             &embedding_model,
         ),
         Command::Open { path } => commands::open(path.as_deref().or(cli.archive.as_deref())),
+        Command::Library => library::library_command(cli.archive.as_deref()),
         Command::Status => commands::status(cli.archive.as_deref()),
         Command::Show { item } => commands::show(cli.archive.as_deref(), &item),
         Command::Search { query, limit } => {

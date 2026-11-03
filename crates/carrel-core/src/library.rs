@@ -13,14 +13,16 @@
 //! let shelves = library::library(&Catalog::read(&archive)?, library::RECENT);
 //! assert_eq!(shelves.shelves[0].path, "Holding");
 //! assert!(shelves.recent.is_empty());
-//! assert_eq!(Waiting::default().line(), None);
+//! assert_eq!(Waiting::read(&archive, shelves.flagged).line(), None);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
 use serde::{Deserialize, Serialize};
 
+use crate::archive::Archive;
 use crate::card::Sensitivity;
 use crate::discover::{Catalog, Entry, Item};
+use crate::review::ReviewQueue;
 
 /// The collection that holds what couldn't be filed yet, which comes last on the Library.
 const HOLDING: &str = "Holding";
@@ -134,7 +136,11 @@ pub fn library(catalog: &Catalog, recent: usize) -> Library {
         recent,
         items: catalog.entries.len(),
         flagged: catalog.entries.iter().filter(|e| e.flagged).count()
-            + catalog.collections.iter().filter(|c| c.flag.is_some()).count(),
+            + catalog
+                .collections
+                .iter()
+                .filter(|c| c.flag.is_some())
+                .count(),
     }
 }
 
@@ -154,7 +160,12 @@ pub enum Queue {
 
 impl Queue {
     /// Every queue, in the order the Waiting section lists them.
-    pub const ALL: [Self; 4] = [Self::Review, Self::Questions, Self::Restructure, Self::Flagged];
+    pub const ALL: [Self; 4] = [
+        Self::Review,
+        Self::Questions,
+        Self::Restructure,
+        Self::Flagged,
+    ];
 
     /// Its name, as the sidebars and tabs show it.
     #[must_use]
@@ -194,6 +205,23 @@ pub struct Waiting {
 }
 
 impl Waiting {
+    /// What waits in `archive`'s queues, with `flagged` from its [`Library`]. The question
+    /// queue is tidied first, as every interface ranks it, so questions that no longer wait
+    /// aren't counted. A queue that can't be read counts as empty.
+    #[must_use]
+    pub fn read(archive: &Archive, flagged: usize) -> Self {
+        let proposals = ReviewQueue::of(archive).list().map_or(0, |(entries, _)| {
+            entries.iter().filter(|e| e.state.is_open()).count()
+        });
+        let findings = crate::crawl::findings::list(archive).map_or(0, |f| f.len());
+        Self {
+            review: proposals + findings,
+            questions: crate::questions::answer::tidy(archive).map_or(0, |r| r.open.len()),
+            restructure: crate::restructure::waiting(archive, None).map_or(0, |p| p.len()),
+            flagged,
+        }
+    }
+
     /// How many wait in `queue`.
     #[must_use]
     pub fn count(&self, queue: Queue) -> usize {
@@ -307,7 +335,10 @@ mod tests {
             .map(|i| i.title.as_str())
             .collect();
         assert_eq!(home, ["Deed", "Lease"], "the restricted letter is left out");
-        assert_eq!(library.shelves[0].description.as_deref(), Some("Home's things"));
+        assert_eq!(
+            library.shelves[0].description.as_deref(),
+            Some("Home's things")
+        );
     }
 
     #[test]
@@ -337,7 +368,11 @@ mod tests {
         };
         assert_eq!(
             waiting.rows(),
-            [(Queue::Review, 5), (Queue::Questions, 1), (Queue::Flagged, 2)]
+            [
+                (Queue::Review, 5),
+                (Queue::Questions, 1),
+                (Queue::Flagged, 2)
+            ]
         );
         assert_eq!(
             waiting.line().as_deref(),

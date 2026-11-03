@@ -515,7 +515,7 @@ mod tests {
             ],
             ..Here::default()
         });
-        app.key(key(KeyCode::Char('8')));
+        app.key(key(KeyCode::Char('9')));
         assert_eq!(app.tab, Tab::Settings);
         app.load_settings();
         app.settings_chosen = app
@@ -557,6 +557,7 @@ mod tests {
     #[test]
     fn status_and_settings_show_the_index_and_rebuild_it() {
         let (_dir, mut app) = sample(false);
+        app.tab = Tab::Status;
         let text = screen(&app, 120, 60);
         assert!(text.contains("Search index:"), "{text}");
         assert!(
@@ -771,7 +772,7 @@ mod tests {
             .map(key),
         );
         keys.push(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
-        keys.push(key(KeyCode::Char('8')));
+        keys.push(key(KeyCode::Char('9')));
         for _ in 0..12 {
             keys.extend([KeyCode::Enter, KeyCode::Esc, KeyCode::Down].map(key));
         }
@@ -813,7 +814,7 @@ mod tests {
         });
 
         let started = std::time::Instant::now();
-        for c in "8123456789LD8".chars() {
+        for c in "9123456789LD9".chars() {
             app.key(key(KeyCode::Char(c)));
             app.poll_here();
         }
@@ -849,7 +850,7 @@ mod tests {
         std::fs::set_permissions(&hung, std::fs::Permissions::from_mode(0o755)).unwrap();
         let folders = [programs.path().to_owned()];
         app.here = Some(Here::default());
-        app.key(key(KeyCode::Char('8')));
+        app.key(key(KeyCode::Char('9')));
         // Stands in for a find under way, so this test starts no other providers.
         let (_send, finding) = std::sync::mpsc::channel();
         app.finding_here = Some(finding);
