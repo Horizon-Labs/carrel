@@ -60,7 +60,7 @@ Each screen does what its interactive-mode counterpart does, through the same co
   - runs scheduled backups once backups are set up.
 - **The menu bar list** (a `MenuBarExtra`): what's checked out and on the desk, pending entries, what the agent is doing now, and Pause. Choosing an item opens it in the app.
 - **No new protocol between them in v0.5.** The agent, the app and the CLI coordinate the way the CLI and its worker already do: through the archive's files, the writer lease and the worker's status file. The app reads the status file to show progress; the CLI's own detached worker steps aside when the agent is running, through the same per-device lock. An XPC service can come later if the app needs to talk to the agent directly; nothing here prevents it.
-- **Off switch:** the agent is optional. With it off, the app starts a worker on demand as the CLI does, and work sessions are noticed when the app or the CLI runs.
+- **Off switch:** running at login is optional. With it off, the app starts the agent when it opens and the agent runs until logout or Quit, since on a Mac archives in iCloud Drive take their writer lock through it (`docs/design/sync-and-mobile.md`). Work sessions are noticed when the app or the CLI runs.
 - **One worker loop.** The worker loop moves from `carrel-cli/src/worker.rs` into the core, so the CLI's worker and the agent run the same code.
 
 ## Building and shipping it

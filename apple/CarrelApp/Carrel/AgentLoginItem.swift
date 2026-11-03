@@ -1,7 +1,9 @@
 // The agent as a login item: Settings' switch registers Carrel Agent, bundled in the app at
-// Contents/Library/LoginItems, with SMAppService, or unregisters it.
+// Contents/Library/LoginItems, with SMAppService, or unregisters it. Either way the app starts it
+// while it runs, since on a Mac only the agent reaches CloudKit's writer lock.
 
 #if os(macOS)
+import AppKit
 import CarrelKit
 import Observation
 import ServiceManagement
@@ -53,6 +55,24 @@ final class AgentLoginItem {
     /// Reads the status again, as after the owner approves it in System Settings.
     func refresh() {
         status = service.status
+    }
+
+    /// Starts the bundled agent unless it's running already. It holds the writer lock of
+    /// archives in iCloud Drive, which can't be written without it, so the app starts it even
+    /// with the login switch off; the switch only decides whether it also starts at login.
+    static func startIfNeeded() {
+        guard NSRunningApplication.runningApplications(withBundleIdentifier: identifier).isEmpty
+        else { return }
+        let items = Bundle.main.bundleURL.appending(path: "Contents/Library/LoginItems")
+        guard
+            let agent = try? FileManager.default.contentsOfDirectory(
+                at: items, includingPropertiesForKeys: nil
+            ).first(where: { $0.pathExtension == "app" })
+        else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        configuration.addsToRecentItems = false
+        NSWorkspace.shared.openApplication(at: agent, configuration: configuration)
     }
 }
 #endif
