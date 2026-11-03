@@ -1376,6 +1376,30 @@ mod tests {
     }
 
     #[test]
+    fn brackets_step_through_choices_and_back_to_none() {
+        use super::screens::cycle;
+        assert_eq!(cycle(None, 2, true), Some(0));
+        assert_eq!(cycle(Some(0), 2, true), Some(1));
+        assert_eq!(cycle(Some(1), 2, true), None);
+        assert_eq!(cycle(None, 2, false), Some(1));
+        assert_eq!(cycle(Some(0), 2, false), None);
+        assert_eq!(cycle(None, 0, true), None);
+    }
+
+    #[test]
+    fn every_number_shows_its_tab_from_every_tab() {
+        let (_dir, mut app) = review_sample();
+        for from in Tab::ALL {
+            for to in Tab::ALL.into_iter().filter(|t| t.key().is_ascii_digit()) {
+                app.key(key(KeyCode::Char(from.key())));
+                assert_eq!(app.tab, from, "{} shows {from:?}", from.key());
+                app.key(key(KeyCode::Char(to.key())));
+                assert_eq!(app.tab, to, "{} from {from:?}", to.key());
+            }
+        }
+    }
+
+    #[test]
     fn review_keys_decide_the_chosen_or_the_marked_proposals() {
         let (_dir, mut app) = review_sample();
         app.key(key(KeyCode::Char('4')));
@@ -1913,14 +1937,16 @@ mod tests {
             text.contains("1  Projects/Hardware  (where one was going)"),
             "{text}"
         );
+        assert_eq!(app.key(key(KeyCode::Char(']'))), None);
+        assert!(app.keys().contains(&("Enter", "pick it")));
         assert_eq!(
-            app.key(key(KeyCode::Char('1'))),
+            app.key(key(KeyCode::Enter)),
             Some(Effect::Answer {
                 id: place.id,
                 answer: "1".into(),
                 learn: false,
             }),
-            "a number picks a suggestion"
+            "] highlights a suggestion and Enter picks it"
         );
 
         app.key(key(KeyCode::Enter));
@@ -2012,7 +2038,8 @@ mod tests {
         );
 
         app.key(key(KeyCode::Down));
-        assert_eq!(app.key(key(KeyCode::Char('1'))), None, "it asks first");
+        app.key(key(KeyCode::Char(']')));
+        assert_eq!(app.key(key(KeyCode::Enter)), None, "it asks first");
         let text = screen(&app, 160, 30);
         assert!(text.contains("y with a rule   n without a rule"), "{text}");
         assert_eq!(
@@ -2024,7 +2051,8 @@ mod tests {
             }),
             "no to the rule still gathers them"
         );
-        app.key(key(KeyCode::Char('1')));
+        app.key(key(KeyCode::Char(']')));
+        app.key(key(KeyCode::Enter));
         assert_eq!(
             app.key(key(KeyCode::Char('y'))),
             Some(Effect::Answer {
@@ -2033,8 +2061,9 @@ mod tests {
                 learn: true,
             })
         );
+        app.key(key(KeyCode::Char('[')));
         assert_eq!(
-            app.key(key(KeyCode::Char('2'))),
+            app.key(key(KeyCode::Enter)),
             Some(Effect::Answer {
                 id: sender.id,
                 answer: "2".into(),

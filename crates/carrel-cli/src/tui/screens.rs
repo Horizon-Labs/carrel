@@ -188,19 +188,50 @@ impl App {
         self.asked = ranked.open.into_iter().map(|w| w.question).collect();
         self.resting = ranked.resting.len();
         self.asked_chosen = self.asked_chosen.min(self.asked.len().saturating_sub(1));
+        let suggestions = self
+            .asked
+            .get(self.asked_chosen)
+            .map_or(0, |q| q.suggestions.len());
+        self.asked_suggestion = self.asked_suggestion.filter(|i| *i < suggestions);
         if self.tab == super::app::Tab::Questions {
             self.question_shown();
         }
     }
 
-    /// Handles a key on the Questions screen: Enter answers in words (or picks a collection),
-    /// a number picks a suggestion, `s` skips and `d` dismisses.
-    pub(super) fn questions_key(&mut self, key: KeyEvent) -> Handled {
-        let digit = match key.code {
-            KeyCode::Char(c @ '1'..='9') => c.to_digit(10).map(|d| d as usize),
-            KeyCode::Enter | KeyCode::Char('d' | 's') => None,
-            _ => return Handled::No,
+    /// The Questions screen's keys, for the help line.
+    pub(super) fn questions_keys(&self) -> [(&'static str, &'static str); 5] {
+        let enter = if self.asked_suggestion.is_some() {
+            "pick it"
+        } else {
+            "answer"
         };
+        [
+            ("↑↓", "choose"),
+            ("[ ]", "suggestion"),
+            ("Enter", enter),
+            ("s", "skip"),
+            ("d", "dismiss"),
+        ]
+    }
+
+    /// Handles a key on the Questions screen: `[` and `]` highlight a suggestion, Enter picks
+    /// it or else answers in words (or picks a collection), `s` skips and `d` dismisses. The
+    /// numbers are left to switch screens, as everywhere.
+    pub(super) fn questions_key(&mut self, key: KeyEvent) -> Handled {
+        if let KeyCode::Char(c @ ('[' | ']')) = key.code {
+            let count = self
+                .asked
+                .get(self.asked_chosen)
+                .map_or(0, |q| q.suggestions.len());
+            if count == 0 {
+                self.message = Some("This question has no suggestions".into());
+            }
+            self.asked_suggestion = cycle(self.asked_suggestion, count, c == ']');
+            return Handled::Yes(None);
+        }
+        if !matches!(key.code, KeyCode::Enter | KeyCode::Char('d' | 's')) {
+            return Handled::No;
+        }
         if let Some(busy) = &self.busy {
             self.message = Some(format!("Still busy: {busy}"));
             return Handled::Yes(None);
@@ -209,8 +240,10 @@ impl App {
             self.message = Some("No questions".into());
             return Handled::Yes(None);
         };
-        if let Some(n) = digit {
-            return Handled::Yes(self.pick(&question, n));
+        if key.code == KeyCode::Enter
+            && let Some(i) = self.asked_suggestion.take()
+        {
+            return Handled::Yes(self.pick(&question, i + 1));
         }
         Handled::Yes(match (key.code, question.kind) {
             (KeyCode::Char('d'), _) => Some(Effect::Dismiss(question.id)),
@@ -287,7 +320,7 @@ impl App {
     /// Answers the question `id` with what the owner typed.
     fn typed_answer(&mut self, id: Id, text: String) -> Option<Effect> {
         let question = self.asked.iter().find(|q| q.id == id)?.clone();
-        // A suggestion's number picks it, as the number keys do on Questions.
+        // A suggestion's number picks it, as it's shown beside it on Questions.
         if let Ok(n) = text.parse::<usize>()
             && (1..=question.suggestions.len()).contains(&n)
         {
@@ -575,5 +608,17 @@ impl App {
             _ => return Handled::No,
         }
         Handled::Yes(None)
+    }
+}
+
+/// The next of `count` choices after `chosen`, forward or back, passing through none between
+/// the last and the first, as `[` and `]` step through suggestions and fixes.
+pub(super) fn cycle(chosen: Option<usize>, count: usize, forward: bool) -> Option<usize> {
+    match (chosen, forward) {
+        _ if count == 0 => None,
+        (None, true) => Some(0),
+        (None, false) => Some(count - 1),
+        (Some(i), true) => (i + 1 < count).then_some(i + 1),
+        (Some(i), false) => i.checked_sub(1),
     }
 }

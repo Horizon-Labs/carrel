@@ -331,8 +331,8 @@ const HELP_ROWS: &[(&str, &str)] = &[
         "approve, edit, combine, drop; mark (Active)",
     ),
     (
-        "Enter  1-9  s  d",
-        "answer, pick a suggestion, skip or dismiss a question (Questions)",
+        "Enter  [ ]  s  d",
+        "answer, choose a suggestion, skip or dismiss a question (Questions)",
     ),
     (
         "←→  e  c  /  Esc",
@@ -772,6 +772,7 @@ fn draw_picker(frame: &mut Frame, picker: &Picker, theme: Theme, area: Rect) {
 /// A question's suggestions, numbered, each with why it's likely.
 fn suggestion_lines(
     question: &carrel_core::questions::QuestionEntry,
+    chosen: Option<usize>,
     theme: Theme,
 ) -> Vec<Line<'static>> {
     question
@@ -780,7 +781,7 @@ fn suggestion_lines(
         .enumerate()
         .map(|(i, suggestion)| {
             let mut spans = vec![
-                Span::styled(format!("{}", i + 1), theme.key()),
+                Span::styled(format!("{}", i + 1), theme.dim()),
                 Span::raw(format!("  {}", suggestion.answer)),
             ];
             let mut notes = Vec::new();
@@ -794,7 +795,12 @@ fn suggestion_lines(
                     theme.dim(),
                 ));
             }
-            Line::from(spans)
+            let line = Line::from(spans);
+            if chosen == Some(i) {
+                line.style(theme.selected())
+            } else {
+                line
+            }
         })
         .collect()
 }
@@ -849,7 +855,7 @@ fn draw_questions(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     }
     if !question.suggestions.is_empty() {
         lines.push(Line::from(""));
-        lines.extend(suggestion_lines(question, theme));
+        lines.extend(suggestion_lines(question, app.asked_suggestion, theme));
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
@@ -870,7 +876,7 @@ fn draw_questions(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
         if question.suggestions.is_empty() {
             "s skips it for now, d dismisses it."
         } else {
-            "A number picks a suggestion; s skips it for now, d dismisses it."
+            "[ ] highlight a suggestion and Enter picks it; s skips it for now, d dismisses it."
         },
         theme.dim(),
     )));
