@@ -20,6 +20,8 @@ final class MobileLibrary {
     private let defaults: UserDefaults
     /// The root of the archive that's open.
     private(set) var open: URL?
+    /// The name of the archive being opened, while it is.
+    private(set) var opening: String?
     /// What went wrong opening or creating an archive, until it's dismissed.
     var problem: String?
     /// Whether Settings is showing, as a sheet over the archive.
@@ -34,15 +36,17 @@ final class MobileLibrary {
     /// new archives and checked-out working copies go here unless another place is chosen.
     static var documents: URL { URL.documentsDirectory }
 
-    /// Opens the archive this device had open last, if it's still there.
+    /// Opens the archive this device had open last, or says why it can't.
     func reopen() {
         guard open == nil, let path = defaults.string(forKey: Self.openKey) else { return }
         let url = Self.current(URL(filePath: path, directoryHint: .isDirectory))
+        _ = access(url)
         guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+            defaults.removeObject(forKey: Self.openKey)
+            problem = "“\(url.lastPathComponent)” isn’t where it was. Choose it again to open it."
             return
         }
-        _ = access(url)
-        if let root = try? app.resolve(url) { show(root) }
+        open(url)
     }
 
     /// `url` moved to where the app's container is now, if it was in the container's
@@ -60,15 +64,19 @@ final class MobileLibrary {
     func open(_ url: URL) {
         let url = Self.current(url)
         _ = access(url)
-        do {
-            let root = try app.resolve(url)
-            remember(root)
-            show(root)
-        } catch {
-            if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
-                app.recents.remove(url)
+        opening = url.lastPathComponent
+        Task {
+            defer { opening = nil }
+            do {
+                let root = try await app.resolveInBackground(url)
+                remember(root)
+                show(root)
+            } catch {
+                if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
+                    app.recents.remove(url)
+                }
+                problem = message(for: error)
             }
-            problem = message(for: error)
         }
     }
 
@@ -268,6 +276,14 @@ struct MobileWelcomeView: View {
                     Text(
                         "An archive is a folder of plain files. Keep it in iCloud Drive to use it on your Mac, iPad and iPhone."
                     )
+                }
+            }
+            .disabled(library.opening != nil)
+            .overlay {
+                if let name = library.opening {
+                    ProgressView("Opening “\(name)”…")
+                        .padding()
+                        .background(.regularMaterial, in: .rect(cornerRadius: 12))
                 }
             }
             .navigationTitle("Archives")

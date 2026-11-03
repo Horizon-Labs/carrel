@@ -22,7 +22,9 @@ pub fn home_dir() -> Option<PathBuf> {
 }
 
 /// The configuration folder: `CARREL_CONFIG_DIR` if set, otherwise
-/// `~/Library/Application Support/Carrel` on macOS, `%APPDATA%\Carrel` on Windows, and
+/// `~/Library/Application Support/Carrel` on Apple systems (on iPad and iPhone, in the app's
+/// container, where the sandbox allows nothing at its top level), `%APPDATA%\Carrel` on
+/// Windows, and
 /// `$XDG_CONFIG_HOME/carrel` (or `~/.config/carrel`) elsewhere. `None` if there is no folder
 /// to put it in.
 #[must_use]
@@ -36,7 +38,7 @@ pub fn config_dir() -> Option<PathBuf> {
             .map(|d| PathBuf::from(d).join("Carrel"));
     }
     let home = home_dir()?;
-    if cfg!(target_os = "macos") {
+    if cfg!(target_vendor = "apple") {
         return Some(home.join("Library/Application Support/Carrel"));
     }
     Some(

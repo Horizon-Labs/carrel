@@ -82,6 +82,11 @@ struct ArchiveWindow: View {
                     Button("Try Again") { Task { await model.load() } }
                 }
                 .background(.background)
+            } else if model.handle == nil {
+                // Until the archive is read, which takes a while when iCloud downloads it.
+                ProgressView("Opening “\(model.url.lastPathComponent)”…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.background)
             }
         }
         .sheet(item: $model.correction) { CorrectionSheet(correction: $0) }

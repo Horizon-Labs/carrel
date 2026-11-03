@@ -72,6 +72,15 @@ final class AppModel {
         return root
     }
 
+    /// `resolve`, finding and opening the archive off the main thread, where downloading its
+    /// files from iCloud can take a while.
+    func resolveInBackground(_ url: URL) async throws -> URL {
+        let path = try await Task.detached { try ArchiveHandle.open(url).root() }.value
+        let root = URL(filePath: path, directoryHint: .isDirectory).standardizedFileURL
+        recents.note(root)
+        return root
+    }
+
     /// Creates an archive in the new or empty folder `url`, named after the folder, with
     /// `embeddingModel` as its embedding model (the default one when `nil`), notes it as
     /// recent, and returns its root.

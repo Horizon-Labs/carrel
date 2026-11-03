@@ -34,6 +34,10 @@ final class FileChoosing {
 
     /// The request the document picker is showing, on iPad and iPhone.
     var pending: Request?
+    /// Whether the document picker is showing, which can end before its answer arrives.
+    var showing = false
+    /// Why the document picker couldn't give what was chosen, until it's dismissed.
+    var problem: String?
 
     /// Asks for files or folders, and calls `chosen` with them unless it's cancelled.
     func choose(_ request: Request) {
@@ -50,6 +54,7 @@ final class FileChoosing {
         request.chosen(panel.urls)
         #else
         pending = request
+        showing = true
         #endif
     }
 
@@ -58,9 +63,23 @@ final class FileChoosing {
     func finish(_ result: Result<[URL], any Error>) {
         guard let request = pending else { return }
         pending = nil
-        guard case .success(let urls) = result, !urls.isEmpty else { return }
-        for url in urls { _ = url.startAccessingSecurityScopedResource() }
-        request.chosen(urls)
+        showing = false
+        switch result {
+        case .success(let urls) where !urls.isEmpty:
+            for url in urls { _ = url.startAccessingSecurityScopedResource() }
+            request.chosen(urls)
+        case .success:
+            break
+        case .failure(let error):
+            problem = message(for: error)
+        }
+    }
+
+    /// The document picker closed. Its answer may still be on its way, as SwiftUI closes it
+    /// first, so the request stays pending; when it was cancelled, no answer comes, and the
+    /// next request replaces it.
+    func closed() {
+        showing = false
     }
 }
 
@@ -102,11 +121,20 @@ private struct FileChoosingPicker: ViewModifier {
         #else
         content.fileImporter(
             isPresented: Binding(
-                get: { choosing.pending != nil },
-                set: { if !$0, choosing.pending != nil { choosing.finish(.success([])) } }),
+                get: { choosing.showing },
+                set: { if !$0 { choosing.closed() } }),
             allowedContentTypes: allowedTypes,
             allowsMultipleSelection: choosing.pending?.multiple ?? false
         ) { choosing.finish($0.map { $0 }) }
+        .alert(
+            "Carrel Can’t Use What You Chose",
+            isPresented: Binding(
+                get: { choosing.problem != nil }, set: { if !$0 { choosing.problem = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(choosing.problem ?? "")
+        }
         #endif
     }
 

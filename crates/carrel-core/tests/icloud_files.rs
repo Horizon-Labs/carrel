@@ -225,6 +225,39 @@ fn contents_are_downloaded_when_needed_through_the_provider() {
 }
 
 #[test]
+fn an_archive_never_opened_on_this_device_opens_from_placeholders() {
+    // As on an iPad that has only seen the archive in iCloud Drive: its root files, its
+    // settings and its history are all placeholders.
+    let s = Setup::new();
+    // Found from inside, the archive is opened by its canonical path, as the fake must know it.
+    let root = std::fs::canonicalize(&s.root).unwrap();
+    let fake = Arc::new(FakeICloud::default());
+    let evicted: Vec<PathBuf> = [
+        "_System/archive.json",
+        "ARCHIVE.md",
+        "_System/settings.json",
+        "_System/history.git/HEAD",
+        "_System/history.git/config",
+    ]
+    .into_iter()
+    .map(|name| root.join(name))
+    .collect();
+    for path in &evicted {
+        fake.evict_to_placeholder(path);
+    }
+
+    let archive = with_provider(fake.clone(), || Archive::find(&s.path("Active"))).unwrap();
+    assert_eq!(archive.root(), root);
+    let log = with_provider(fake.clone(), || {
+        History::open(&archive).unwrap().log().unwrap()
+    });
+    assert_eq!(log.len(), 1);
+    for path in &evicted {
+        assert!(path.is_file(), "{} wasn't downloaded", path.display());
+    }
+}
+
+#[test]
 fn checking_out_an_evicted_item_downloads_it_first() {
     let s = Setup::new();
     let archive = s.archive();
