@@ -26,8 +26,21 @@ import Testing
                 == .notDownloaded)
         #expect(
             CloudFiles.state(
-                observed(ubiquitous: true, status: .notDownloaded, downloading: true))
+                observed(
+                    ubiquitous: true, status: .notDownloaded, downloading: true, dataless: true))
                 == .downloading)
+    }
+
+    @Test func aFileWhoseContentsAreHereIsDownloadedWhateverICloudSays() {
+        // A history object Carrel just wrote, before iCloud has seen it.
+        #expect(
+            CloudFiles.state(observed(ubiquitous: true, status: .notDownloaded)) == .downloaded)
+        #expect(
+            CloudFiles.state(observed(ubiquitous: true, status: .notDownloaded, downloading: true))
+                == .downloaded)
+        #expect(
+            CloudFiles.state(observed(ubiquitous: true, status: .notDownloaded, dataless: true))
+                == .notDownloaded)
     }
 
     @Test func aFileOutsideICloudDriveIsThereOrNot() {

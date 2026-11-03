@@ -77,7 +77,9 @@ final class FeedbackModel: Identifiable {
     static var appVersion: String? {
         let info = Bundle.main.infoDictionary
         guard let version = info?["CFBundleShortVersionString"] as? String else { return nil }
-        let build = info?["CFBundleVersion"] as? String
+        // The git commit a test build came from names it exactly; else the build number.
+        let commit = (info?["CarrelBuild"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let build = commit ?? info?["CFBundleVersion"] as? String
         return build.map { "\(version) (\($0))" } ?? version
     }
 

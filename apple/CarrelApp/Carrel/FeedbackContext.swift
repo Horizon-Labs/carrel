@@ -123,11 +123,17 @@ extension ArchiveWindowModel {
     }
 
     /// Opens the feedback form about where the owner is now, with the window's screenshot
-    /// taken first, so the form isn't in it.
-    func startFeedback() {
+    /// taken first, so the form isn't in it. Reporting an error, the form starts as a bug
+    /// with what Carrel said.
+    func startFeedback(reporting error: String? = nil) {
         guard archive != nil, feedback == nil else { return }
-        feedback = FeedbackModel(
+        let feedback = FeedbackModel(
             screen: feedbackMarks.applied(to: feedbackBase),
             screenshot: FeedbackModel.windowScreenshot())
+        if let error {
+            feedback.kind = "bug"
+            feedback.words = "Carrel said: “\(error)”\n\nWhat I was doing: "
+        }
+        self.feedback = feedback
     }
 }

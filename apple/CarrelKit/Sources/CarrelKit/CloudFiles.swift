@@ -128,10 +128,12 @@ public final class CloudFiles: OnDemandFilesProvider {
         state(observe(url))
     }
 
-    /// The state `observed` means: iCloud's own status for a file in iCloud Drive, else
-    /// whether the file, a dataless file or a `.icloud` placeholder is there, as the core's
-    /// own checks decide.
+    /// The state `observed` means: a file whose contents are here is downloaded, whatever iCloud
+    /// says, since a file just written can read as not downloaded until iCloud has seen it;
+    /// otherwise iCloud's own status for a file in iCloud Drive, else whether a dataless file
+    /// or a `.icloud` placeholder is there, as the core's own checks decide.
     static func state(_ observed: Observed) -> FileDownloadState {
+        if observed.exists && !observed.isDataless { return .downloaded }
         if observed.isUbiquitous == true, let status = observed.status {
             if observed.isDownloading == true { return .downloading }
             switch status {

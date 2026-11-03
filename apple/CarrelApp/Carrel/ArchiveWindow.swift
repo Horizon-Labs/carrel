@@ -92,7 +92,7 @@ struct ArchiveWindow: View {
         .sheet(item: $model.correction) { CorrectionSheet(correction: $0) }
         .sheet(item: $model.missingFeature) { MissingFeatureSheet(window: model, model: $0) }
         .icloudMoveSheet(model)
-        .archiveErrorAlert(model.archive)
+        .archiveErrorAlert(model)
         .focusedSceneValue(model)
         .task {
             #if os(macOS)

@@ -212,3 +212,19 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(settings.archive?.backupsSetUp, false)
     }
 }
+
+@MainActor
+final class ReportingErrorsTests: XCTestCase {
+    func testReportingAnErrorStartsABugWithWhatCarrelSaid() async throws {
+        let config = FileManager.default.temporaryDirectory
+            .appending(path: "CarrelTests.\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: config) }
+        let model = ArchiveWindowModel(url: sampleArchive, options: .isolated(config: config))
+        await model.load()
+        model.startFeedback(reporting: "history.git: 71be00 is still downloading")
+        let feedback = try XCTUnwrap(model.feedback)
+        XCTAssertEqual(feedback.kind, "bug")
+        XCTAssertTrue(feedback.words.contains("“history.git: 71be00 is still downloading”"))
+        XCTAssertTrue(feedback.canSend)
+    }
+}
