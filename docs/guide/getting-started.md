@@ -113,7 +113,7 @@ carrel ingest --each ~/Downloads/to-file
 
 ## 5. Review
 
-Proposals appear on the **Review** screen (`3`) as they're ready. For each one you see the card Carrel drafted and the collection it chose, with how sure it is and why.
+Proposals appear on the **To Approve** screen (`4`) as they're ready. For each one you see the card Carrel drafted and the collection it chose, with how sure it is and why.
 
 | Key | Decision |
 | --- | --- |
@@ -126,11 +126,11 @@ Proposals appear on the **Review** screen (`3`) as they're ready. For each one y
 
 Anything sensitive (bank statements, medical letters, IDs) always waits for you; nothing is filed without your approval.
 
-If several items share a term Carrel doesn't know, such as a project's code name, it asks on the **Questions** screen (`4`) instead of guessing. Answer once and it drafts those items again with what you said, and remembers it for next time.
+If several items share a term Carrel doesn't know, such as a project's code name, it asks on the **Questions** screen (`3`) instead of guessing. Answer once and it drafts those items again with what you said, and remembers it for next time.
 
 ## 6. Look around, and undo
 
-- **Library** (`1`), where Carrel opens, shows what's waiting for you, each collection with its count, what you added lately and On This Day; `Enter` opens the chosen one.
+- **Library** (`1`), where Carrel opens, shows what the librarian is asking, each collection with its count, what you added lately and On This Day; `Enter` opens the chosen one.
 - **Browse** (`5`) lists collections and their items; `/` searches the archive as `carrel search` does, with filters such as `tag:receipts` or `after:2025`. Below each card are the changes that touched the item and the items it links to; `Enter` moves among them, and `u` undoes the chosen change.
 - **History** (`7`) lists every change. Choose one and press `u` to undo it: files it moved go back.
 - **Status** (`6`) summarizes the archive, including **Structure**: signs that a collection is getting crowded or that something's missing.

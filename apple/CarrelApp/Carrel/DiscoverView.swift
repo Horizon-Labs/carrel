@@ -9,6 +9,8 @@ struct DiscoverView: View {
     let page: DiscoverPage
     @Bindable var discover: DiscoverModel
     let window: ArchiveWindowModel
+    /// The collection the page looks at, with those inside it; `nil` for the whole archive.
+    var scope: String?
 
     var body: some View {
         Group {
@@ -29,7 +31,10 @@ struct DiscoverView: View {
                     .padding()
             }
         }
-        .task(id: page) { await discover.refresh(page) }
+        .task(id: [page.rawValue, scope ?? ""]) {
+            discover.scope = scope
+            await discover.refresh(page)
+        }
     }
 }
 

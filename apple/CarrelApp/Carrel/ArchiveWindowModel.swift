@@ -141,6 +141,8 @@ final class ArchiveWindowModel {
     private(set) var library: ArchiveLibrary?
     /// Whether the Add panel is showing: the ways to add, and the intake queue.
     var showingAdd = false
+    /// Counts changes of view, so what reads the remembered views follows them.
+    private(set) var viewsChanged = 0
     /// What to do once the Add panel has closed: the sheet of the way to add chosen in it.
     var afterAdd: (() -> Void)?
 
@@ -282,7 +284,7 @@ final class ArchiveWindowModel {
         library = try? await Task.detached { try handle.library(recent: recent) }.value
     }
 
-    /// What waits in each queue, for the Waiting section and the Library's banner.
+    /// What waits in each queue, for the Librarian section and the librarian's line.
     var waitingCounts: WaitingCounts {
         WaitingCounts(
             review: UInt32((archive?.reviewCount ?? 0) + (archive?.crawlerFindings.count ?? 0)),
@@ -291,7 +293,7 @@ final class ArchiveWindowModel {
             flagged: UInt32(flaggedCollections.count + flaggedItems.count))
     }
 
-    /// The Waiting section's rows: only the queues with something, in order, and none when
+    /// The Librarian section's rows: only the queues with something, in order, and none when
     /// nothing waits. A screen that's showing keeps its row, so deciding the last proposal
     /// doesn't pull the row out from under the owner.
     var waitingRows: [WaitingRow] {
@@ -308,7 +310,9 @@ final class ArchiveWindowModel {
     /// Whether the window shows the Library as a page of its own, as wide as the window: on
     /// the Library, unless a search's results are showing.
     var showsLibraryPage: Bool {
-        (screen == .library || screen == nil) && search?.isActive != true
+        _ = viewsChanged
+        return (screen == .library || screen == nil) && view(of: nil) == .covers
+            && search?.isActive != true
     }
 
     /// Whether Checked Out shows in the sidebar: when anything is checked out or on the desk,
@@ -333,7 +337,66 @@ final class ArchiveWindowModel {
 
     /// The content column's list for the chosen screen.
     var listedItems: [ItemSummary] {
-        if case .collection(let path) = screen { items(in: path) } else { [] }
+        switch screen {
+        case .collection(let path): items(in: path)
+        case .library where view(of: nil) == .items:
+            items.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        default: []
+        }
+    }
+
+    // MARK: Views (#512)
+
+    static let viewsKey = "archiveViews"
+
+    /// The collection the chosen screen's views look at: `nil` for the Library, a
+    /// collection's path, or `nil` too for a screen that has no views.
+    var viewScope: String? {
+        if case .collection(let path) = screen { path } else { nil }
+    }
+
+    /// Whether the chosen screen has views: the Library and each collection.
+    var hasViews: Bool {
+        switch screen {
+        case .library, .collection, nil: true
+        default: false
+        }
+    }
+
+    /// The view the Library (`nil`) or a collection shows: the last one chosen there, else
+    /// its own, Covers or Items.
+    func view(of scope: String?) -> ArchiveView {
+        let views = archiveViews(collection: scope != nil)
+        let remembered = (defaults.dictionary(forKey: Self.viewsKey)?[viewKey(scope)] as? String)
+            .flatMap(archiveViewNamed(name:))
+        return remembered.flatMap { views.contains($0) ? $0 : nil } ?? views[0]
+    }
+
+    /// Shows `view` of the Library or a collection, and remembers it for next time.
+    func show(_ view: ArchiveView, of scope: String?) {
+        var all = defaults.dictionary(forKey: Self.viewsKey) ?? [:]
+        all[viewKey(scope)] = archiveViewName(view: view)
+        defaults.set(all, forKey: Self.viewsKey)
+        viewsChanged += 1
+    }
+
+    /// The view the chosen screen shows, for the toolbar's switcher.
+    var currentView: ArchiveView {
+        _ = viewsChanged
+        return view(of: viewScope)
+    }
+
+    /// Where a scope's view is remembered: by the archive, then the collection.
+    private func viewKey(_ scope: String?) -> String {
+        "\(root.path(percentEncoded: false))|\(scope ?? "")"
+    }
+
+    /// Starts a wander from a random item in the Library or the chosen collection, and shows
+    /// it.
+    func wanderHere() {
+        guard let discover else { return }
+        discover.wander(within: viewScope)
+        screen = .discover(.wander)
     }
 
     /// The chosen screen's name, shown under the archive's in the title bar.
@@ -341,11 +404,11 @@ final class ArchiveWindowModel {
         switch screen {
         case .library, nil: "Library"
         case .status: "Status"
-        case .review: "Review"
-        case .questions: "Questions"
-        case .restructure: "Restructure"
+        case .review: WaitingQueue.review.title
+        case .questions: WaitingQueue.questions.title
+        case .restructure: WaitingQueue.restructure.title
         case .active: "Checked Out"
-        case .flagged: "Flagged"
+        case .flagged: WaitingQueue.flagged.title
         case .collection(let path): collections.first { $0.path == path }?.title ?? path
         case .history: "History"
         case .backups: "Backups"
@@ -395,24 +458,18 @@ extension WaitingQueue {
         }
     }
 
-    /// Its place in the Waiting section.
+    /// Its place in the Librarian section.
     var order: Int {
         switch self {
-        case .review: 0
-        case .questions: 1
+        case .questions: 0
+        case .review: 1
         case .restructure: 2
         case .flagged: 3
         }
     }
 
-    var title: String {
-        switch self {
-        case .review: "Review"
-        case .questions: "Questions"
-        case .restructure: "Restructure"
-        case .flagged: "Flagged"
-        }
-    }
+    /// Its name, from the core: Questions, To Approve, Suggestions or Flags.
+    var title: String { waitingQueueTitle(queue: self) }
 
     var symbol: String {
         switch self {

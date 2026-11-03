@@ -169,7 +169,7 @@ Apple's on-device model has safety filters that sometimes refuse documents, ofte
 
 ## Reviewing
 
-Review is where proposals become filed items. In the interactive mode (`3`), each proposal shows the card it would write, the destination with its confidence and reasons, its sensitivity and why, and anything left to settle.
+Review is where proposals become filed items. In the interactive mode (**To Approve**, `4`), each proposal shows the card it would write, the destination with its confidence and reasons, its sensitivity and why, and anything left to settle.
 
 | Decision | Key | Command |
 | --- | --- | --- |
@@ -227,17 +227,17 @@ The Mac app's Questions screen does all of this too ([The Mac app](mac-app.md#qu
 Carrel also asks about items at natural moments, never in a pop-up, and an answer always goes through the same correction, shown before it's saved, with the fields you wrote yourself kept:
 
 - **Beside an item in Browse:** under **Carrel asks** above its card; `a` answers it. `carrel show` lists the same questions, and `carrel questions about ITEM` adds them to the queue.
-- **On a wander:** now and then a step asks about its item, at most every three steps and never on the first; `a` answers it in Discover, and `carrel discover wander` prints it with the command that answers it.
+- **On a wander:** now and then a step asks about its item, at most every three steps and never on the first; `a` answers it on the wander, and `carrel discover wander` prints it with the command that answers it.
 - **From the librarian:** when an item it found has a question, it asks after its answer ("While we're here…"), at most once an answer, never after two answers in a row, and never twice about the same item in a conversation. `a` answers it on the Librarian screen; in a conversation at the terminal, `carrel ask` asks for your answer there (a number picks a suggestion, an empty line leaves it for later).
 - **On Status:** at most three new questions a day, the same all day, chosen from all over the archive; they join Questions, and drop off Status once answered or skipped.
 
-The Mac app asks them in the same places: under **Carrel Asks** below an item's card in the inspector, on a wander step in Discover, in the Librarian panel and under **Today's Questions** on Status.
+The Mac app asks them in the same places: under **Carrel Asks** below an item's card in the inspector, on a wander step, in the Librarian panel and under **Today's Questions** on Status.
 
 A question you skipped rests and one you declined is never asked again, wherever it would have come up.
 
 ## Finding things
 
-- **The Library** is where the interactive mode and the apps open: what's waiting for you, in one line such as "5 to review · 1 question", each top-level collection with how many items it holds (Holding last), the items you added most recently and On This Day. `Enter` (or a click) opens a queue, a collection or an item. `carrel library` prints the same.
+- **The Library** is where the interactive mode and the apps open: what the librarian is asking, in one line such as "The librarian has 1 question and 5 items for you to approve.", each top-level collection with how many items it holds (Holding last), the items you added most recently and On This Day. `Enter` (or a click) opens a queue, a collection or an item. `carrel library` prints the same.
 - `carrel search WORDS` finds items by what's in their cards and their contents, and by what they mean (below).
 - **Browse** (`5`) lists collections and their items, with each card in full. `/` searches the whole archive the way `carrel search` does, filters and all (below).
 - **An item's view:** below its card, Browse lists every change that touched the item, newest first, from its filing to its latest correction or return, then under **Related** the items its card links to (`version-of`, `related`, `part-of`) and the five items nearest it by meaning (`near`; see [Related items](#related-items)). `Enter` on an item moves into its view: `u` undoes the chosen change (after asking, as History does), `Enter` on a related item goes to it, and `←` or `Esc` go back.
@@ -342,7 +342,7 @@ Along the way the librarian notices things that could be better: a receipt in th
 
 In the interactive mode, `L` opens the **Librarian** screen: the conversation on the left, and on the right the item it's discussing, with its preview where the terminal draws one.
 
-- `L` from Browse, Questions or Discover brings what's in view there: the chosen item, the collection while you're choosing among them, the item a question is about, or the Discover view. It's shown above the conversation ("About: Hardware"), and your questions are about it; `x` asks about the whole archive again.
+- `L` from Browse, Questions or a view brings what's in view there: the chosen item, the collection while you're choosing among them, the item a question is about, or the Discover view. It's shown above the conversation ("About: Hardware"), and your questions are about it; `x` asks about the whole archive again.
 - `Enter` asks a question. While the librarian works, the help line shows its steps. Each answer shows the passages it read and the model that gave it; under it are the items it found and the changes it suggests, to choose with `↑↓`. The chosen item's card is on the right, and `o` opens it in Browse.
 - With `librarian.changes` off, `y` makes the chosen suggestion through the usual steps: a refile or a correction is shown before and after and saved only on your yes, and a rename or a new collection asks first. Each is your own change.
 - With it on, the changes it made are listed under **The librarian's changes this week**: `u` undoes the chosen one and `U` all of them, after asking.
@@ -362,9 +362,11 @@ Search finds what you ask for. Discovery shows you the archive itself, so you co
 - **The graph** (`carrel discover graph`): which collections connect and why, strongest first. Two items are tied by the tags they share (a tag on fewer items ties them more), the links between them, and the days both were worked on; two collections are tied by all their items' ties. Each connection says how many pairs of items it has, and its links, days and tags. `--items` lists the strongest ties between items in different collections instead, and `-n N` lists `N` (10 by default).
 - **Resurfacing:** now and then, `carrel status` names a collection you haven't opened in six months, with an item or two from it. It names the same one all day, then none for a week. Showing an item in it (`carrel show`, or a wander step) counts as opening it.
 
-In the interactive mode, `D` opens the **Discover** screen, with a key for each view: `d` on this day, `w` wander (`Space` takes the next step, `n` starts another walk, `o` opens the item in Browse; the item's preview is beside it where the terminal draws one), `t` the timeline (`p` changes between months, days and years), `m` the archive map as a sized tree, `h` activity as a block heatmap, and `g` the graph's strongest connections, as `carrel discover graph` lists them (`c` switches between collections and items). Status shows the resurfaced collection, and showing an item in Browse counts as opening its collection.
+These are views of the archive, as Finder's and Photos' view modes are: the Library and every collection have **Timeline**, **Map**, **Connections** and **Activity**, each looking only inside the collection, and the Library's covers show **On This Day**. **Wander** starts from a random item in the Library or the collection. `carrel discover map`, `activity`, `graph` and `wander` take `--in COLLECTION` for a collection's view, and the timeline `collection:` as search does.
 
-In the Mac app, the views are in the sidebar's **Discover** section: wander with each item's preview, the archive map as a treemap, activity as a heatmap, **Connections**, the graph drawn as collections round a circle with a line between two as thick as their ties, and Status's **Not Opened in a While** (see [The Mac app](mac-app.md#discover)).
+In the interactive mode, `v` on the Library, or on a collection in Browse, cycles through its views and `Esc` goes back; on them, a key shows each: `d` on this day, `w` wander (`Space` takes the next step, `n` starts another walk, `o` opens the item in Browse; the item's preview is beside it where the terminal draws one), `t` the timeline (`p` changes between months, days and years), `m` the archive map as a sized tree, `h` activity as a block heatmap, and `g` the graph's strongest connections, as `carrel discover graph` lists them (`c` switches between collections and items). Status shows the resurfaced collection, and showing an item in Browse counts as opening its collection.
+
+In the Mac app, the views are in the toolbar's view switcher on the Library and each collection, and the app remembers each one's last: wander with each item's preview, the archive map as a treemap, activity as a heatmap, **Connections**, the graph drawn as collections round a circle with a line between two as thick as their ties, and Status's **Not Opened in a While** (see [The Mac app](mac-app.md#views)).
 
 Which collections you opened, and your last walk, are kept on this device (see [What Carrel keeps on this device](#what-carrel-keeps-on-this-device)), never in the archive: looking around never changes it. A collection this device has never opened counts as last seen when something in it was last filed or worked on.
 
@@ -444,7 +446,7 @@ Only one program changes an archive at a time: it holds the **writer lock** (`_S
 
 While browsing, you'll notice a card with the wrong title or a collection that's become a jumble. Flag it, with a few words saying what: `carrel flag ITEM --note "wrong title"`, or `carrel flag Projects --note "split this folder"` for a collection; `f` in Browse in the interactive mode; or **Flag…** in the Mac app's context menus and inspector. The flag is the `needs_work` field on the card, or in the collection's `_collection.md`, with who flagged it and when, and it's one change undo can reverse.
 
-- **What it feeds:** Status lists what's flagged, and `carrel flagged` (`F` in Browse, **Flagged** in the app's sidebar) lists it whenever you like. The crawler looks at flagged items, and the items of flagged collections, first, reading your note with the card. A flagged collection counts as a sign a restructure may help. Ask the librarian "what needs work?" and it lists them.
+- **What it feeds:** Status lists what's flagged, and `carrel flagged` (`F` in Browse, **Flags** in the app's sidebar, under Librarian) lists it whenever you like. The crawler looks at flagged items, and the items of flagged collections, first, reading your note with the card. A flagged collection counts as a sign a restructure may help. Ask the librarian "what needs work?" and it lists them.
 - **Clearing it:** `carrel unflag`, `f` again, or **Unflag**. When you save an edit or a correction on a flagged card, Carrel asks whether that settled it; it never clears a flag on its own.
 - **Searching:** the filter `flagged` finds flagged items, alone or with words and other filters.
 - **The librarian takes a look:** a flag is a request to the [librarian](#asking-the-librarian). When the device is idle, as the crawler runs, it reads what you flagged, its collection and your note, and comes to one of three ends:
@@ -477,7 +479,7 @@ Approve it all with `carrel restructure approve`, or part of it with `--only 1,2
 
 In the interactive mode, `f` on Review (twice from the proposals to file) shows the restructure proposals waiting, tag proposals too. The chosen one's changes are beside the archive as it is now and as they would leave it. `↑↓` choose a change, with its reason and what it touches below, `Space` leaves one out (the after side follows), `a` approves the rest, `x` rejects the proposal, and `[` `]` go to another. `p` proposes a new shape for the whole archive, and on a collection in Browse, `R` proposes one for it.
 
-In the Mac app, the **Restructure** screen lists the proposals waiting. **Propose Changes…** in its toolbar looks over a collection or the whole archive, and **Propose Changes Here** in a collection's inspector looks over that one; when nothing is worth proposing, the bar at the bottom says why. Choose a proposal to see the archive before and after side by side, how it was judged, and each change with its reason and how invasive it is (one dot to five). Untick the changes to leave out, then **Approve Chosen**, or **Approve All**, or **Reject** (see [The Mac app](mac-app.md#restructure)).
+In the Mac app, **Suggestions** in the sidebar's Librarian section lists the restructure proposals waiting. **Propose Changes…** in its toolbar looks over a collection or the whole archive, and **Propose Changes Here** in a collection's inspector looks over that one; when nothing is worth proposing, the bar at the bottom says why. Choose a proposal to see the archive before and after side by side, how it was judged, and each change with its reason and how invasive it is (one dot to five). Untick the changes to leave out, then **Approve Chosen**, or **Approve All**, or **Reject** (see [The Mac app](mac-app.md#restructure)).
 
 **Undoing a restructure:** it's one change in History, wherever it was approved. `carrel undo CHANGE`, `u` on it in the interactive mode's History, or **Undo Change…** in the app's History puts every item, folder, design document, tag and link back as it was. Changes you've made since are kept; if one touched the same lines of a card or design document, the undo says which and changes nothing.
 

@@ -128,8 +128,9 @@ final class AgentLinkTests: XCTestCase {
         let model = try await SampleWindow().model
         let screens: [(AgentLink.Screen, Screen?)] = [
             (.review, .review), (.questions, .questions), (.active, .active),
-            (.history, .history), (.backups, .backups), (.discover(.map), .discover(.map)),
-            (.discover(nil), .discover(.today)), (.status, .status), (.library, .library),
+            (.history, .history), (.backups, .backups), (.discover(.map), .library),
+            (.discover(.wander), .discover(.wander)), (.discover(nil), .library),
+            (.status, .status), (.library, .library),
         ]
         for (linked, screen) in screens {
             model.show(linked: linked)

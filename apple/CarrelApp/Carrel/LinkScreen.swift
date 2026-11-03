@@ -19,8 +19,19 @@ extension ArchiveWindowModel {
         case .backups: self.screen = .backups
         case .browse:
             if let first = tree.first { self.screen = .collection(first.collection.path) }
-        case .discover(let view):
-            self.screen = .discover(view.flatMap { DiscoverPage(rawValue: $0.rawValue) } ?? .today)
+        case .discover(let page):
+            // Discover's pages are views of the Library now; On This Day is on its covers.
+            switch page {
+            case .wander?: self.screen = .discover(.wander)
+            case .timeline?, .map?, .activity?, .graph?:
+                if let page, let view = archiveViewNamed(name: page.rawValue) {
+                    show(view, of: nil)
+                }
+                self.screen = .library
+            case .today?, nil:
+                show(.covers, of: nil)
+                self.screen = .library
+            }
         case .librarian: librarian?.show()
         case .settings: break
         }

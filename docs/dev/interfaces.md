@@ -15,7 +15,8 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Create, open and switch archives | `init`, `open` | ✓ `Ctrl-O`, Settings | ✓ | ✓ Archives: on this device, or in another place such as iCloud Drive |
 | Open the interactive mode or the app at a screen, with the same names (#450) | `tui SCREEN`, `gui SCREEN [--item]` | ✓ starts on it | ✓ `carrel://open?screen=`; Ingest is the Add panel, the librarian its panel, Settings its window | ✓ `carrel://open?screen=`; Settings is its sheet |
 | Create an archive with a chosen embedding model, or start history for one that has none | `init --embedding-model`, `init` in the archive | ✓ `Ctrl-O` | ✓ New Archive…'s embedding model; Start History on Status and History | ✓ New Archive's embedding model; Start History on Status and History |
-| The Library, where every interface opens: what waits, the collections with their counts and covers, Recently Added, On This Day (#512) | `library` | ✓ Library (`1`), tabs in the sidebar's order, empty queues left out | ✓ Library, the sidebar's Library, Checked Out, Waiting, Collections, Discover and Archive | ✓ the same sidebar; on iPhone the Library comes first |
+| The Library, where every interface opens: what the librarian is asking, the collections with their counts and covers, Recently Added, On This Day (#512) | `library` | ✓ Library (`1`), tabs in the sidebar's order, empty queues left out | ✓ Library, the sidebar's Library, Checked Out, Librarian, Collections and Archive | ✓ the same sidebar; on iPhone the Library comes first |
+| Views of the Library and of a collection, scoped and remembered: Timeline, Map, Connections, Activity, and Wander from a random item (#512) | `discover … --in COLLECTION` (the timeline's `collection:`) | ✓ `v` and `w` on the Library and in Browse | ✓ the toolbar's view switcher and Wander | ✓ |
 | Status, problems and Recent | `status` | ✓ Status | ✓ Status: Recent, cards with problems, names to rename, restructure signals, desk suggestions | ✓ |
 | Add items to the intake queue | `ingest` | ✓ `i` anywhere, `+` for the queue | ✓ + and ⌘N for the Add panel, drag, ⌘O (#236), a folder entry by entry or whole | ✓ the + menu: Photos, Take Photo, Scan Document, Files |
 | Add a web address as a `url` item, and a note for the cards | `ingest --url`, `--title`, `--note` | ✓ a web address on the Ingest line, `n` for a note | ✓ File → Add Web Address…, the add sheet's note, pasting; Send to Archive and Add to Archive in Shortcuts | ✓ Web Address… and Paste in the + menu, the add sheet's note; the share sheet |
@@ -38,20 +39,20 @@ On iPad and iPhone, where the Mac column names a keyboard shortcut, an iPad with
 | Questions: ranked, with suggested answers, skip | `questions`, `questions skip` | ✓ Questions (`1`–`9`, `s`) | ✓ Questions (`s`, Show Skipped) | ✓ |
 | Questions about an item, a group, a sender | `questions answer`, `questions about` | ✓ Questions; `A` in Browse asks for an item's | ✓ Questions; Carrel Asks under an item's card | ✓ |
 | Questions show what they're about: each item's path, and its preview | `questions` (each item's path) | ✓ Questions: the preview where the terminal draws images, else the path | ✓ Questions: Quick Look, or thumbnails for a group, with Open (#446) | ✓ |
-| Questions while browsing and wandering, from the librarian, and a few a day on Status | `show`, `discover wander`, `ask`, `status` | ✓ Browse, Discover, Librarian, Status (`a`) | ✓ inspector, Discover, Librarian, Status | ✓ |
+| Questions while browsing and wandering, from the librarian, and a few a day on Status | `show`, `discover wander`, `ask`, `status` | ✓ Browse, wander, Librarian, Status (`a`) | ✓ inspector, Discover, Librarian, Status | ✓ |
 | Browse collections and items | `show`, `status` | ✓ Browse | ✓ Browse | ✓ |
 | Previews of items | the item's path in `show` | ✓ Browse, in terminals that draw images (#258) | ✓ inspector and grid (#256) | ✓ inspector and grid, with Quick Look |
 | Card previews outside Carrel | `show` | ✓ Browse | ✓ Quick Look in Finder, with Carrel's drawings of STEP, IGES and 3MF (#410) | — Quick Look in Finder is the Mac's; Files previews the files themselves |
 | An item's history and related items | `show` | ✓ | ✓ the inspector's History and Related | ✓ |
 | Search, with filters and reasons | `search` | ✓ `/` | ✓ ⌘F (#236) | ✓ |
 | Search from outside Carrel | `search` | ✓ `/` | ✓ Spotlight finds cards, collections and glossary facts, by `spotlight.index`; a result opens the item in Carrel (#411) | ✓ Spotlight, indexed by the app when the archive opens, after changes and in background tasks; a result opens the item (#478) |
-| Discovery: on this day, timeline | `discover today`, `discover timeline` | ✓ Discover (`D`) | ✓ Discover | ✓ |
-| Discovery: the timeline's words, filters and date | `discover timeline QUERY --by` | ✓ `/` and `b` on the timeline | ✓ Discover | ✓ |
-| Discovery: wander the stacks | `discover wander` | ✓ Discover, with previews where the terminal draws them | ✓ Discover, with previews | ✓ |
+| Discovery: on this day, timeline | `discover today`, `discover timeline` | ✓ the views (`v`), and On This Day on the Library | ✓ the views, and On This Day on the Library | ✓ |
+| Discovery: the timeline's words, filters and date | `discover timeline QUERY --by` | ✓ `/` and `b` on the timeline | ✓ the Timeline view | ✓ |
+| Discovery: wander the stacks | `discover wander` | ✓ `w`, with previews where the terminal draws them | ✓ Wander, with previews | ✓ |
 | Discovery: wander from an item | `discover wander ITEM` | ✓ `w` in Browse | ✓ Wander from Here on an item | ✓ |
 | Discovery: the archive map, activity | `discover map`, `discover activity` | ✓ a sized tree and a block heatmap | ✓ a treemap and a heatmap | ✓ |
 | Discovery: activity over chosen days | `discover activity --from --to` | ✓ `r` on activity | ✓ From and To on Activity | ✓ |
-| Discovery: the tag and link graph | `discover graph [--items]` | ✓ Discover's graph (`g`), the strongest connections as text (#326) | ✓ Discover → Connections, drawn | ✓ |
+| Discovery: the tag and link graph | `discover graph [--items]` | ✓ the Connections view (`g`), the strongest connections as text (#326) | ✓ the Connections view, drawn | ✓ |
 | Resurfacing forgotten collections | `status` | ✓ Status | ✓ Status | ✓ |
 | The embedding index: status, rebuild, switch models | `index` | ✓ Status, Settings | ✓ Settings → Search (#267) | ✓ Settings → Search; rebuilding on an iPhone only while charging |
 | Correct a filed item | `correct` | ✓ `c` | ✓ ⌘K (#234) | ✓ |

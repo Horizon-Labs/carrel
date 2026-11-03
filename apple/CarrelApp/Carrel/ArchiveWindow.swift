@@ -151,14 +151,11 @@ extension ArchiveWindow {
 }
 
 /// The sidebar, in the order of what owners do most (docs/design/library-home.md): the
-/// Library, Checked Out, what's Waiting, the collections, Discover, then looking after the
-/// archive. Checked Out and Waiting's rows show only when they have something.
+/// Library, Checked Out, what the Librarian is asking, the collections, then looking after the
+/// archive. Checked Out and the Librarian's rows show only when they have something.
+/// Discover's pages are views of the Library and of each collection, in the toolbar.
 struct ArchiveSidebar: View {
-    static let discoverExpandedKey = "sidebarDiscoverExpanded"
-
     @Bindable var model: ArchiveWindowModel
-    @AppStorage(ArchiveSidebar.discoverExpandedKey, store: .app) private var discoverExpanded =
-        false
 
     var body: some View {
         // A row's tag goes last, after its badge: a tag with a modifier after it isn't the
@@ -174,7 +171,7 @@ struct ArchiveSidebar: View {
             }
             let waiting = model.waitingRows
             if !waiting.isEmpty {
-                Section("Waiting") {
+                Section("Librarian") {
                     ForEach(waiting, id: \.queue) { row in
                         Label(row.queue.title, systemImage: row.queue.symbol)
                             .badge(Int(row.count))
@@ -202,11 +199,6 @@ struct ArchiveSidebar: View {
                     .tag(Screen.collection(node.collection.path))
                 }
             }
-            Section("Discover", isExpanded: discoverShown) {
-                ForEach(DiscoverPage.allCases, id: \.self) { page in
-                    Label(page.title, systemImage: page.symbol).tag(Screen.discover(page))
-                }
-            }
             Section("Archive") {
                 Label("Status", systemImage: "gauge.with.dots.needle.33percent").tag(Screen.status)
                 Label("History", systemImage: "clock.arrow.circlepath").tag(Screen.history)
@@ -214,16 +206,6 @@ struct ArchiveSidebar: View {
             }
         }
         .listStyle(.sidebar)
-    }
-
-    /// Discover opens when its heading is, and while one of its pages is showing.
-    private var discoverShown: Binding<Bool> {
-        Binding(
-            get: {
-                if case .discover = model.screen { return true }
-                return discoverExpanded
-            },
-            set: { discoverExpanded = $0 })
     }
 }
 
@@ -239,41 +221,68 @@ struct ArchiveScreenContent: View {
         }
     }
 
+    /// The items of the Library or the collection, as a list or a grid, with Browse's layout
+    /// picker.
+    private var itemsView: some View {
+        Group {
+            if model.browseLayout == .grid {
+                BrowseGrid(model: model)
+            } else {
+                itemsList
+            }
+        }
+        .overlay {
+            if model.listedItems.isEmpty, !model.isLoading {
+                ContentUnavailableView("No Items", systemImage: "folder")
+            }
+        }
+        .toolbar {
+            Picker("Layout", selection: $model.browseLayout) {
+                Label("List", systemImage: "list.bullet").tag(BrowseLayout.list)
+                Label("Grid", systemImage: "square.grid.2x2").tag(BrowseLayout.grid)
+            }
+            .pickerStyle(.segmented)
+            .help("Show the items as a list or a grid")
+        }
+    }
+
+    private var itemsList: some View {
+        List(model.listedItems, selection: $model.selectedItemID) { item in
+            HStack {
+                Label(item.title, systemImage: item.kind.symbol)
+                Spacer()
+                FlagMark(flag: item.flag)
+            }
+        }
+        .contextMenu(forSelectionType: ItemSummary.ID.self) { ids in
+            BrowseActions(model: model, ids: ids)
+        }
+    }
+
+    /// A view other than the scope's own, Discover's page before, looking only at the
+    /// collection chosen and those inside it, or at the whole archive in the Library.
+    @ViewBuilder private var scopedView: some View {
+        if let discover = model.discover, let page = model.currentView.page {
+            DiscoverView(page: page, discover: discover, window: model, scope: model.viewScope)
+                .viewSwitcher(model)
+        }
+    }
+
     @ViewBuilder private var screen: some View {
         switch model.screen {
         case .library, nil:
-            LibraryView(model: model)
+            switch model.currentView {
+            case .covers: LibraryView(model: model)
+            case .items: itemsList.viewSwitcher(model)
+            default: scopedView
+            }
         case .status:
             StatusView(model: model)
         case .collection:
-            Group {
-                if model.browseLayout == .grid {
-                    BrowseGrid(model: model)
-                } else {
-                    List(model.listedItems, selection: $model.selectedItemID) { item in
-                        HStack {
-                            Label(item.title, systemImage: item.kind.symbol)
-                            Spacer()
-                            FlagMark(flag: item.flag)
-                        }
-                    }
-                    .contextMenu(forSelectionType: ItemSummary.ID.self) { ids in
-                        BrowseActions(model: model, ids: ids)
-                    }
-                }
-            }
-            .overlay {
-                if model.listedItems.isEmpty, !model.isLoading {
-                    ContentUnavailableView("No Items", systemImage: "folder")
-                }
-            }
-            .toolbar {
-                Picker("View", selection: $model.browseLayout) {
-                    Label("List", systemImage: "list.bullet").tag(BrowseLayout.list)
-                    Label("Grid", systemImage: "square.grid.2x2").tag(BrowseLayout.grid)
-                }
-                .pickerStyle(.segmented)
-                .help("Show the items as a list or a grid")
+            if model.currentView == .items {
+                itemsView.viewSwitcher(model)
+            } else {
+                scopedView
             }
         case .review:
             VStack(spacing: 0) {

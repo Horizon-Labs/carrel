@@ -14,7 +14,7 @@ The spec settles the look (SwiftUI, Apple's design guidelines and Liquid Glass: 
 
 One window per archive, a three-column `NavigationSplitView`:
 
-- **Sidebar:** the screens the interactive mode has, in the same order, around what owners do most ([the Library](library-home.md), #512): **Library**, where the window opens; **Checked Out** (Active) while anything is out or on the desk; a **Waiting** section of **Review**, **Questions**, **Restructure** and **Flagged**, with their counts as badges, shown only when something waits and each row only when it has any; the collection tree under **Collections** (Browse); **Discover**, collapsed until opened; and **Status**, **History** and **Backups** under **Archive**. Search is in the toolbar, beside **+**, which opens the Add panel.
+- **Sidebar:** the screens the interactive mode has, in the same order, around what owners do most ([the Library](library-home.md), #512): **Library**, where the window opens; **Checked Out** (Active) while anything is out or on the desk; a **Librarian** section of what it's asking, **Questions**, **To Approve** (Review), **Suggestions** (Restructure) and **Flags** (Flagged), with their counts as badges, shown only when it's asking anything and each row only when it has any; the collection tree under **Collections** (Browse); and **Status**, **History** and **Backups** under **Archive**. Discover's pages are views of the Library and of each collection (Covers, Items, Timeline, Map, Connections, Activity), in a switcher in the toolbar, with **Wander** beside it. Search is in the toolbar, beside **+**, which opens the Add panel.
 - **Content:** the list for the chosen screen: proposals grouped by destination, questions by rank, checked-out and desk items, a collection's items, search results, changes.
 - **Inspector:** the chosen thing in full: a proposal's or item's card with its fields, summary, sensitivity and reasons, history and related items; a question with the items it affects; a change with what it did.
 
@@ -22,7 +22,7 @@ Each screen does what its interactive-mode counterpart does, through the same co
 
 | Screen | In the app |
 | --- | --- |
-| Library | Where the window opens: a banner when something waits, the top-level collections as covers of their newest items' thumbnails with their counts and descriptions, Recently Added, and On This Day; an empty archive invites adding. |
+| Library | Where the window opens: a line from the librarian when it's asking anything, the top-level collections as covers of their newest items' thumbnails with their counts and descriptions, Recently Added, and On This Day; an empty archive invites adding. |
 | Status | What `carrel status` shows, with a line saying what's being added (the queue itself is in the Add panel), Recent, and suggestions (folders to track, desk items to archive). |
 | Review | Approve, hold, move and reject, one at a time or a selection; batches approve together. The inspector edits the card in place. |
 | Questions | Answer a term in a text field or pick a collection; dismiss. |

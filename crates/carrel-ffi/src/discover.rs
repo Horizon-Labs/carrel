@@ -23,7 +23,7 @@ use crate::review::Question;
 use crate::{ArchiveHandle, CarrelError, ItemKind};
 
 /// The catalog of `archive`, or of the collection `within` and those inside it, for a view
-/// of that collection.
+/// of that collection. An empty `within` is the whole archive, as the Library's views are.
 ///
 /// # Errors
 ///
@@ -35,7 +35,8 @@ pub(crate) fn catalog_within(
 ) -> Result<Catalog, CarrelError> {
     let catalog = Catalog::read(archive)?;
     match within {
-        None => Ok(catalog),
+        // The Library's views, over the whole archive.
+        None | Some("") => Ok(catalog),
         Some(path) if catalog.collection(path).is_some() => Ok(catalog.within(path)),
         Some(path) => Err(CarrelError::invalid(format!(
             "there's no collection “{path}”"

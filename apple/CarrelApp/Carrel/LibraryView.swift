@@ -1,5 +1,5 @@
-// The Library (docs/design/library-home.md), where every archive opens: a banner when
-// something waits, the top-level collections as covers of their newest items, what was added
+// The Library (docs/design/library-home.md), where every archive opens: a line from the
+// librarian when it's asking anything, the top-level collections as covers of their newest items, what was added
 // most recently and On This Day, as `carrel library` and the interactive mode list them. An
 // empty archive invites adding instead.
 
@@ -12,10 +12,10 @@ struct LibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                if let line = waitingLine(counts: model.waitingCounts),
-                    let first = model.waitingRows.first
-                {
-                    WaitingBanner(line: line) { model.screen = first.queue.screen }
+                if let line = waitingLine(counts: model.waitingCounts) {
+                    LibrarianLine(
+                        line: line, asks: librarianAsks(counts: model.waitingCounts)
+                    ) { model.screen = $0.screen }
                 }
                 if let library = model.library {
                     if library.items == 0 {
@@ -42,30 +42,50 @@ struct LibraryView: View {
         .task(id: model.discover.map(ObjectIdentifier.init)) {
             await model.discover?.refreshToday()
         }
+        .viewSwitcher(model)
         .feedbackScreen(step: "library")
     }
 }
 
-/// What waits for a decision, in one line, which opens the first of those screens.
-private struct WaitingBanner: View {
+/// What the librarian is asking, in its words, each part a link to its screen.
+private struct LibrarianLine: View {
+    static let scheme = "carrel-librarian"
+
     let line: String
-    let open: () -> Void
+    let asks: [LibrarianAsks]
+    let open: (WaitingQueue) -> Void
 
     var body: some View {
-        Button(action: open) {
-            HStack {
-                Label(line, systemImage: "tray.full")
-                    .font(.headline)
-                Spacer()
-                Image(systemName: "chevron.forward")
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity)
-            .background(.orange.opacity(0.15), in: .rect(cornerRadius: 10))
-            .contentShape(.rect)
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .foregroundStyle(.orange)
+            Text(linked).font(.headline)
+            Spacer()
         }
-        .buttonStyle(.plain)
-        .help("Decide what’s waiting")
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(.orange.opacity(0.15), in: .rect(cornerRadius: 10))
+        .environment(
+            \.openURL,
+            OpenURLAction { url in
+                guard url.scheme == Self.scheme,
+                    let queue = asks.first(where: { "\($0.queue)" == url.host() })?.queue
+                else { return .systemAction }
+                open(queue)
+                return .handled
+            })
+    }
+
+    /// The line, with each part a link to its queue.
+    private var linked: AttributedString {
+        var text = AttributedString(line)
+        for ask in asks {
+            guard let range = text.range(of: ask.words),
+                let url = URL(string: "\(Self.scheme)://\(ask.queue)")
+            else { continue }
+            text[range].link = url
+        }
+        return text
     }
 }
 
@@ -236,12 +256,7 @@ private struct OnThisDayCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("On This Day").font(.title2.bold())
-                Spacer()
-                Button("Show All") { model.screen = .discover(.today) }
-                    .linkButtonStyle()
-            }
+            Text("On This Day").font(.title2.bold())
             ForEach(day.years.prefix(3), id: \.year) { year in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(Self.ago(year))

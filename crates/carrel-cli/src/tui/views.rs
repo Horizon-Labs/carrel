@@ -180,7 +180,7 @@ mod tests {
     use super::super::tests::{key, sample, screen};
 
     #[test]
-    fn v_cycles_the_librarys_views_and_esc_goes_back() {
+    fn v_cycles_the_library_views_and_esc_goes_back() {
         let (_dir, mut app) = sample(false);
         app.key(key(KeyCode::Char('v')));
         assert_eq!((app.tab, app.stacks.view), (Tab::Discover, Page::Items));

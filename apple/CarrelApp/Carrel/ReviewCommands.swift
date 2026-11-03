@@ -17,7 +17,8 @@ struct ReviewCommands: Commands {
                 .keyboardShortcut("e")
                 .disabled(window?.canEditSelectedItem != true)
         }
-        CommandMenu("Review") {
+        // To Approve is Review, named as the sidebar's Librarian section names it.
+        CommandMenu("To Approve") {
             if let review = window?.screen == .review ? window?.review : nil {
                 ReviewActions(review: review, ids: review.selected.map(\.id))
                 Divider()
