@@ -29,6 +29,7 @@
 //! | [`ingest`] | Ingest: intake, text, cards, routing, sensitivity, and filing approved items | `docs/design/ingest.md` |
 //! | [`review`] | The review queue: proposals to file items, waiting for the owner | §7.9 |
 //! | [`search`] | Search: the word index, the text cache, filters and results | §7.11, §7.12, `docs/design/search.md` |
+//! | [`library`] | The Library every interface opens on: shelves, recently added and what's waiting | `docs/design/library-home.md` |
 //! | [`librarian`] | The librarian: a conversation over the archive through read-only tools, and its optional undoable changes | §8.2, §9.3, `docs/design/librarian.md` |
 //! | [`questions`] | Questions for the owner, and the glossary their answers teach | §7.3, §7.9 |
 //! | [`local`] | Where this device keeps its own data: configuration and models | none |
@@ -96,6 +97,7 @@ pub mod index;
 pub mod ingest;
 pub mod intake;
 pub mod librarian;
+pub mod library;
 pub mod listing;
 pub mod local;
 pub mod manifest;
