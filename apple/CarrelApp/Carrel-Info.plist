@@ -4,6 +4,10 @@
 <dict>
 	<key>CarrelAppGroup</key>
 	<string>$(CARREL_APP_GROUP)</string>
+	<key>CarrelBuild</key>
+	<string>$(CARREL_BUILD)</string>
+	<key>CarrelChannel</key>
+	<string>$(CARREL_CHANNEL)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

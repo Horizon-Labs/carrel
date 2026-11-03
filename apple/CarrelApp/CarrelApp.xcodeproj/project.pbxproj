@@ -782,9 +782,11 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = arm64;
+				CARREL_BUILD = "";
 				CARREL_APP_GROUP = "$(CARREL_BUNDLE_IDENTIFIER)";
 				"CARREL_APP_GROUP[sdk=iphone*]" = "group.$(CARREL_BUNDLE_IDENTIFIER)";
 				CARREL_BUNDLE_IDENTIFIER = me.hrose.carrel.dev;
+				CARREL_CHANNEL = Beta;
 				CARREL_CLOUDKIT_CONTAINER = iCloud.me.hrose.carrel;
 				CARREL_ICLOUD = NO;
 				CLANG_ENABLE_MODULES = YES;
@@ -818,9 +820,11 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = arm64;
+				CARREL_BUILD = "";
 				CARREL_APP_GROUP = "$(CARREL_BUNDLE_IDENTIFIER)";
 				"CARREL_APP_GROUP[sdk=iphone*]" = "group.$(CARREL_BUNDLE_IDENTIFIER)";
 				CARREL_BUNDLE_IDENTIFIER = me.hrose.carrel;
+				CARREL_CHANNEL = Beta;
 				CARREL_CLOUDKIT_CONTAINER = iCloud.me.hrose.carrel;
 				CARREL_ICLOUD = NO;
 				CLANG_ENABLE_MODULES = YES;

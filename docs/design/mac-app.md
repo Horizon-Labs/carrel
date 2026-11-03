@@ -69,6 +69,7 @@ Each screen does what its interactive-mode counterpart does, through the same co
 - **macOS 26 and later**, Apple silicon only, like the XCFramework: Foundation Models and Liquid Glass need it, and every Mac that runs Apple's model has it.
 - **Development builds from CI:** each push to dev builds the app on a hosted macOS runner, signed ad hoc, as a zipped `.app` artifact kept for 30 days. Developer ID signing, notarization and TestFlight stay with v1.0 (#47), so there are no signing secrets in CI yet.
 - **Locally,** Xcode builds and runs it with the owner's personal team.
+- **Test builds are flagged.** Until the first stable release, the sidebar, Status and the welcome window show a flag such as "v1.0 Beta (5a81b54c1d)": the version and the git commit the build came from, so a report names the exact build. `CARREL_CHANNEL` (Beta) turns it on and `CARREL_BUILD` is the commit, which CI and `scripts/testflight.sh` pass; an Xcode build without it says "local build". `carrel --version` names the same commit, and the TUI shows the flag at the top right. A release clears `CARREL_CHANNEL`, and a version without a pre-release part has no flag in the CLI.
 - **Tests:** CarrelKit's Swift tests against the sample archive; the FFI layer's Rust tests; and UI tests for the review, correction and checkout flows against a temporary archive, run on the self-hosted runner because they need a logged-in session.
 
 ## Previews

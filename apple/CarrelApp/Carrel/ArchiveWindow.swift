@@ -211,6 +211,7 @@ struct ArchiveSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom, spacing: 0) { BuildBadge() }
     }
 }
 

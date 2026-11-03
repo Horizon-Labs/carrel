@@ -89,6 +89,7 @@ xcodebuild archive -project "$project" -scheme Carrel -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$archive" \
   -allowProvisioningUpdates ${auth[@]+"${auth[@]}"} \
   DEVELOPMENT_TEAM="$team" MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build" \
+  CARREL_BUILD="$(git rev-parse --short=10 HEAD)" \
   -quiet
 
 echo "== Exporting"

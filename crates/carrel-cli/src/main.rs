@@ -1155,10 +1155,11 @@ fn review_command(
     }
 }
 
-/// The version line, including the archive format this build writes.
+/// The version line, including the commit it was built from and the archive format it writes.
 static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    let build = carrel_core::feedback::GIT_COMMIT.map_or(String::new(), |c| format!("build {c}, "));
     format!(
-        "{} (archive format {})",
+        "{} ({build}archive format {})",
         carrel_core::CARREL_VERSION,
         carrel_core::FORMAT_VERSION
     )

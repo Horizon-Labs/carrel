@@ -474,7 +474,8 @@ jobs:
         if: ${{ !cancelled() && env.APP == 'true' }}
         run: |
           xcodebuild -project apple/CarrelApp/CarrelApp.xcodeproj -scheme Carrel \
-            -configuration Release -derivedDataPath apple/CarrelApp/.build/xcode build
+            -configuration Release -derivedDataPath apple/CarrelApp/.build/xcode \
+            CARREL_BUILD="${GITHUB_SHA::10}" build
           app=apple/CarrelApp/.build/xcode/Build/Products/Release/Carrel.app
           codesign --verify --strict --verbose=2 "$app"
           ditto -c -k --keepParent "$app" target/Carrel.zip
