@@ -97,7 +97,11 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
     ])
     .areas(area);
     draw_tabs(frame, app, theme, top);
-    let block = Block::bordered().title(format!(" {} ", app.archive.doc().name));
+    let block = Block::bordered().title(if app.tab == Tab::Discover {
+        format!(" {} · {} ", app.archive.doc().name, app.views_title())
+    } else {
+        format!(" {} ", app.archive.doc().name)
+    });
     let inner = block.inner(body);
     frame.render_widget(block, body);
     match app.tab {
@@ -142,9 +146,15 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
 
 fn draw_tabs(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     let mut spans = vec![Span::raw(" ")];
+    // The views show under the tab they were opened from.
+    let showing = if app.tab == Tab::Discover {
+        app.modes.views_from
+    } else {
+        app.tab
+    };
     for tab in app.shown_tabs() {
         let title = format!("{} {}", tab.key(), tab.title());
-        let style = if tab == app.tab {
+        let style = if tab == showing {
             theme.selected()
         } else {
             Style::new()
@@ -155,18 +165,26 @@ fn draw_tabs(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     frame.render_widget(Line::from(spans), area);
 }
 
+/// What the librarian is asking, with the keys that show it.
 fn waiting_line(app: &App) -> String {
-    let (proposals, questions) = app.waiting;
-    match (proposals, questions) {
-        (0, 0) => "Nothing is waiting for you.".into(),
-        _ => format!(
-            "Waiting for you: {proposals} proposal{} ({} to review), {questions} question{} ({} to answer).",
-            if proposals == 1 { "" } else { "s" },
-            Tab::Review.key(),
-            if questions == 1 { "" } else { "s" },
-            Tab::Questions.key(),
-        ),
+    use carrel_core::library::Queue;
+    let Some(line) = app.library.waiting.line() else {
+        return "The librarian isn't asking anything.".into();
+    };
+    let mut keys: Vec<String> = Vec::new();
+    for (queue, _) in app.library.waiting.rows() {
+        let key = match queue {
+            Queue::Questions => format!("{} {}", Tab::Questions.key(), Tab::Questions.title()),
+            Queue::Review | Queue::Restructure => {
+                format!("{} {}", Tab::Review.key(), Tab::Review.title())
+            }
+            Queue::Flagged => "f for Flags".to_owned(),
+        };
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
     }
+    format!("{line} ({})", keys.join(", "))
 }
 
 fn draw_report(frame: &mut Frame, app: &App, area: Rect, first: Option<String>) {
@@ -280,27 +298,27 @@ const HELP_ROWS: &[(&str, &str)] = &[
         "add files and folders to ingest, with your file picker or the built-in one",
     ),
     ("↑↓, j k, PgUp PgDn, Home End", "scroll, or choose a change"),
-    ("a  h", "approve, or hold in Holding (Review)"),
+    ("a  h", "approve, or hold in Holding (To Approve)"),
     (
         "m  e  c  x",
-        "move, edit, correct in words, or reject (Review)",
+        "move, edit, correct in words, or reject (To Approve)",
     ),
     (
         "p",
-        "pick another reading of what the item is, when the model gave several (Review)",
+        "pick another reading of what the item is, when the model gave several (To Approve)",
     ),
     (
         "v  b  s  [ ]",
-        "a duplicate: file as a version, keep both, skip; other matches (Review)",
+        "a duplicate: file as a version, keep both, skip; other matches (To Approve)",
     ),
     (
         "z",
-        "unpack a zip when it's approved, or keep it compressed (Review)",
+        "unpack a zip when it's approved, or keep it compressed (To Approve)",
     ),
-    ("d", "draft again with the models here now (Review)"),
+    ("d", "draft again with the models here now (To Approve)"),
     (
         "Space  A",
-        "mark several; approve all high-confidence (Review)",
+        "mark several; approve all high-confidence (To Approve)",
     ),
     ("r  o  x", "return, open, cancel checkout (Active)"),
     ("m", "return a copy that moved (Active)"),
@@ -343,8 +361,8 @@ const HELP_ROWS: &[(&str, &str)] = &[
         "undo the librarian's change, or all this week's; open the item (Librarian)",
     ),
     (
-        "d  w  t  m  h",
-        "on this day, wander, timeline, map, activity (Discover)",
+        "v  w  Esc",
+        "the next view: timeline, map, connections, activity; wander from a random item; back (Library, Browse)",
     ),
     (
         "Space  n  p",
@@ -572,7 +590,7 @@ fn draw_review(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     }
     if app.queue.is_empty() {
         let also = super::review_crawler::lists_line(app);
-        frame.render_widget(Paragraph::new(format!("Nothing to review. {also}")), area);
+        frame.render_widget(Paragraph::new(format!("Nothing to approve. {also}")), area);
         return;
     }
     let also = super::review_crawler::lists_line(app);

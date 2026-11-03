@@ -1,7 +1,8 @@
 //! The Library (`docs/design/library-home.md`): what every interface opens an archive on. It
 //! shows the archive's contents first: each top-level collection as a shelf with its count and
-//! a few of its items for a cover, then the items filed most recently. What waits for the
-//! owner's decision ([`Waiting`]) is drawn there only when there's something.
+//! a few of its items for a cover, then the items filed most recently. What the librarian is
+//! asking of the owner ([`Waiting`]) is drawn there only when it's asking anything. [`View`]s
+//! are the ways of looking at the Library or a collection.
 //!
 //! ```
 //! use carrel_core::archive::{Archive, InitOptions};
@@ -144,49 +145,53 @@ pub fn library(catalog: &Catalog, recent: usize) -> Library {
     }
 }
 
-/// A queue of decisions the owner makes, as the Waiting section lists them.
+/// Something the librarian asks of the owner, as the Librarian section lists them. Each is a
+/// queue of decisions; the command line keeps their commands' names (`carrel questions`,
+/// `carrel review`, `carrel restructure`, `carrel flagged`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Queue {
-    /// Proposals to file items, and the crawler's findings.
-    Review,
-    /// Questions to answer.
+    /// Its questions for the owner.
     Questions,
-    /// Proposals to restructure the archive.
+    /// What it filed or found, for the owner's OK: proposals to file items, and the crawler's
+    /// findings (Review).
+    Review,
+    /// Its proposals to restructure the archive (Restructure).
     Restructure,
-    /// What the owner flagged as needing work.
+    /// What the owner flagged as needing work, and its answers (Flagged).
     Flagged,
 }
 
 impl Queue {
-    /// Every queue, in the order the Waiting section lists them.
+    /// Every queue, in the order the Librarian section lists them.
     pub const ALL: [Self; 4] = [
-        Self::Review,
         Self::Questions,
+        Self::Review,
         Self::Restructure,
         Self::Flagged,
     ];
 
-    /// Its name, as the sidebars and tabs show it.
+    /// Its name, as the sidebars, tabs, titles and menus show it.
     #[must_use]
     pub fn title(self) -> &'static str {
         match self {
-            Self::Review => "Review",
             Self::Questions => "Questions",
-            Self::Restructure => "Restructure",
-            Self::Flagged => "Flagged",
+            Self::Review => "To Approve",
+            Self::Restructure => "Suggestions",
+            Self::Flagged => "Flags",
         }
     }
 
-    /// `count` of it in words, such as "5 to review" or "1 question".
+    /// `count` of it in words, for the librarian's line: "1 question", "5 items for you to
+    /// approve", "3 suggestions" or "2 flags".
     #[must_use]
     pub fn describe(self, count: usize) -> String {
         let plural = if count == 1 { "" } else { "s" };
         match self {
-            Self::Review => format!("{count} to review"),
             Self::Questions => format!("{count} question{plural}"),
-            Self::Restructure => format!("{count} restructure proposal{plural}"),
-            Self::Flagged => format!("{count} flagged"),
+            Self::Review => format!("{count} item{plural} for you to approve"),
+            Self::Restructure => format!("{count} suggestion{plural}"),
+            Self::Flagged => format!("{count} flag{plural} to look at"),
         }
     }
 }
@@ -233,7 +238,7 @@ impl Waiting {
         }
     }
 
-    /// The queues with anything in them, in order: the rows the Waiting section shows. When
+    /// The queues with anything in them, in order: the rows the Librarian section shows. When
     /// none has, the section isn't shown at all.
     #[must_use]
     pub fn rows(&self) -> Vec<(Queue, usize)> {
@@ -250,17 +255,125 @@ impl Waiting {
         self.rows().is_empty()
     }
 
-    /// What waits, in one line for the Library's banner, such as "5 to review · 1 question";
-    /// `None` when nothing does.
+    /// What the librarian is asking, each part with its queue, for a line whose parts each
+    /// open their screen.
+    #[must_use]
+    pub fn parts(&self) -> Vec<(Queue, String)> {
+        self.rows()
+            .into_iter()
+            .map(|(q, n)| (q, q.describe(n)))
+            .collect()
+    }
+
+    /// The librarian's line for the Library, such as "The librarian has 1 question and 5 items
+    /// for you to approve."; `None` when it's asking nothing.
     #[must_use]
     pub fn line(&self) -> Option<String> {
-        let rows = self.rows();
-        (!rows.is_empty()).then(|| {
-            rows.iter()
-                .map(|(q, n)| q.describe(*n))
-                .collect::<Vec<_>>()
-                .join(" · ")
-        })
+        let parts: Vec<String> = self.parts().into_iter().map(|(_, p)| p).collect();
+        let (last, rest) = parts.split_last()?;
+        let listed = if rest.is_empty() {
+            last.clone()
+        } else {
+            format!("{} and {last}", rest.join(", "))
+        };
+        Some(format!("The librarian has {listed}."))
+    }
+}
+
+/// A way of looking at the Library or a collection, as a switcher in each interface offers
+/// them. Each covers what it's looking at: a collection and those inside it
+/// ([`Catalog::within`]), or the whole archive in the Library.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum View {
+    /// The collections as covers, with what's new and On This Day: the Library's own.
+    Covers,
+    /// The items, as a list or a grid: a collection's own.
+    Items,
+    /// Items by when they're from (Discover's timeline).
+    Timeline,
+    /// The structure, sized by contents (Discover's archive map).
+    Map,
+    /// How items and collections relate (Discover's graph).
+    Connections,
+    /// What was added and changed, and when (Discover's activity).
+    Activity,
+}
+
+impl View {
+    /// The Library's views, its own first.
+    pub const LIBRARY: [Self; 6] = [
+        Self::Covers,
+        Self::Items,
+        Self::Timeline,
+        Self::Map,
+        Self::Connections,
+        Self::Activity,
+    ];
+
+    /// A collection's views, its own first.
+    pub const COLLECTION: [Self; 5] = [
+        Self::Items,
+        Self::Timeline,
+        Self::Map,
+        Self::Connections,
+        Self::Activity,
+    ];
+
+    /// The views of the Library (`None`) or of a collection.
+    #[must_use]
+    pub fn of(collection: Option<&str>) -> &'static [Self] {
+        if collection.is_some() {
+            &Self::COLLECTION
+        } else {
+            &Self::LIBRARY
+        }
+    }
+
+    /// The view after this one among `views`, back to the first after the last.
+    #[must_use]
+    pub fn next_in(self, views: &[Self]) -> Self {
+        let at = views.iter().position(|v| *v == self).unwrap_or(0);
+        views[(at + 1) % views.len()]
+    }
+
+    /// Its name in the switcher.
+    #[must_use]
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Covers => "Covers",
+            Self::Items => "Items",
+            Self::Timeline => "Timeline",
+            Self::Map => "Map",
+            Self::Connections => "Connections",
+            Self::Activity => "Activity",
+        }
+    }
+
+    /// Its name as remembered and as links carry it, such as `timeline`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Covers => "covers",
+            Self::Items => "items",
+            Self::Timeline => "timeline",
+            Self::Map => "map",
+            Self::Connections => "connections",
+            Self::Activity => "activity",
+        }
+    }
+
+    /// The view named `name`, or by Discover's old page names (`graph`, `archive-map`).
+    #[must_use]
+    pub fn named(name: &str) -> Option<Self> {
+        Self::LIBRARY
+            .into_iter()
+            .find(|v| v.name() == name)
+            .or(match name {
+                "graph" => Some(Self::Connections),
+                "archive-map" => Some(Self::Map),
+                _ => None,
+            })
     }
 }
 
@@ -369,22 +482,76 @@ mod tests {
         assert_eq!(
             waiting.rows(),
             [
-                (Queue::Review, 5),
                 (Queue::Questions, 1),
+                (Queue::Review, 5),
                 (Queue::Flagged, 2)
             ]
         );
+        let titles: Vec<&str> = waiting.rows().iter().map(|(q, _)| q.title()).collect();
+        assert_eq!(titles, ["Questions", "To Approve", "Flags"]);
         assert_eq!(
             waiting.line().as_deref(),
-            Some("5 to review · 1 question · 2 flagged")
+            Some(
+                "The librarian has 1 question, 5 items for you to approve and 2 flags to look at."
+            )
         );
         assert!(!waiting.is_empty());
+        let two = Waiting {
+            questions: 1,
+            review: 5,
+            ..Waiting::default()
+        };
+        assert_eq!(
+            two.line().as_deref(),
+            Some("The librarian has 1 question and 5 items for you to approve.")
+        );
         let one = Waiting {
             restructure: 1,
             ..Waiting::default()
         };
-        assert_eq!(one.line().as_deref(), Some("1 restructure proposal"));
+        assert_eq!(
+            one.line().as_deref(),
+            Some("The librarian has 1 suggestion.")
+        );
+        assert_eq!(
+            one.parts(),
+            [(Queue::Restructure, "1 suggestion".to_owned())]
+        );
         assert!(Waiting::default().is_empty());
         assert_eq!(Waiting::default().line(), None);
+    }
+
+    #[test]
+    fn views_cycle_and_a_collection_opens_on_its_items() {
+        assert_eq!(View::of(None)[0], View::Covers);
+        assert_eq!(View::of(Some("Home"))[0], View::Items);
+        assert!(!View::of(Some("Home")).contains(&View::Covers));
+        assert_eq!(View::Activity.next_in(View::of(None)), View::Covers);
+        assert_eq!(View::Covers.next_in(View::of(Some("Home"))), View::Timeline);
+        assert_eq!(View::named("graph"), Some(View::Connections));
+        assert_eq!(View::named(View::Map.name()), Some(View::Map));
+        assert_eq!(View::named("wander"), None);
+    }
+
+    #[test]
+    fn a_catalog_within_a_collection_holds_it_and_those_inside() {
+        let within = sample().within("Home");
+        let mut titles: Vec<&str> = within
+            .entries
+            .iter()
+            .map(|e| e.item.title.as_str())
+            .collect();
+        titles.sort_unstable();
+        assert_eq!(
+            titles,
+            ["Deed", "Lease", "Letter"],
+            "not Homework's or Reading's"
+        );
+        let paths: Vec<&str> = within.collections.iter().map(|c| c.path.as_str()).collect();
+        assert_eq!(paths, ["Home", "Home/Papers"]);
+        let start = within.pick(7).unwrap();
+        assert!(within.get(start).is_some(), "a random start is inside");
+        assert_eq!(within.pick(7), Some(start), "the same seed, the same start");
+        assert_eq!(Catalog::default().pick(7), None);
     }
 }

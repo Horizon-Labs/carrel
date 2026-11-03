@@ -7,7 +7,6 @@ use crate::start_screen::StartScreen;
 /// The tab a screen is on, and for Discover, which view.
 fn tab_and_view(screen: StartScreen) -> (Tab, Option<View>) {
     match screen {
-        StartScreen::Library => (Tab::Library, None),
         StartScreen::Status => (Tab::Status, None),
         StartScreen::Review => (Tab::Review, None),
         StartScreen::Active => (Tab::Active, None),
@@ -18,8 +17,10 @@ fn tab_and_view(screen: StartScreen) -> (Tab, Option<View>) {
         StartScreen::Settings => (Tab::Settings, None),
         StartScreen::Backups => (Tab::Backups, None),
         StartScreen::Librarian => (Tab::Librarian, None),
-        StartScreen::Discover => (Tab::Discover, None),
-        StartScreen::DiscoverToday => (Tab::Discover, Some(View::Today)),
+        // Discover's pages are views of the Library now; On This Day is on its covers.
+        StartScreen::Library | StartScreen::Discover | StartScreen::DiscoverToday => {
+            (Tab::Library, None)
+        }
         StartScreen::DiscoverWander => (Tab::Discover, Some(View::Wander)),
         StartScreen::DiscoverTimeline => (Tab::Discover, Some(View::Timeline)),
         StartScreen::DiscoverMap => (Tab::Discover, Some(View::Map)),
@@ -34,6 +35,8 @@ impl App {
         let (tab, view) = tab_and_view(screen);
         self.tab = tab;
         if let Some(view) = view {
+            self.stacks.scope = None;
+            self.modes.views_from = Tab::Library;
             self.stacks.view = view;
             self.stacks.lines.clear();
             if view == View::Wander {

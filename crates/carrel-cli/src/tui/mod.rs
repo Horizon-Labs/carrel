@@ -36,6 +36,7 @@ mod start_screen;
 mod sync;
 mod ui;
 mod ui_discovery;
+mod views;
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -1015,7 +1016,7 @@ mod tests {
         let text = screen(&app, 140, 30);
         assert!(
             text.starts_with(
-                "  1 Library   2 Checked Out   3 Review   4 Questions   5 Browse   D Discover   6 Status"
+                "  1 Library   2 Checked Out   3 Questions   4 To Approve   5 Browse   6 Status   7 History"
             ),
             "{text}"
         );
@@ -1023,7 +1024,9 @@ mod tests {
         let text = screen(&app, 100, 30);
         assert!(text.contains(" Sample archive "), "{text}");
         assert!(
-            text.contains("Waiting for you: 1 proposal (3 to review), 1 question (4 to answer)."),
+            text.contains(
+                "The librarian has 1 question and 1 item for you to approve. (3 Questions, 4 To Approve)"
+            ),
             "{text}"
         );
         assert!(text.contains("items in"), "the status report");
@@ -1049,8 +1052,11 @@ mod tests {
     #[test]
     fn keys_and_clicks_switch_screens_help_and_quit() {
         let (_dir, mut app) = sample(false);
-        app.key(key(KeyCode::Char('4')));
+        app.key(key(KeyCode::Char('3')));
         assert_eq!(app.tab, Tab::Questions);
+        app.key(key(KeyCode::Tab));
+        assert_eq!(app.tab, Tab::Review);
+        assert!(screen(&app, 100, 30).contains("Desk lamp diffuser (print file)"));
         app.key(key(KeyCode::Tab));
         assert_eq!(app.tab, Tab::Browse);
         let browse = screen(&app, 100, 30);
@@ -1059,10 +1065,9 @@ mod tests {
             "the tree, indented:\n{browse}"
         );
         app.key(key(KeyCode::BackTab));
-        assert_eq!(app.tab, Tab::Questions);
-        app.key(key(KeyCode::BackTab));
         assert_eq!(app.tab, Tab::Review);
-        assert!(screen(&app, 100, 30).contains("Desk lamp diffuser (print file)"));
+        app.key(key(KeyCode::BackTab));
+        assert_eq!(app.tab, Tab::Questions);
         app.key(key(KeyCode::BackTab));
         assert_eq!(app.tab, Tab::Active);
         app.key(key(KeyCode::BackTab));
@@ -1075,7 +1080,7 @@ mod tests {
             row: 0,
             modifiers: KeyModifiers::NONE,
         };
-        app.mouse(click(starts[7] + 2), &starts);
+        app.mouse(click(starts[6] + 2), &starts);
         assert_eq!(app.tab, Tab::History);
         app.mouse(click(starts[0]), &starts);
         assert_eq!(app.tab, Tab::Library);
@@ -1169,7 +1174,7 @@ mod tests {
         }];
         queue.save(&entry).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         let chosen = app.queue.iter().position(|e| e.id == entry.id).unwrap();
         app.chosen = chosen;
         app.load_detail();
@@ -1355,7 +1360,7 @@ mod tests {
     #[test]
     fn review_shows_the_queue_by_destination_beside_the_chosen_proposal() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         let text = screen(&app, 120, 30);
         assert!(text.contains("Holding"), "{text}");
         let holding = text.find("Holding").unwrap();
@@ -1373,7 +1378,7 @@ mod tests {
     #[test]
     fn review_keys_decide_the_chosen_or_the_marked_proposals() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         let ids: Vec<Id> = app.queue.iter().map(|e| e.id).collect();
         assert_eq!(
             app.key(key(KeyCode::Char('a'))),
@@ -1431,7 +1436,7 @@ mod tests {
     fn z_keeps_a_compressed_file_compressed_or_expands_it() {
         use carrel_core::compressed::plan::{Choice, Plan};
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         assert_eq!(app.key(key(KeyCode::Char('z'))), None);
         assert_eq!(app.message.as_deref(), Some("Not a compressed file"));
         let queue = carrel_core::review::ReviewQueue::of(&app.archive);
@@ -1465,7 +1470,7 @@ mod tests {
     #[test]
     fn the_picker_narrows_collections_as_you_type() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         let id = app.queue[app.chosen].id;
         app.key(key(KeyCode::Char('m')));
         assert!(screen(&app, 120, 30).contains("Move to (type to narrow)"));
@@ -1493,7 +1498,7 @@ mod tests {
     #[test]
     fn c_opens_a_line_for_the_correction_without_leaving_the_screen() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         let first = app.queue[0].id;
         assert_eq!(app.key(key(KeyCode::Char('c'))), None);
         assert!(screen(&app, 120, 30).contains("What's wrong with it?"));
@@ -1535,7 +1540,7 @@ mod tests {
     #[test]
     fn the_correction_pops_up_and_saves_only_on_y() {
         let (dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         let id = app.queue[0].id.to_string();
         let prepared =
             crate::correct::prepare_review(&app.archive, &id, "created: 2019-03-31").unwrap();
@@ -1892,7 +1897,7 @@ mod tests {
         queue.save(&term).unwrap();
         queue.save(&place).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('4')));
+        app.key(key(KeyCode::Char('3')));
         let text = screen(&app, 160, 30);
         assert!(
             text.contains("Which collection do items about “lamp” belong in?  (1 item)"),
@@ -1989,7 +1994,7 @@ mod tests {
         queue.save(&item).unwrap();
         queue.save(&sender).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('4')));
+        app.key(key(KeyCode::Char('3')));
         assert_eq!(app.asked[0].id, item.id);
 
         app.key(key(KeyCode::Enter));

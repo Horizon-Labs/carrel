@@ -38,7 +38,7 @@ pub fn library_command(archive: Option<&Path>) -> Result<Report, Failure> {
 fn text(library: &Library, waiting: &Waiting, day: &OnThisDay) -> String {
     let mut out = String::new();
     if let Some(line) = waiting.line() {
-        let _ = writeln!(out, "Waiting: {line}.\n");
+        let _ = writeln!(out, "{line}\n");
     }
     if library.is_empty() {
         out.push_str("Nothing is filed yet. Add files with `carrel ingest PATH`.\n");

@@ -221,7 +221,7 @@ impl App {
             return Handled::Yes(None);
         }
         if self.queue.is_empty() && key.code != KeyCode::Char('A') {
-            self.message = Some("Nothing to review".into());
+            self.message = Some("Nothing to approve".into());
             return Handled::Yes(None);
         }
         let targets = self.targets();
@@ -399,7 +399,7 @@ mod tests {
         }];
         queue.save(&failed).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         app.chosen = app.queue.iter().position(|e| e.id == failed.id).unwrap();
         app.load_detail();
 
@@ -444,7 +444,7 @@ mod tests {
         ];
         queue.save(&unsure).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('4')));
         app.chosen = app.queue.iter().position(|e| e.id == unsure.id).unwrap();
         app.load_detail();
 

@@ -131,12 +131,12 @@ impl App {
     pub(super) fn adding_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
             KeyCode::Char('+') if self.tab != Tab::Ingest => {
-                self.before_adding = Some(self.tab);
+                self.modes.before_adding = Some(self.tab);
                 self.tab = Tab::Ingest;
                 true
             }
             KeyCode::Esc if self.tab == Tab::Ingest && self.planned.is_none() => {
-                match self.before_adding.take() {
+                match self.modes.before_adding.take() {
                     Some(tab) => {
                         self.tab = tab;
                         true
@@ -213,7 +213,8 @@ pub fn draw_library(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     let mut rows: Vec<usize> = Vec::new();
     let heading = |text: &str| ListItem::new(Line::styled(text.to_owned(), theme.key()));
     if let Some(line) = view.waiting.line() {
-        items.push(heading(&format!("Waiting: {line}")));
+        items.push(heading("Librarian"));
+        items.push(ListItem::new(format!("  {line}")));
         for (queue, n) in view.waiting.rows() {
             rows.push(items.len());
             items.push(ListItem::new(format!("  {:<14}{n:>5}", queue.title())));
@@ -305,14 +306,20 @@ mod tests {
         assert_eq!(app.tab, Tab::Library);
         let text = screen(&app, 100, 40);
         assert!(text.contains("1 Library"), "{text}");
-        assert!(text.contains("Waiting: 1 to review · 1 question"), "{text}");
+        assert!(
+            text.contains("The librarian has 1 question and 1 item for you to approve."),
+            "{text}"
+        );
         assert!(text.contains("Collections"), "{text}");
         assert!(
             text.find("Projects").unwrap() < text.find("Holding").unwrap(),
             "{text}"
         );
         assert!(text.contains("Recently Added"), "{text}");
-        assert_eq!(app.library_rows()[0], LibraryRow::Queue(Queue::Review, 1));
+        assert_eq!(
+            app.library_rows()[0],
+            LibraryRow::Queue(Queue::Questions, 1)
+        );
     }
 
     #[test]
@@ -332,7 +339,6 @@ mod tests {
                 Tab::Library,
                 Tab::Review,
                 Tab::Browse,
-                Tab::Discover,
                 Tab::Status,
                 Tab::History,
                 Tab::Backups,
@@ -340,35 +346,40 @@ mod tests {
                 Tab::Librarian,
             ]
         );
-        let text = screen(&app, 140, 10);
+        let text = screen(&app, 140, 30);
         assert!(!text.contains("Checked Out"), "{text}");
         assert!(!text.contains("Questions"), "{text}");
+        assert!(text.contains("4 To Approve"), "{text}");
         // Their keys still work, and a tab that's showing stays in the row.
-        app.key(key(KeyCode::Char('4')));
+        app.key(key(KeyCode::Char('3')));
         assert_eq!(app.tab, Tab::Questions);
         assert!(app.shown_tabs().contains(&Tab::Questions));
         app.key(key(KeyCode::Tab));
-        assert_eq!(app.tab, Tab::Browse, "Tab skips what isn't shown");
+        assert_eq!(app.tab, Tab::Review);
+        app.key(key(KeyCode::Tab));
+        assert_eq!(app.tab, Tab::Browse);
         app.key(key(KeyCode::BackTab));
         assert_eq!(app.tab, Tab::Review);
+        app.key(key(KeyCode::BackTab));
+        assert_eq!(app.tab, Tab::Library, "Tab skips what isn't shown");
     }
 
     #[test]
     fn enter_opens_a_queue_a_collection_or_an_item() {
         let (_dir, mut app) = sample(false);
         app.key(key(KeyCode::Enter));
-        assert_eq!(app.tab, Tab::Review);
-        assert_eq!(app.review_list, ReviewList::Proposals);
+        assert_eq!(app.tab, Tab::Questions);
 
         // On Questions the numbers answer, so go back as a click would.
         app.tab = Tab::Library;
         app.key(key(KeyCode::Down));
         assert_eq!(
             app.library_rows()[app.library.chosen],
-            LibraryRow::Queue(Queue::Questions, 1)
+            LibraryRow::Queue(Queue::Review, 1)
         );
         app.key(key(KeyCode::Enter));
-        assert_eq!(app.tab, Tab::Questions);
+        assert_eq!(app.tab, Tab::Review);
+        assert_eq!(app.review_list, ReviewList::Proposals);
 
         // On Questions the numbers answer, so go back as a click would.
         app.tab = Tab::Library;

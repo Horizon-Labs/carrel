@@ -210,6 +210,9 @@ impl App {
         }
         if let Some(tab) = Tab::of_key(c) {
             self.tab = tab;
+            if tab == Tab::Library {
+                self.library_shown();
+            }
         }
     }
 
@@ -828,7 +831,8 @@ pub(super) mod tests {
         assert!(!screen(&app, 120, 30).contains("About:"));
 
         // Discover's view, when no item is in view there.
-        app.key(key(KeyCode::Char('D')));
+        app.tab = Tab::Discover;
+        app.stacks.view = super::super::discover::View::Today;
         app.key(key(KeyCode::Char('L')));
         assert_eq!(
             app.talk.about,

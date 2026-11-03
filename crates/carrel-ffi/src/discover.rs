@@ -22,6 +22,27 @@ use crate::records::Sensitivity;
 use crate::review::Question;
 use crate::{ArchiveHandle, CarrelError, ItemKind};
 
+/// The catalog of `archive`, or of the collection `within` and those inside it, for a view
+/// of that collection.
+///
+/// # Errors
+///
+/// [`CarrelError::Invalid`] when there's no collection `within`, or [`CarrelError::Failed`] if
+/// the archive can't be read.
+pub(crate) fn catalog_within(
+    archive: &Archive,
+    within: Option<&str>,
+) -> Result<Catalog, CarrelError> {
+    let catalog = Catalog::read(archive)?;
+    match within {
+        None => Ok(catalog),
+        Some(path) if catalog.collection(path).is_some() => Ok(catalog.within(path)),
+        Some(path) => Err(CarrelError::invalid(format!(
+            "there's no collection “{path}”"
+        ))),
+    }
+}
+
 /// An item, as the views list it: enough to show it and open it.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct DiscoveredItem {
@@ -369,7 +390,8 @@ impl ArchiveHandle {
         })
     }
 
-    /// A new walk through the stacks, from the item `start` or from a collection not opened
+    /// A new walk through the stacks, from the item `start`, from an item chosen at random
+    /// in the collection `within` (and those inside it), or else from a collection not opened
     /// in a while, reproducible with `seed` (a new one when `None`).
     ///
     /// # Errors
@@ -379,18 +401,24 @@ impl ArchiveHandle {
         &self,
         start: Option<String>,
         seed: Option<u64>,
+        within: Option<String>,
     ) -> Result<Arc<Wander>, CarrelError> {
         let archive = self.fresh()?;
-        let start = match start {
-            Some(id) => Some(Self::item(&archive, &id)?.id),
-            None => None,
-        };
         let seed = seed.unwrap_or_else(|| {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default();
             (now.as_secs() ^ u64::from(now.subsec_nanos())) % 1_000_000
         });
+        let start = match (start, within) {
+            (Some(id), _) => Some(Self::item(&archive, &id)?.id),
+            (None, Some(within)) => Some(
+                catalog_within(&archive, Some(&within))?
+                    .pick(seed)
+                    .ok_or_else(|| CarrelError::invalid(format!("“{within}” holds no items")))?,
+            ),
+            (None, None) => None,
+        };
         let visits = Visits::load(&self.visits_path(&archive)?);
         Ok(Arc::new(Wander {
             walk: Mutex::new(Walk::new(seed, start).remembering(&visits)),
@@ -490,6 +518,7 @@ impl ArchiveHandle {
         query: String,
         by: Option<String>,
         per: String,
+        within: Option<String>,
     ) -> Result<DiscoveryTimeline, CarrelError> {
         let archive = self.fresh()?;
         let query = Query::parse(&query).map_err(CarrelError::invalid)?;
@@ -508,7 +537,7 @@ impl ArchiveHandle {
             filters: query.filters.clone(),
             only: timeline::matching(&archive, &query)?,
         };
-        let found = timeline::timeline(&Catalog::read(&archive)?, &options);
+        let found = timeline::timeline(&catalog_within(&archive, within.as_deref())?, &options);
         Ok(DiscoveryTimeline {
             periods: found
                 .periods
@@ -535,8 +564,8 @@ impl ArchiveHandle {
     /// # Errors
     ///
     /// [`CarrelError::Failed`] if the archive can't be read.
-    pub fn archive_map(&self) -> Result<ArchiveMap, CarrelError> {
-        let found = map::map(&Catalog::read(&self.fresh()?)?);
+    pub fn archive_map(&self, within: Option<String>) -> Result<ArchiveMap, CarrelError> {
+        let found = map::map(&catalog_within(&self.fresh()?, within.as_deref())?);
         let mut regions = Vec::new();
         for region in &found.regions {
             flatten(region, None, 0, &mut regions);
@@ -560,6 +589,7 @@ impl ArchiveHandle {
         &self,
         from: Option<String>,
         to: Option<String>,
+        within: Option<String>,
     ) -> Result<ArchiveActivity, CarrelError> {
         let to = day(to.as_deref())?;
         let from = match from {
@@ -571,7 +601,11 @@ impl ArchiveHandle {
                 "the first day must come before the last",
             ));
         }
-        let found = activity::activity(&Catalog::read(&self.fresh()?)?, from, to);
+        let found = activity::activity(
+            &catalog_within(&self.fresh()?, within.as_deref())?,
+            from,
+            to,
+        );
         Ok(ArchiveActivity {
             from: found.from.to_string(),
             to: found.to.to_string(),
