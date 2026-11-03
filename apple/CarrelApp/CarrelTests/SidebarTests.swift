@@ -104,9 +104,11 @@ final class SidebarTests: XCTestCase {
 
         // Discover's links open the matching view of the Library.
         model.show(linked: .discover(.graph))
-        XCTAssertEqual((model.screen, model.currentView), (.library, .connections))
+        XCTAssertEqual(model.screen, .library)
+        XCTAssertEqual(model.currentView, .connections)
         model.show(linked: .discover(.today))
-        XCTAssertEqual((model.screen, model.currentView), (.library, .covers))
+        XCTAssertEqual(model.screen, .library)
+        XCTAssertEqual(model.currentView, .covers)
 
         // A scoped view reads only the collection.
         let discover = try XCTUnwrap(model.discover)

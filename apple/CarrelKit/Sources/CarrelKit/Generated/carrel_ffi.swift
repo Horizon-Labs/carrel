@@ -1345,7 +1345,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * [`CarrelError::Invalid`] for dates that can't be read or are the wrong way round, or
      * [`CarrelError::Failed`] if the archive can't be read.
      */
-    func activity(from: String?, to: String?) throws  -> ArchiveActivity
+    func activity(from: String?, to: String?, within: String?) throws  -> ArchiveActivity
     
     /**
      * The archive map: collections by total size and number of items.
@@ -1354,7 +1354,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * [`CarrelError::Failed`] if the archive can't be read.
      */
-    func archiveMap() throws  -> ArchiveMap
+    func archiveMap(within: String?) throws  -> ArchiveMap
     
     /**
      * What was made, filed or worked on on `date` (`YYYY-MM-DD`, today when `None`) in
@@ -1388,14 +1388,15 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
     func resurfaced() throws  -> Resurfaced?
     
     /**
-     * A new walk through the stacks, from the item `start` or from a collection not opened
+     * A new walk through the stacks, from the item `start`, from an item chosen at random
+     * in the collection `within` (and those inside it), or else from a collection not opened
      * in a while, reproducible with `seed` (a new one when `None`).
      *
      * # Errors
      *
      * [`CarrelError::Invalid`] if `start` names no item.
      */
-    func startWander(start: String?, seed: UInt64?) throws  -> Wander
+    func startWander(start: String?, seed: UInt64?, within: String?) throws  -> Wander
     
     /**
      * Items by date, grouped `per` year, month or day, going `by` when they were `created`,
@@ -1407,7 +1408,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      * [`CarrelError::Invalid`] for a query, `by` or `per` that can't be read, or
      * [`CarrelError::Failed`] if the archive can't be.
      */
-    func timeline(query: String, by: String?, per: String) throws  -> DiscoveryTimeline
+    func timeline(query: String, by: String?, per: String, within: String?) throws  -> DiscoveryTimeline
     
     /**
      * The next step of `walk`: a related item, a link, a neighbour in its collection, or a
@@ -1771,7 +1772,7 @@ public protocol ArchiveHandleProtocol: AnyObject, Sendable {
      *
      * [`CarrelError::Failed`] if the archive can't be read.
      */
-    func discoveryGraph(limit: UInt32) throws  -> DiscoveryGraph
+    func discoveryGraph(limit: UInt32, within: String?) throws  -> DiscoveryGraph
     
     /**
      * The history, newest first, at most `limit` changes (all of them when it's `None`).
@@ -3941,13 +3942,14 @@ open func updateDeviceProfile(facts: DeviceFactsRecord)throws   {try rustCallWit
      * [`CarrelError::Invalid`] for dates that can't be read or are the wrong way round, or
      * [`CarrelError::Failed`] if the archive can't be read.
      */
-open func activity(from: String?, to: String?)throws  -> ArchiveActivity  {
+open func activity(from: String?, to: String?, within: String?)throws  -> ArchiveActivity  {
     return try  FfiConverterTypeArchiveActivity_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
         uniffiCallStatus in
     uniffi_carrel_ffi_fn_method_archivehandle_activity(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(from),
-        FfiConverterOptionString.lower(to),uniffiCallStatus
+        FfiConverterOptionString.lower(to),
+        FfiConverterOptionString.lower(within),uniffiCallStatus
     )
 })
 }
@@ -3959,11 +3961,12 @@ open func activity(from: String?, to: String?)throws  -> ArchiveActivity  {
      *
      * [`CarrelError::Failed`] if the archive can't be read.
      */
-open func archiveMap()throws  -> ArchiveMap  {
+open func archiveMap(within: String?)throws  -> ArchiveMap  {
     return try  FfiConverterTypeArchiveMap_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
         uniffiCallStatus in
     uniffi_carrel_ffi_fn_method_archivehandle_archive_map(
-            self.uniffiCloneHandle(),uniffiCallStatus
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(within),uniffiCallStatus
     )
 })
 }
@@ -4022,20 +4025,22 @@ open func resurfaced()throws  -> Resurfaced?  {
 }
     
     /**
-     * A new walk through the stacks, from the item `start` or from a collection not opened
+     * A new walk through the stacks, from the item `start`, from an item chosen at random
+     * in the collection `within` (and those inside it), or else from a collection not opened
      * in a while, reproducible with `seed` (a new one when `None`).
      *
      * # Errors
      *
      * [`CarrelError::Invalid`] if `start` names no item.
      */
-open func startWander(start: String?, seed: UInt64?)throws  -> Wander  {
+open func startWander(start: String?, seed: UInt64?, within: String?)throws  -> Wander  {
     return try  FfiConverterTypeWander_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
         uniffiCallStatus in
     uniffi_carrel_ffi_fn_method_archivehandle_start_wander(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(start),
-        FfiConverterOptionUInt64.lower(seed),uniffiCallStatus
+        FfiConverterOptionUInt64.lower(seed),
+        FfiConverterOptionString.lower(within),uniffiCallStatus
     )
 })
 }
@@ -4050,14 +4055,15 @@ open func startWander(start: String?, seed: UInt64?)throws  -> Wander  {
      * [`CarrelError::Invalid`] for a query, `by` or `per` that can't be read, or
      * [`CarrelError::Failed`] if the archive can't be.
      */
-open func timeline(query: String, by: String?, per: String)throws  -> DiscoveryTimeline  {
+open func timeline(query: String, by: String?, per: String, within: String?)throws  -> DiscoveryTimeline  {
     return try  FfiConverterTypeDiscoveryTimeline_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
         uniffiCallStatus in
     uniffi_carrel_ffi_fn_method_archivehandle_timeline(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(query),
         FfiConverterOptionString.lower(by),
-        FfiConverterString.lower(per),uniffiCallStatus
+        FfiConverterString.lower(per),
+        FfiConverterOptionString.lower(within),uniffiCallStatus
     )
 })
 }
@@ -4721,12 +4727,13 @@ open func reportMissingFeature(id: String?, words: String)throws  -> GapRecord  
      *
      * [`CarrelError::Failed`] if the archive can't be read.
      */
-open func discoveryGraph(limit: UInt32)throws  -> DiscoveryGraph  {
+open func discoveryGraph(limit: UInt32, within: String?)throws  -> DiscoveryGraph  {
     return try  FfiConverterTypeDiscoveryGraph_lift(try rustCallWithError(FfiConverterTypeCarrelError_lift) {
         uniffiCallStatus in
     uniffi_carrel_ffi_fn_method_archivehandle_discovery_graph(
             self.uniffiCloneHandle(),
-        FfiConverterUInt32.lower(limit),uniffiCallStatus
+        FfiConverterUInt32.lower(limit),
+        FfiConverterOptionString.lower(within),uniffiCallStatus
     )
 })
 }
@@ -18816,6 +18823,75 @@ public func FfiConverterTypeLibrarianAnswer_lower(_ value: LibrarianAnswer) -> R
 
 
 /**
+ * A part of the librarian's line, which opens its queue's screen.
+ */
+public struct LibrarianAsks: Equatable, Hashable {
+    /**
+     * Its queue.
+     */
+    public var queue: WaitingQueue
+    /**
+     * It in words, such as "5 items for you to approve".
+     */
+    public var words: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Its queue.
+         */queue: WaitingQueue, 
+        /**
+         * It in words, such as "5 items for you to approve".
+         */words: String) {
+        self.queue = queue
+        self.words = words
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension LibrarianAsks: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLibrarianAsks: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LibrarianAsks {
+        return
+            try LibrarianAsks(
+                queue: FfiConverterTypeWaitingQueue.read(from: &buf), 
+                words: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: LibrarianAsks, into buf: inout [UInt8]) {
+        FfiConverterTypeWaitingQueue.write(value.queue, into: &buf)
+        FfiConverterString.write(value.words, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLibrarianAsks_lift(_ buf: RustBuffer) throws -> LibrarianAsks {
+    return try FfiConverterTypeLibrarianAsks.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLibrarianAsks_lower(_ value: LibrarianAsks) -> RustBuffer {
+    return FfiConverterTypeLibrarianAsks.lower(value)
+}
+
+
+/**
  * An item an answer links to.
  */
 public struct LibrarianItem: Equatable, Hashable {
@@ -26990,6 +27066,121 @@ public func FfiConverterTypeActiveKind_lower(_ value: ActiveKind) -> RustBuffer 
 
 
 /**
+ * A view of the Library or of a collection.
+ */
+
+public enum ArchiveView: Equatable, Hashable {
+    
+    /**
+     * The collections as covers: the Library's own.
+     */
+    case covers
+    /**
+     * The items, as a list or a grid: a collection's own.
+     */
+    case items
+    /**
+     * Items by when they're from.
+     */
+    case timeline
+    /**
+     * The structure, sized by contents.
+     */
+    case map
+    /**
+     * How items and collections relate.
+     */
+    case connections
+    /**
+     * What was added and changed, and when.
+     */
+    case activity
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ArchiveView: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeArchiveView: FfiConverterRustBuffer {
+    typealias SwiftType = ArchiveView
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ArchiveView {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .covers
+        
+        case 2: return .items
+        
+        case 3: return .timeline
+        
+        case 4: return .map
+        
+        case 5: return .connections
+        
+        case 6: return .activity
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ArchiveView, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .covers:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .items:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .timeline:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .map:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .connections:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .activity:
+            writeInt(&buf, Int32(6))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeArchiveView_lift(_ buf: RustBuffer) throws -> ArchiveView {
+    return try FfiConverterTypeArchiveView.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeArchiveView_lower(_ value: ArchiveView) -> RustBuffer {
+    return FfiConverterTypeArchiveView.lower(value)
+}
+
+
+
+/**
  * Why a call failed. Swift sees this as a thrown error.
  */
 public 
@@ -29320,25 +29511,25 @@ public func FfiConverterTypeSuggestionOutcome_lower(_ value: SuggestionOutcome) 
 
 
 /**
- * A queue of decisions in the sidebar's Waiting section.
+ * Something the librarian asks of the owner: a row of the sidebar's Librarian section.
  */
 
 public enum WaitingQueue: Equatable, Hashable {
     
     /**
-     * Proposals to file items, and the crawler's findings.
-     */
-    case review
-    /**
-     * Questions to answer.
+     * Its questions (Questions).
      */
     case questions
     /**
-     * Restructure proposals.
+     * Proposals to file items, and the crawler's findings (To Approve).
+     */
+    case review
+    /**
+     * Restructure proposals (Suggestions).
      */
     case restructure
     /**
-     * What's flagged as needing work.
+     * What's flagged as needing work, and its answers (Flags).
      */
     case flagged
 
@@ -29362,9 +29553,9 @@ public struct FfiConverterTypeWaitingQueue: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .review
+        case 1: return .questions
         
-        case 2: return .questions
+        case 2: return .review
         
         case 3: return .restructure
         
@@ -29378,11 +29569,11 @@ public struct FfiConverterTypeWaitingQueue: FfiConverterRustBuffer {
         switch value {
         
         
-        case .review:
+        case .questions:
             writeInt(&buf, Int32(1))
         
         
-        case .questions:
+        case .review:
             writeInt(&buf, Int32(2))
         
         
@@ -30381,6 +30572,30 @@ fileprivate struct FfiConverterOptionTypeWriterLock: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeWriterLock.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeArchiveView: FfiConverterRustBuffer {
+    typealias SwiftType = ArchiveView?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeArchiveView.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeArchiveView.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -31685,6 +31900,31 @@ fileprivate struct FfiConverterSequenceTypeLibrarianAnswer: FfiConverterRustBuff
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeLibrarianAsks: FfiConverterRustBuffer {
+    typealias SwiftType = [LibrarianAsks]
+
+    public static func write(_ value: [LibrarianAsks], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeLibrarianAsks.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [LibrarianAsks] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [LibrarianAsks]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeLibrarianAsks.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeLibrarianItem: FfiConverterRustBuffer {
     typealias SwiftType = [LibrarianItem]
 
@@ -32756,6 +32996,31 @@ fileprivate struct FfiConverterSequenceTypeWaitingRow: FfiConverterRustBuffer {
         return seq
     }
 }
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeArchiveView: FfiConverterRustBuffer {
+    typealias SwiftType = [ArchiveView]
+
+    public static func write(_ value: [ArchiveView], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeArchiveView.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ArchiveView] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ArchiveView]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeArchiveView.read(from: &buf))
+        }
+        return seq
+    }
+}
 /**
  * The Carrel version and the archive format version, as shown in the apps' About window.
  */
@@ -32861,7 +33126,63 @@ public func embeddingModelChoices() -> [String]  {
 })
 }
 /**
- * The Library's banner, such as "5 to review · 1 question"; `None` when nothing waits.
+ * `view`'s name as it's remembered and as links carry it, such as `timeline`.
+ */
+public func archiveViewName(view: ArchiveView) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_archive_view_name(
+        FfiConverterTypeArchiveView_lower(view),uniffiCallStatus
+    )
+})
+}
+/**
+ * The view named `name`, also by Discover's old page names; `None` for one that isn't.
+ */
+public func archiveViewNamed(name: String) -> ArchiveView?  {
+    return try!  FfiConverterOptionTypeArchiveView.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_archive_view_named(
+        FfiConverterString.lower(name),uniffiCallStatus
+    )
+})
+}
+/**
+ * `view`'s name in the switcher, such as "Timeline".
+ */
+public func archiveViewTitle(view: ArchiveView) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_archive_view_title(
+        FfiConverterTypeArchiveView_lower(view),uniffiCallStatus
+    )
+})
+}
+/**
+ * The views of the Library (`collection` false) or of a collection, its own first.
+ */
+public func archiveViews(collection: Bool) -> [ArchiveView]  {
+    return try!  FfiConverterSequenceTypeArchiveView.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_archive_views(
+        FfiConverterBool.lower(collection),uniffiCallStatus
+    )
+})
+}
+/**
+ * What the librarian is asking, each part with its queue, in the line's order.
+ */
+public func librarianAsks(counts: WaitingCounts) -> [LibrarianAsks]  {
+    return try!  FfiConverterSequenceTypeLibrarianAsks.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_librarian_asks(
+        FfiConverterTypeWaitingCounts_lower(counts),uniffiCallStatus
+    )
+})
+}
+/**
+ * The librarian's line on the Library, such as "The librarian has 1 question and 5 items for
+ * you to approve."; `None` when it's asking nothing.
  */
 public func waitingLine(counts: WaitingCounts) -> String?  {
     return try!  FfiConverterOptionString.lift(try! rustCall() {
@@ -32872,8 +33193,20 @@ public func waitingLine(counts: WaitingCounts) -> String?  {
 })
 }
 /**
- * The Waiting section's rows: the queues with anything in them, in the sidebar's order. None
- * when nothing waits, and the section isn't shown.
+ * The name of `queue` in the sidebar, titles and menus: Questions, To Approve, Suggestions or
+ * Flags.
+ */
+public func waitingQueueTitle(queue: WaitingQueue) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_carrel_ffi_fn_func_waiting_queue_title(
+        FfiConverterTypeWaitingQueue_lower(queue),uniffiCallStatus
+    )
+})
+}
+/**
+ * The Librarian section's rows: the queues with anything in them, in the sidebar's order.
+ * None when it's asking nothing, and the section isn't shown.
  */
 public func waitingRows(counts: WaitingCounts) -> [WaitingRow]  {
     return try!  FfiConverterSequenceTypeWaitingRow.lift(try! rustCall() {
@@ -33082,10 +33415,28 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_func_embedding_model_choices() != 15439) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_func_waiting_line() != 46784) {
+    if (uniffi_carrel_ffi_checksum_func_archive_view_name() != 49010) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_func_waiting_rows() != 53117) {
+    if (uniffi_carrel_ffi_checksum_func_archive_view_named() != 63096) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_archive_view_title() != 63362) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_archive_views() != 63584) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_librarian_asks() != 5711) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_waiting_line() != 41001) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_waiting_queue_title() != 14421) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_carrel_ffi_checksum_func_waiting_rows() != 32512) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_func_download_host_allowed() != 3219) {
@@ -33271,10 +33622,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_update_device_profile() != 25173) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_activity() != 27389) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_activity() != 1927) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_archive_map() != 38408) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_archive_map() != 43684) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_on_this_day() != 47663) {
@@ -33286,10 +33637,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_resurfaced() != 48783) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_start_wander() != 60842) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_start_wander() != 23678) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_timeline() != 34232) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_timeline() != 11064) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_wander_step() != 8914) {
@@ -33394,7 +33745,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_carrel_ffi_checksum_method_archivehandle_report_missing_feature() != 33271) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_carrel_ffi_checksum_method_archivehandle_discovery_graph() != 3876) {
+    if (uniffi_carrel_ffi_checksum_method_archivehandle_discovery_graph() != 47575) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_carrel_ffi_checksum_method_archivehandle_history() != 40353) {
