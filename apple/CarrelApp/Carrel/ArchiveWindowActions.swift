@@ -64,21 +64,20 @@ struct ArchiveWindowActions: ViewModifier {
     }
 }
 
-/// The commands for the archive window in front: Add to Archive…, the other ways to add, and
-/// Search.
+/// The commands for the archive window in front: Add Items… (the Add panel), Add to Archive…,
+/// the other ways to add, and Search.
 struct ArchiveWindowCommands: Commands {
     @FocusedValue(ArchiveWindowModel.self) private var window
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
             Divider()
+            Button("Add Items…") { window?.showingAdd = true }
+                .keyboardShortcut("n")
+                .disabled(window?.intake == nil)
             Button("Add to Archive…") {
                 guard let intake = window?.intake else { return }
-                FileChoosing.shared.choose(
-                    .init(
-                        folders: true, files: true, multiple: true, prompt: "Add",
-                        message: "Choose files and folders to add to the intake queue."
-                    ) { urls in Task { await intake.add(urls) } })
+                chooseFilesToAdd(intake)
             }
             .keyboardShortcut("o")
             .disabled(window?.intake == nil || window?.isReadOnly != false)

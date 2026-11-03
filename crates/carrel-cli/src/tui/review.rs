@@ -399,7 +399,7 @@ mod tests {
         }];
         queue.save(&failed).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         app.chosen = app.queue.iter().position(|e| e.id == failed.id).unwrap();
         app.load_detail();
 
@@ -444,7 +444,7 @@ mod tests {
         ];
         queue.save(&unsure).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('3')));
         app.chosen = app.queue.iter().position(|e| e.id == unsure.id).unwrap();
         app.load_detail();
 

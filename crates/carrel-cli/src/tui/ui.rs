@@ -67,10 +67,10 @@ impl Theme {
 
 /// Where each tab's title starts on the top line, for mouse clicks: after a leading space,
 /// each is drawn as ` N Title ` followed by a space.
-pub fn tab_starts() -> Vec<u16> {
+pub fn tab_starts(app: &App) -> Vec<u16> {
     let mut starts = Vec::new();
     let mut x = 1u16;
-    for tab in Tab::ALL {
+    for tab in app.shown_tabs() {
         starts.push(x);
         x += u16::try_from(tab.title().len() + 5).unwrap_or(0);
     }
@@ -101,6 +101,7 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
     let inner = block.inner(body);
     frame.render_widget(block, body);
     match app.tab {
+        Tab::Library => super::library::draw_library(frame, app, theme, inner),
         Tab::History => draw_history(frame, app, theme, inner),
         Tab::Review => draw_review(frame, app, theme, inner),
         Tab::Active => draw_active(frame, app, theme, inner),
@@ -141,7 +142,7 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
 
 fn draw_tabs(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     let mut spans = vec![Span::raw(" ")];
-    for tab in Tab::ALL {
+    for tab in app.shown_tabs() {
         let title = format!("{} {}", tab.key(), tab.title());
         let style = if tab == app.tab {
             theme.selected()
@@ -158,13 +159,12 @@ fn waiting_line(app: &App) -> String {
     let (proposals, questions) = app.waiting;
     match (proposals, questions) {
         (0, 0) => "Nothing is waiting for you.".into(),
-        // Each tab's key is its place in the row of tabs.
         _ => format!(
             "Waiting for you: {proposals} proposal{} ({} to review), {questions} question{} ({} to answer).",
             if proposals == 1 { "" } else { "s" },
-            Tab::Review.index() + 1,
+            Tab::Review.key(),
             if questions == 1 { "" } else { "s" },
-            Tab::Questions.index() + 1,
+            Tab::Questions.key(),
         ),
     }
 }
@@ -176,7 +176,7 @@ fn draw_report(frame: &mut Frame, app: &App, area: Rect, first: Option<String>) 
         lines.push(Line::from(""));
     }
     lines.extend(app.report().iter().map(|l| Line::from(l.as_str())));
-    let scroll = app.scroll[Tab::ALL.iter().position(|t| *t == app.tab).unwrap_or(0)];
+    let scroll = app.scroll[app.tab.index()];
     frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), area);
 }
 

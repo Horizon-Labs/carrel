@@ -527,7 +527,8 @@ pub(super) mod tests {
 
     #[test]
     fn status_names_the_days_questions() {
-        let (_dir, app) = sample(true);
+        let (_dir, mut app) = sample(true);
+        app.tab = super::super::app::Tab::Status;
         let text = screen(&app, 120, 40);
         assert!(text.contains("Today's questions"), "{text}");
     }

@@ -375,7 +375,7 @@ func realPath(_ path: String) -> String {
         #expect(link.screen == .backups)
         for (name, screen) in [
             ("discover", AgentLink.Screen.discover(nil)), ("discover:map", .discover(.map)),
-            ("librarian", .librarian), ("settings", .settings),
+            ("librarian", .librarian), ("settings", .settings), ("library", .library),
         ] {
             #expect(AgentLink.Screen(name: name) == screen)
             #expect(screen.name == name)

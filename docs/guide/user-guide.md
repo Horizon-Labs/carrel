@@ -169,7 +169,7 @@ Apple's on-device model has safety filters that sometimes refuse documents, ofte
 
 ## Reviewing
 
-Review is where proposals become filed items. In the interactive mode (`2`), each proposal shows the card it would write, the destination with its confidence and reasons, its sensitivity and why, and anything left to settle.
+Review is where proposals become filed items. In the interactive mode (`3`), each proposal shows the card it would write, the destination with its confidence and reasons, its sensitivity and why, and anything left to settle.
 
 | Decision | Key | Command |
 | --- | --- | --- |
@@ -237,11 +237,12 @@ A question you skipped rests and one you declined is never asked again, wherever
 
 ## Finding things
 
+- **The Library** is where the interactive mode and the apps open: what's waiting for you, in one line such as "5 to review · 1 question", each top-level collection with how many items it holds (Holding last), the items you added most recently and On This Day. `Enter` (or a click) opens a queue, a collection or an item. `carrel library` prints the same.
 - `carrel search WORDS` finds items by what's in their cards and their contents, and by what they mean (below).
 - **Browse** (`5`) lists collections and their items, with each card in full. `/` searches the whole archive the way `carrel search` does, filters and all (below).
 - **An item's view:** below its card, Browse lists every change that touched the item, newest first, from its filing to its latest correction or return, then under **Related** the items its card links to (`version-of`, `related`, `part-of`) and the five items nearest it by meaning (`near`; see [Related items](#related-items)). `Enter` on an item moves into its view: `u` undoes the chosen change (after asking, as History does), `Enter` on a related item goes to it, and `←` or `Esc` go back.
 - **Previews:** in a terminal that draws images, Browse shows the chosen item beside its card (above it when the terminal is narrow): Kitty, WezTerm and Ghostty through the Kitty graphics protocol, iTerm2 through its inline images, and foot, mlterm, Konsole, Windows Terminal and contour through Sixel. Carrel recognises the terminal when it starts. Elsewhere, and inside tmux or screen, Browse looks as it always has. Images show directly; PDFs, documents and 3D models show the thumbnails and drawings cached on this device (`_System/cache.nosync/previews/`, the Mac app's too), and a folder shows what's in it as text. PNG, JPEG and TIFF images show in every one of them, from a thumbnail Carrel makes and caches; another kind of image, such as HEIC or WebP, shows only in iTerm2 until a thumbnail of it is cached. The card always draws first; previews are made in the background and never written into the archive itself. A restricted item shows its card only. Turn previews off with `carrel settings set previews off`, or name the protocol (`kitty`, `iterm2` or `sixel`) for a terminal Carrel doesn't recognise.
-- **Recent**, on the Status screen (`1`) and in `carrel status`, lists the last ten things filed, changed or worked on across the archive: each recorded change, and each approved work session on the day it happened.
+- **Recent**, on the Status screen (`6`) and in `carrel status`, lists the last ten things filed, changed or worked on across the archive: each recorded change, and each approved work session on the day it happened.
 - `carrel show ITEM` prints a card, the items related to it (its links, and those nearest it by meaning), and the changes that touched it, each with the identifier `carrel undo` takes.
 - `ARCHIVE.md` and each collection's design document end with a generated list of its contents, so the archive is browsable in Finder or Obsidian too.
 - **From Neovim or Emacs:** `:CarrelSearch` and `M-x carrel-search` search the same way and open what you choose; `:CarrelShow` and `M-x carrel-show` show the card of the file you're in. See [Neovim and Emacs](editors.md).
@@ -376,7 +377,7 @@ Most items are filed and left alone, but some are still being worked on: a proje
 - **The desk** is for things you work on where they are, without archiving them yet: `carrel desk add PATH` writes a card beside the file or folder, drafted by your text model as ingest would, and nothing inside it is changed or moved. When it's done, `carrel desk archive PATH` queues it for ingest: you review its proposal as usual, and the card it had on the desk, history and all, goes into the archive with it. `carrel status` suggests folders on your Desktop or in `~/Code` that look like work in progress, and desk items you haven't touched for 60 days.
 - **Work sessions:** Carrel notices work on checked-out and desk items and adds a pending history entry for each finished stretch of it; see [Work sessions](#work-sessions). Approve, edit, combine or drop them with `carrel sessions`, or on the Active screen.
 
-The **Active** screen (`3`) lists what's checked out and what's on this device's desk, each with its pending entries under it. The chosen item's details are on the right: where the working copy is, when it was checked out and is due, what has changed, and its pending entries, numbered.
+The **Checked Out** screen (`2`, called Active in `carrel tui active` and the app's links) lists what's checked out and what's on this device's desk, each with its pending entries under it. The chosen item's details are on the right: where the working copy is, when it was checked out and is due, what has changed, and its pending entries, numbered.
 
 - `r` returns the chosen checkout, after showing what changed; `x` cancels it, after asking.
 - `o` opens the working copy (or the desk item) in Finder, or in the app its type opens with, and leaves the interactive mode as it is.
@@ -406,7 +407,7 @@ Without the [Mac app](mac-app.md#the-background-agent), work is noticed when `ca
 - `carrel agent install [ARCHIVE...]` starts it at log-in, and now. It writes one file and says which: on macOS a launchd user agent, `~/Library/LaunchAgents/me.hrose.carrel.agent.plist`; on Linux a systemd user service, `~/.config/systemd/user/carrel-agent.service`; on Windows a Task Scheduler task, "Carrel Agent", made from `carrel-agent.xml` in Carrel's folder. It runs the `carrel` you installed it with, with the `PATH` you installed it from, so it finds Kopia and the providers as your terminal does. Run it again after moving `carrel`, or to change the archives. On a Mac, it and `carrel agent uninstall` also remove an agent installed before 1.0.0-rc.2, under its old name (`io.github.hannaharose.carrel.agent.plist`), so only one runs.
 - `carrel agent status` says whether it's installed, for which archives, and whether an agent looks after each one now.
 - `carrel agent uninstall` stops it and removes exactly the file or task `install` made.
-- In the interactive mode, Settings' **Agent** row (`8`) shows the same: whether it's installed, as what, its file, and whether an agent looks after this archive now. `Enter` installs it for this archive, keeping the archives it already looks after, and `x` uninstalls it. Both ask first, then say exactly what they wrote or removed.
+- In the interactive mode, Settings' **Agent** row (`9`) shows the same: whether it's installed, as what, its file, and whether an agent looks after this archive now. `Enter` installs it for this archive, keeping the archives it already looks after, and `x` uninstalls it. Both ask first, then say exactly what they wrote or removed.
 
 There's one agent per archive on each device. While the Mac app's agent looks after an archive, `carrel agent` steps aside and says so, and takes over within a minute once the app's agent stops. While either one runs, `carrel ingest` and changes to filed items start no worker of their own, and `carrel ingest --status` says the agent drafts the queue. Its log is `workers/agent.log` in Carrel's folder on macOS and Windows; on Linux, `journalctl --user -u carrel-agent` shows it.
 
@@ -425,7 +426,7 @@ The `reminders` setting (`carrel settings set reminders idle,weekly,due-date,men
 
 Every change Carrel makes to the archive is recorded: filing a batch, renaming, creating a collection, changing a shared setting, answering a term question. History is a Git repository in `_System/history.git` holding the cards and documents, not the files themselves (backups have those).
 
-- **History** (`6`) or `carrel log` lists changes, newest first.
+- **History** (`7`) or `carrel log` lists changes, newest first.
 - `u` on a change, or `carrel undo CHANGE`, reverses it with a new change: files it moved go back, and cards and documents return to how they were. The change that created the history can't be undone.
 - Changes the librarian made on its own are marked **by the librarian**; `carrel undo --librarian SINCE` undoes them all together (see [What the librarian may change](#what-the-librarian-may-change)). The crawler's are marked **by the crawler**, and `carrel crawl undo SINCE` undoes them (see [The crawler](#the-crawler)).
 - A restructure, a tag proposal approved, or a collection's eagerness set is one change too, undone the same way (see [Reorganizing the archive](#reorganizing-the-archive)).
@@ -530,7 +531,7 @@ History keeps the cards; [Kopia](https://kopia.io) keeps the files. After `carre
 - `carrel backup verify` checks the repository, reading back a sample of the files.
 - `carrel backup restore ITEM [--at CHANGE]` restores an item as it was, into a new folder beside the archive. It never overwrites anything.
 - The password is asked for once and kept in your keychain. Losing it means losing the backups, so keep it in a password manager too.
-- The interactive mode's Backups screen (`9`) does the same: it lists the snapshots with their changes (from history, so it works with the drive unplugged), and `n` takes a snapshot, `v` verifies, `r` restores an item as of the chosen snapshot, and `s` sets up or connects a repository: choose its folder with your file picker or the built-in browser (`/` to type a path), then type the password, shown as dots.
+- The interactive mode's Backups screen (`8`) does the same: it lists the snapshots with their changes (from history, so it works with the drive unplugged), and `n` takes a snapshot, `v` verifies, `r` restores an item as of the chosen snapshot, and `s` sets up or connects a repository: choose its folder with your file picker or the built-in browser (`/` to type a path), then type the password, shown as dots.
 
 If the backup drive isn't connected, filing still works; the next snapshot covers what was missed.
 
@@ -552,7 +553,7 @@ Carrel never sends your files anywhere. Everything it does with them runs on you
 
 ## Settings
 
-The Settings screen (`8`), or `carrel settings`, shows two kinds:
+The Settings screen (`9`), or `carrel settings`, shows two kinds:
 
 **This device**, kept in `cli.json`:
 
@@ -589,7 +590,7 @@ The Settings screen also shows the **Archive** it's on, which `Enter` (or `Ctrl-
 
 ## How Carrel is doing
 
-After using Carrel for a few days or weeks, `carrel report` shows how well it's working for you and what to tweak. The interactive mode shows the same at the bottom of Status (`1`), and the Mac app will have a Report view.
+After using Carrel for a few days or weeks, `carrel report` shows how well it's working for you and what to tweak. The interactive mode shows the same at the bottom of Status (`6`), and the Mac app will have a Report view.
 
 It's made from a **decision log** each device keeps in its own folder (see [What Carrel keeps on this device](#what-carrel-keeps-on-this-device)), never in the archive. The log records, by identifier:
 

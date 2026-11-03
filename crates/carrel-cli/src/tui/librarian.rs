@@ -208,8 +208,8 @@ impl App {
         if c == Tab::Librarian.key() {
             self.carry_to_librarian();
         }
-        if let Some(tab) = Tab::ALL.iter().find(|t| t.key() == c) {
-            self.tab = *tab;
+        if let Some(tab) = Tab::of_key(c) {
+            self.tab = tab;
         }
     }
 
@@ -690,7 +690,7 @@ pub(super) mod tests {
         let (_dir, mut app) = sample(true);
         app.key(key(KeyCode::Char('L')));
         assert_eq!(app.tab, Tab::Librarian);
-        assert!(screen(&app, 160, 30).contains("9 Backups   L Librarian   D Discover"));
+        assert!(screen(&app, 160, 30).contains("8 Backups   9 Settings   L Librarian"));
         assert!(screen(&app, 120, 30).contains("Ask the librarian about your archive"));
         ask(
             &mut app,
@@ -837,7 +837,7 @@ pub(super) mod tests {
                 "Discover: on this day".into()
             ))
         );
-        app.key(key(KeyCode::Char('1')));
+        app.key(key(KeyCode::Char('6')));
         app.key(key(KeyCode::Char('L')));
         assert!(app.talk.about.is_some(), "Status has nothing to carry");
 

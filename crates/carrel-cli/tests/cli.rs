@@ -4768,3 +4768,26 @@ fn feedback_is_saved_per_device_listed_exported_and_marked_sent() {
         1
     );
 }
+
+#[test]
+fn library_lists_whats_waiting_the_collections_and_whats_new() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let text = sandbox.ok(&root, &["library"]);
+    assert!(text.starts_with("Waiting: 1 to review."), "{text}");
+    assert!(
+        text.find("  Projects").unwrap() < text.find("  Holding").unwrap(),
+        "Holding comes last: {text}"
+    );
+    assert!(text.contains("Recently added\n  Untitled scan"), "{text}");
+    let library = sandbox.json(&root, &["library"]);
+    let shelves = library["library"]["shelves"].as_array().unwrap();
+    assert_eq!(shelves[0]["path"], "Projects", "{library}");
+    assert_eq!(shelves[0]["items"], 7, "{library}");
+    assert_eq!(library["waiting"]["review"], 1, "{library}");
+
+    let empty = sandbox.path("Empty");
+    sandbox.ok(sandbox.dir.path(), &["init", empty.to_str().unwrap()]);
+    let text = sandbox.ok(&empty, &["library"]);
+    assert!(text.starts_with("Nothing is filed yet."), "{text}");
+}

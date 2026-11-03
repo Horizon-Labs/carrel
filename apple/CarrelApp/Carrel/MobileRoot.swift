@@ -361,7 +361,9 @@ private struct MobileArchiveToolbar: ViewModifier {
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if let capture, !model.isReadOnly {
-                        CaptureMenu(capture: capture, intake: model.intake)
+                        CaptureMenu(capture: capture, intake: model.intake) {
+                            model.showingAdd = true
+                        }
                     }
                     Button("Settings", systemImage: "gearshape") { library.showingSettings = true }
                 }

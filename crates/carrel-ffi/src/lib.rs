@@ -76,6 +76,7 @@ pub mod inbox;
 pub mod index;
 pub mod intake;
 pub mod librarian;
+pub mod library;
 pub mod model_formats;
 pub mod models;
 pub mod on_device;

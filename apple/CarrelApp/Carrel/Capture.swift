@@ -170,6 +170,8 @@ struct CaptureMenu: View {
     let capture: CaptureModel
     /// The window's intake, for Web Address…, Note… and Paste (#439).
     var intake: IntakeModel?
+    /// Opens the Add panel, with the intake queue (#512).
+    var showQueue: (() -> Void)?
     @State private var choosingPhotos = false
     @State private var photos: [PhotosPickerItem] = []
     @State private var takingPhoto = false
@@ -197,6 +199,10 @@ struct CaptureMenu: View {
                 Button("Paste", systemImage: "doc.on.clipboard") {
                     Task { await intake.paste(from: .general) }
                 }
+            }
+            if let showQueue {
+                Divider()
+                Button("Show Queue…", systemImage: "tray.and.arrow.down") { showQueue() }
             }
         }
         .photosPicker(

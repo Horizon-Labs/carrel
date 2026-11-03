@@ -54,8 +54,8 @@ final class ArchiveWindowModelTests: XCTestCase {
     func testBrowseListsACollectionsOwnItems() async throws {
         let model = ArchiveWindowModel(url: sampleArchive, options: isolated)
         await model.load()
-        XCTAssertEqual(model.listedItems, [], "Status lists no items")
-        XCTAssertEqual(model.screenTitle, "Status")
+        XCTAssertEqual(model.listedItems, [], "the Library lists no items")
+        XCTAssertEqual(model.screenTitle, "Library")
         model.screen = .collection("Projects/Hardware")
         XCTAssertEqual(model.screenTitle, "Hardware")
         model.screen = .collection("Reading")

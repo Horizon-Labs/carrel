@@ -7,6 +7,7 @@ use crate::start_screen::StartScreen;
 /// The tab a screen is on, and for Discover, which view.
 fn tab_and_view(screen: StartScreen) -> (Tab, Option<View>) {
     match screen {
+        StartScreen::Library => (Tab::Library, None),
         StartScreen::Status => (Tab::Status, None),
         StartScreen::Review => (Tab::Review, None),
         StartScreen::Active => (Tab::Active, None),
@@ -53,11 +54,13 @@ mod tests {
     #[test]
     fn starts_on_the_asked_tab() {
         let (_dir, mut app) = super::super::tests::sample(false);
-        assert_eq!(app.tab, Tab::Status);
+        assert_eq!(app.tab, Tab::Library);
         app.start_on_screen(StartScreen::Questions);
         assert_eq!(app.tab, Tab::Questions);
         app.start_on_screen(StartScreen::Backups);
         assert_eq!(app.tab, Tab::Backups);
+        app.start_on_screen(StartScreen::Library);
+        assert_eq!(app.tab, Tab::Library);
     }
 
     #[test]
