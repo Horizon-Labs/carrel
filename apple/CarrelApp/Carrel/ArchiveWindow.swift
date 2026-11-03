@@ -17,8 +17,10 @@ struct ArchiveWindow: View {
     @Environment(MobileLibrary.self) private var library
     #endif
     @State private var model: ArchiveWindowModel
-    /// On iPhone, the Library comes first rather than the sidebar.
+    /// On iPhone, the chosen screen comes first rather than the sidebar: the Library when the
+    /// archive opens.
     @State private var compactColumn = NavigationSplitViewColumn.content
+    @State private var compactLibraryColumn = NavigationSplitViewColumn.detail
 
     init(url: URL) {
         _model = State(initialValue: ArchiveWindowModel(url: url))
@@ -26,24 +28,34 @@ struct ArchiveWindow: View {
 
     var body: some View {
         @Bindable var model = model
-        NavigationSplitView(preferredCompactColumn: $compactColumn) {
-            ArchiveSidebar(model: model)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220)
-                .feedbackToolbarItem(model)
-                #if os(iOS)
-            .mobileArchiveToolbar(model)
-                #endif
-        } content: {
-            ArchiveScreenContent(model: model)
-                .navigationSplitViewColumnWidth(min: 260, ideal: 340)
-                #if os(iOS)
-            .feedbackToolbarItem(model)
-                #endif
-        } detail: {
-            Inspector(model: model)
-                #if os(iOS)
-            .feedbackToolbarItem(model)
-                #endif
+        Group {
+            // The Library is a page as wide as the window, as Photos' is; the other screens
+            // have a list beside the inspector.
+            if model.showsLibraryPage {
+                NavigationSplitView(preferredCompactColumn: $compactLibraryColumn) {
+                    sidebar
+                } detail: {
+                    ArchiveScreenContent(model: model)
+                        #if os(iOS)
+                    .feedbackToolbarItem(model)
+                        #endif
+                }
+            } else {
+                NavigationSplitView(preferredCompactColumn: $compactColumn) {
+                    sidebar
+                } content: {
+                    ArchiveScreenContent(model: model)
+                        .navigationSplitViewColumnWidth(min: 260, ideal: 340)
+                        #if os(iOS)
+                    .feedbackToolbarItem(model)
+                        #endif
+                } detail: {
+                    Inspector(model: model)
+                        #if os(iOS)
+                    .feedbackToolbarItem(model)
+                        #endif
+                }
+            }
         }
         .feedbackActions(model)
         .activeAndHistorySheets(model)
@@ -103,6 +115,16 @@ struct ArchiveWindow: View {
 }
 
 extension ArchiveWindow {
+    /// The sidebar, with its toolbar.
+    fileprivate var sidebar: some View {
+        ArchiveSidebar(model: model)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 220)
+            .feedbackToolbarItem(model)
+            #if os(iOS)
+        .mobileArchiveToolbar(model)
+            #endif
+    }
+
     /// Chooses the item a link asked for: on Active when it's checked out or on the desk, as
     /// in the agent's menu, or when a link from Finder asks to do something with it, which
     /// starts; else in Browse, as from Spotlight.

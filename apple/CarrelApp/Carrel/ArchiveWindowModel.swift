@@ -305,6 +305,12 @@ final class ArchiveWindowModel {
         return rows
     }
 
+    /// Whether the window shows the Library as a page of its own, as wide as the window: on
+    /// the Library, unless a search's results are showing.
+    var showsLibraryPage: Bool {
+        (screen == .library || screen == nil) && search?.isActive != true
+    }
+
     /// Whether Checked Out shows in the sidebar: when anything is checked out or on the desk,
     /// or while it's showing.
     var showsCheckedOut: Bool {

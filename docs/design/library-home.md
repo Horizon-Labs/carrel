@@ -62,6 +62,12 @@ ARCHIVE
 
 Restricted items never appear on a cover.
 
+In the apps the Library is a page as wide as the window, beside the sidebar, as Photos' Library is; the other screens keep their list beside the inspector.
+
+| Mac | iPad |
+| --- | --- |
+| ![The Library on a Mac: the sidebar, a banner saying 1 to review, and the sample archive's collections as covers](library-home/mac.jpg) | ![The Library on iPad: the same sidebar, banner, collections and Recently Added](library-home/ipad.jpg) |
+
 ## Adding is a mode
 
 - **The + button** in the toolbar, **File → Add Items…** (⌘N, which the window doesn't otherwise use: New Archive is ⇧⌘N), and dropping anywhere on the window add to the archive. On the Mac, + and ⌘N open the **Add panel**; dropping goes straight to the add sheet, as before.
