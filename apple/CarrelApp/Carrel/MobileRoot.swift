@@ -34,15 +34,21 @@ final class MobileLibrary {
     /// new archives and checked-out working copies go here unless another place is chosen.
     static var documents: URL { URL.documentsDirectory }
 
-    /// Opens the archive this device had open last, if it's still there.
+    /// Opens the archive this device had open last, or says why it can't.
     func reopen() {
         guard open == nil, let path = defaults.string(forKey: Self.openKey) else { return }
         let url = Self.current(URL(filePath: path, directoryHint: .isDirectory))
+        _ = access(url)
         guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+            defaults.removeObject(forKey: Self.openKey)
+            problem = "“\(url.lastPathComponent)” isn’t where it was. Choose it again to open it."
             return
         }
-        _ = access(url)
-        if let root = try? app.resolve(url) { show(root) }
+        do {
+            show(try app.resolve(url))
+        } catch {
+            problem = message(for: error)
+        }
     }
 
     /// `url` moved to where the app's container is now, if it was in the container's

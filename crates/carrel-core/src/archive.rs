@@ -300,6 +300,15 @@ impl Archive {
     /// [`ArchiveError::Invalid`] if `archive.json`, `ARCHIVE.md` or `settings.json` is
     /// malformed, and [`ArchiveError::IdMismatch`] if `archive.json` and `ARCHIVE.md` disagree.
     pub fn open(root: &Path) -> Result<Self, ArchiveError> {
+        // On a device that hasn't opened the archive before, iCloud may have left only
+        // placeholders for these, as on iPad and iPhone.
+        for name in [
+            "_System/archive.json",
+            "ARCHIVE.md",
+            "_System/settings.json",
+        ] {
+            let _ = crate::cloud_files::fetch_if_placeholder(&root.join(name));
+        }
         let info_path = root.join("_System/archive.json");
         let info_text = match std::fs::read_to_string(&info_path) {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -350,7 +359,7 @@ impl Archive {
     }
 
     /// Finds the archive containing `start` by looking in it and each parent folder for
-    /// `_System/archive.json`, and opens it.
+    /// `_System/archive.json`, or iCloud's placeholder for it, and opens it.
     ///
     /// # Errors
     ///
@@ -360,7 +369,11 @@ impl Archive {
         let start = std::fs::canonicalize(start).map_err(io(start))?;
         let root = start
             .ancestors()
-            .find(|dir| dir.join("_System/archive.json").is_file())
+            .find(|dir| {
+                let info = dir.join("_System/archive.json");
+                info.is_file()
+                    || crate::cloud_files::placeholder_path(&info).is_some_and(|p| p.is_file())
+            })
             .ok_or_else(|| ArchiveError::NotAnArchive(start.clone()))?;
         Self::open(root)
     }
