@@ -91,7 +91,7 @@ Discover leaves the sidebar. Its pages are ways of looking at the archive, as Fi
 
 ## Adding is a mode
 
-- **The + button** in the toolbar, **File → Add Items…** (⌘N, which the window doesn't otherwise use: New Archive is ⇧⌘N), and dropping anywhere on the window add to the archive. On the Mac, + and ⌘N open the **Add panel**; dropping goes straight to the add sheet, as before.
+- **The + button** in the toolbar, **File → Add Items…** (⌘N, which the window doesn't otherwise use: New Archive is ⇧⌘N), and dropping anywhere on the window add to the archive. On the Mac, + and ⌘N open the **Add panel**. **Dropping adds straight away,** with no note and folders as Carrel decides, so the owner can keep dropping: a banner at the foot of the window says what the drops added, with Show Queue, and goes by itself unless something was left out or went wrong. Anything Carrel needs to know comes later, as questions.
 - **The Add panel** holds what Status's intake section held: choosing files, a web address, a note or the clipboard, and the intake queue with the worker's progress.
 - **Intake leaves Status,** which keeps one line saying what's being added.
 

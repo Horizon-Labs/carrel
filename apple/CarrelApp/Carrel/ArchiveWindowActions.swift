@@ -1,6 +1,7 @@
 // What an archive's window does beyond its screens: search (⌘F; in the toolbar on the Mac, in
-// ToolbarSearchField.swift), adding items by dropping them on the window or with File → Add to
-// Archive… (⌘O), and watching the worker draft them.
+// ToolbarSearchField.swift), adding items by dropping them on the window, straight away with a
+// banner saying what went in, or with File → Add to Archive… (⌘O), and watching the worker draft
+// them.
 
 import CarrelKit
 import SwiftUI
@@ -29,7 +30,7 @@ struct ArchiveWindowActions: ViewModifier {
             .onChange(of: model.screen) { model.search?.clear() }
             .dropDestination(for: URL.self) { urls, _ in
                 guard let intake = model.intake, !model.isReadOnly else { return false }
-                Task { await intake.add(urls) }
+                Task { await intake.drop(urls) }
                 return true
             } isTargeted: {
                 isTargeted = $0
@@ -57,6 +58,19 @@ struct ArchiveWindowActions: ViewModifier {
             } message: { report in
                 if let details = report.details { Text(details) }
             }
+            .overlay(alignment: .bottom) {
+                if let intake = model.intake, let dropped = intake.dropped {
+                    DropBanner(report: dropped) {
+                        model.showingAdd = true
+                        intake.dropped = nil
+                    } close: {
+                        intake.dropped = nil
+                    }
+                    .padding()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.default, value: model.intake?.dropped)
             .modifier(AddFromWindowSheets(model: model))
             .task(id: model.intake.map(ObjectIdentifier.init)) {
                 await model.intake?.watch()
@@ -88,5 +102,41 @@ struct ArchiveWindowCommands: Commands {
                 .keyboardShortcut("f")
                 .disabled(window?.search == nil)
         }
+    }
+}
+
+/// What the drops added, at the foot of the window, where it doesn't stop the next drop. It
+/// goes by itself after a few seconds unless something was left out or went wrong.
+private struct DropBanner: View {
+    let report: AddReport
+    let showQueue: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Image(systemName: report.needsReading ? "exclamationmark.triangle" : "tray.and.arrow.down")
+                .foregroundStyle(report.needsReading ? .orange : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(report.title).font(.headline)
+                if let details = report.details {
+                    Text(details).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                }
+            }
+            Spacer(minLength: 0)
+            Button("Show Queue", action: showQueue)
+            Button("Close", systemImage: "xmark", action: close)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+        }
+        .padding(12)
+        .frame(maxWidth: 520)
+        .background(.regularMaterial, in: .rect(cornerRadius: 10))
+        .shadow(radius: 4, y: 2)
+        .task(id: report) {
+            guard !report.needsReading else { return }
+            try? await Task.sleep(for: .seconds(6))
+            if !Task.isCancelled { close() }
+        }
+        .feedbackScreen(step: "drop banner")
     }
 }
