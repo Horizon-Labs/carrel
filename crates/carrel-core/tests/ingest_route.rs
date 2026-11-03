@@ -41,6 +41,7 @@ fn sample() -> (tempfile::TempDir, Archive) {
 
 fn candidate(path: PathBuf, kind: Kind) -> Candidate {
     Candidate {
+        context: None,
         path,
         kind,
         sealed: None,
@@ -64,6 +65,7 @@ fn draft(title: &str, tags: &[&str]) -> Draft {
         generated: None,
         attempts: Vec::new(),
         problems: Vec::new(),
+        readings: Vec::new(),
     }
 }
 

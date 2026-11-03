@@ -49,7 +49,7 @@ private struct BrowseDialogs: ViewModifier {
                 }
             }
             .alert(
-                "Couldn’t Do That",
+                problemTitle("Couldn’t Do That", model.archive, showing: model.problem),
                 isPresented: Binding(
                     get: { model.problem != nil }, set: { if !$0 { model.problem = nil } })
             ) {
@@ -57,6 +57,7 @@ private struct BrowseDialogs: ViewModifier {
             } message: {
                 Text(model.problem ?? "")
             }
+            .flagDialogs(model)
     }
 }
 

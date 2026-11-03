@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use crate::archive::{Archive, ArchiveError, Collection};
 use crate::backup::Backups;
-use crate::card::Sensitivity;
+use crate::card::{Id, Sensitivity};
 use crate::coordinator::{Coordinator, CoordinatorError, DEFAULT_LEASE, DiskLock, Holder};
 use crate::history::{Change, History, HistoryError, Operation};
 use crate::ingest::filing::{BatchError, Outcome, Placement, file_batch};
@@ -419,6 +419,28 @@ pub fn decide(
     holder: Holder,
     backups: Option<&dyn Backups>,
 ) -> Result<Outcome, ActionError> {
+    decide_on(
+        archive,
+        entries,
+        placement,
+        (holder, holder.device),
+        backups,
+    )
+}
+
+/// As [`decide`], recorded as `holder`'s, filing the items on `device`, where they are: how
+/// the writer files what another device approved through its inbox ([`crate::inbox`]).
+///
+/// # Errors
+///
+/// As [`decide`].
+pub fn decide_on(
+    archive: &Archive,
+    entries: Vec<ReviewEntry>,
+    placement: Placement,
+    (holder, device): (Holder, Id),
+    backups: Option<&dyn Backups>,
+) -> Result<Outcome, ActionError> {
     if entries.is_empty() {
         return Ok(Outcome::default());
     }
@@ -431,7 +453,7 @@ pub fn decide(
             (e, placement)
         })
         .collect();
-    let outcome = file_batch(archive, decided, &mut lease, holder.device, backups);
+    let outcome = file_batch(archive, decided, &mut lease, device, backups);
     noted.filed(archive, outcome.as_ref().ok());
     lease.release()?;
     Ok(outcome?)
@@ -1139,6 +1161,7 @@ pub fn apply_draft_fields(
     entry.proposed_tags = checked.new_tags;
     entry.card.dates = checked.dates;
     entry.card.sensitivity = checked.sensitivity;
+    crate::ingest::redraft::note_owner_fields(entry, &changed);
     // Fields the owner wrote are no longer a model's.
     if let Some(generated) = &mut entry.card.generated {
         generated.fields.retain(|f| !changed.contains(&f.as_str()));
@@ -1199,6 +1222,7 @@ pub fn correct_proposal(
             .to_string(),
     );
     let changed = crate::correct::apply(&mut fields, worked, words, &at);
+    crate::ingest::redraft::note_owner_fields(&mut entry, &changed);
     let kept_sensitive = fields.sensitivity < Sensitivity::Sensitive
         && entry
             .sensitivity_reasons
@@ -1234,6 +1258,7 @@ pub fn correct_proposal(
         let rules = crate::ingest::route::RoutingRules::of(archive, &collections);
         let router = crate::ingest::route::Router::new(archive, &collections, &rules);
         let candidate = crate::ingest::Candidate {
+            context: None,
             path: entry.source.path.clone(),
             kind: entry.kind,
             sealed: entry.sealed,
@@ -1254,6 +1279,7 @@ pub fn correct_proposal(
             generated: None,
             attempts: Vec::new(),
             problems: Vec::new(),
+            readings: Vec::new(),
         };
         let source = entry
             .source

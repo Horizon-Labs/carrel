@@ -125,6 +125,10 @@ pub struct Entry {
     pub text: Option<Checksum>,
     /// How sure filing was of its place, when it wasn't (`docs/design/signals.md`).
     pub placement: Option<PlacementConfidence>,
+    /// Whether the owner flagged it as needing work.
+    pub flagged: bool,
+    /// What drafted its card, when a model wrote any of it.
+    pub drafted: Option<crate::crawl::drafts::Drafted>,
 }
 
 impl Entry {
@@ -154,6 +158,8 @@ pub struct CollectionEntry {
     pub title: String,
     /// What it holds, as its design document's `description` says.
     pub description: Option<String>,
+    /// The owner's flag, if they marked it as needing work.
+    pub flag: Option<crate::card::NeedsWork>,
 }
 
 /// Every item and collection in an archive, read once, for the views to compute from.
@@ -225,6 +231,8 @@ fn entry(card: &Card, card_path: &str, history: &[String]) -> Entry {
             .then(|| crate::search::texts::fingerprint(card).cloned())
             .flatten(),
         placement: card.placement.as_ref().map(|p| p.confidence),
+        flagged: card.needs_work.is_some(),
+        drafted: crate::crawl::drafts::Drafted::of(card),
     }
 }
 
@@ -259,6 +267,7 @@ impl Catalog {
             .map(|c| CollectionEntry {
                 title: c.doc.title.clone(),
                 description: c.doc.description.clone(),
+                flag: c.doc.needs_work.clone(),
                 path: c.path,
             })
             .collect();
@@ -286,6 +295,41 @@ impl Catalog {
     #[must_use]
     pub fn get(&self, id: Id) -> Option<&Entry> {
         self.by_id.get(&id).map(|&i| &self.entries[i])
+    }
+
+    /// The part of the catalog in the collection at `path` and those inside it, for a view of
+    /// that collection.
+    #[must_use]
+    pub fn within(&self, path: &str) -> Self {
+        let inside = |collection: &str| {
+            collection == path
+                || collection
+                    .strip_prefix(path)
+                    .is_some_and(|rest| rest.starts_with('/'))
+        };
+        Self::new(
+            self.entries
+                .iter()
+                .filter(|e| inside(&e.item.collection))
+                .cloned()
+                .collect(),
+            self.collections
+                .iter()
+                .filter(|c| inside(&c.path))
+                .cloned()
+                .collect(),
+        )
+    }
+
+    /// An item chosen at random by `seed`, for a walk that starts anywhere; `None` when the
+    /// catalog has none.
+    #[must_use]
+    pub fn pick(&self, seed: u64) -> Option<Id> {
+        (!self.entries.is_empty()).then(|| {
+            self.entries[Rng::new(seed).below(self.entries.len())]
+                .item
+                .id
+        })
     }
 
     /// The collection at `path`, if there is one.
@@ -388,6 +432,8 @@ pub(crate) mod tests {
             sessions: Vec::new(),
             text: None,
             placement: None,
+            flagged: false,
+            drafted: None,
         }
     }
 
@@ -396,6 +442,7 @@ pub(crate) mod tests {
             path: path.to_owned(),
             title: path.rsplit('/').next().unwrap_or(path).to_owned(),
             description: None,
+            flag: None,
         }
     }
 

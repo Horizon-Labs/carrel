@@ -13,6 +13,7 @@ extension ArchiveWindowModel {
     /// kind straight away. Returns what it did, in a sentence, once it's done.
     func answerAsked(_ question: Question, with given: String) async -> String? {
         guard let archive else { return nil }
+        if question.kind == .flag { return await answerFlagQuestion(question, with: given) }
         if question.kind == .item, question.picked(given)?.noChange != true {
             answerItemQuestion(question, with: question.picked(given)?.answer ?? given)
             return nil
@@ -59,10 +60,19 @@ struct AskedQuestionView: View {
         }
     }
 
-    /// The question as the queue has it, asking it first when it isn't there yet.
+    /// The question as the queue has it, asking it first when it isn't there yet. While
+    /// another device is the writer, asking sends it there instead, to answer once it's in
+    /// the queue, and says so.
     private func queued() async -> Question? {
         guard let ask else { return question }
-        return await ask()
+        let asked = await ask()
+        if asked == nil, let archive = window.archive, let error = archive.lastError,
+            error.isSentToInbox
+        {
+            archive.lastError = nil
+            said = "Sent to the writer, to answer once it’s in the queue."
+        }
+        return asked
     }
 
     private func respond(_ given: String) async {

@@ -8,14 +8,19 @@ import CarrelKit
 import Foundation
 import Observation
 
-/// A screen in the sidebar, in the interactive mode's order.
+/// A screen in the sidebar, in the interactive mode's order (docs/design/library-home.md).
 enum Screen: Hashable {
+    /// What the archive opens on: its collections, what's new and what's waiting.
+    case library
     case status
     case review
     case questions
     /// Restructure proposals.
     case restructure
+    /// Checked Out: what's checked out and on the desk.
     case active
+    /// What's flagged as needing work.
+    case flagged
     /// Browse, showing the collection at this path.
     case collection(String)
     case history
@@ -101,13 +106,24 @@ final class ArchiveWindowModel {
     private(set) var backups: BackupsModel?
     /// The correction sheet's, while it's open.
     var correction: CorrectionModel?
+    /// Report a Missing Feature's sheet, while it's open (#455).
+    var missingFeature: MissingFeatureModel?
+    /// Everything flagged, with where the librarian is with each (`FlagLibrarian.swift`).
+    var flagRequests: [FlagRequestView] = []
+    /// Send Feedback's form, while it's open, and where each view says the owner is (#487).
+    var feedback: FeedbackModel?
+    let feedbackMarks = FeedbackMarks()
     /// The filed item whose card the inspector is editing (⌘E).
     var editing: CardEditModel?
+    /// Move to iCloud Drive…'s sheet, while it's open.
+    var icloudMove: ICloudMoveModel?
 
     // Restructure proposals (#327).
     private(set) var restructure: RestructureModel?
     /// The crawler's findings in Review, and its changes on Status.
     private(set) var crawler: CrawlerModel?
+    /// Every device's capability profile and the re-check queue, on Status.
+    private(set) var devices: DevicesModel?
 
     // Active and History (#235).
     private(set) var activeScreen: ActiveScreenModel?
@@ -120,6 +136,16 @@ final class ArchiveWindowModel {
     private(set) var librarian: LibrarianModel?
     private(set) var discover: DiscoverModel?
 
+    // The Library (#512).
+    /// The shelves and what's new, from the core.
+    private(set) var library: ArchiveLibrary?
+    /// Whether the Add panel is showing: the ways to add, and the intake queue.
+    var showingAdd = false
+    /// Counts changes of view, so what reads the remembered views follows them.
+    private(set) var viewsChanged = 0
+    /// What to do once the Add panel has closed: the sheet of the way to add chosen in it.
+    var afterAdd: (() -> Void)?
+
     // Previews and the grid (#256).
     private(set) var previews: PreviewStore?
     /// Browse's list or grid, kept for every window.
@@ -128,7 +154,7 @@ final class ArchiveWindowModel {
     }
     private let defaults: UserDefaults
 
-    var screen: Screen? = .status {
+    var screen: Screen? = .library {
         didSet { if screen != oldValue { selectedItemID = nil } }
     }
     var selectedItemID: ItemSummary.ID? {
@@ -140,7 +166,7 @@ final class ArchiveWindowModel {
         }
     }
 
-    init(url: URL, options: OpenOptions? = nil, defaults: UserDefaults = .standard) {
+    init(url: URL, options: OpenOptions? = nil, defaults: UserDefaults = .app) {
         self.url = url
         self.options = options
         self.defaults = defaults
@@ -209,7 +235,13 @@ final class ArchiveWindowModel {
             let previews = PreviewStore(handle: loaded.0)
             self.previews = previews
             await previews.reload()
+            await reloadLibrary()
             try? await archive.refreshAll()
+            let devices = DevicesModel(archive: archive)
+            self.devices = devices
+            // Opened with options, as tests open the sample in place, it writes nothing.
+            let writesProfile = !isReadOnly && options == nil
+            Task { await devices.open(writingProfile: writesProfile) }
         } catch {
             problem = message(for: error)
         }
@@ -218,8 +250,13 @@ final class ArchiveWindowModel {
     /// Where a checkout goes unless changed: the Desktop of the home the archive was opened
     /// with, as the core checks out by default.
     private var checkoutFolder: URL {
+        #if os(macOS)
         options?.home.map { URL(filePath: $0).appending(path: "Desktop") }
             ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        #else
+        // Carrel's folder in Files, which has no Desktop.
+        URL.documentsDirectory.appending(path: "Checked Out", directoryHint: .isDirectory)
+        #endif
     }
 
     /// Reads the collections and items again, after a change that files or refiles items.
@@ -234,6 +271,91 @@ final class ArchiveWindowModel {
         tree = CollectionNode.tree(loaded.0)
         items = loaded.1
         await previews?.reload()
+        await reloadLibrary()
+    }
+
+    /// Reads everything again, after something outside this window changed the archive: the
+    /// command line or the TUI, the worker drafting proposals, or another device through iCloud.
+    func reloadAll() async {
+        guard let archive else { return }
+        await refreshItems()
+        try? await archive.refreshAll()
+        await refreshFlags()
+    }
+
+    #if os(macOS)
+    /// Follows changes made to the archive outside this window until the window closes,
+    /// reading everything again a second after each.
+    func followOutsideChanges() async {
+        let (changes, continuation) = AsyncStream.makeStream(
+            of: Void.self, bufferingPolicy: .bufferingNewest(1))
+        let watcher = FileWatcher(folders: [root], latency: 1) { paths in
+            if paths.contains(where: Self.shows) { continuation.yield() }
+        }
+        defer { watcher?.stop() }
+        for await _ in changes { await reloadAll() }
+    }
+    #endif
+
+    /// Whether a change at `path` can change what the window shows: not the caches, the
+    /// search index, the devices' profiles or the history's own files, only where its branch
+    /// points.
+    nonisolated static func shows(_ path: String) -> Bool {
+        let quiet = [
+            "/_System/cache.nosync/", "/_System/index/", "/_System/devices/", "/.DS_Store",
+        ]
+        if quiet.contains(where: path.contains) { return false }
+        if let history = path.range(of: "/_System/history.git/") {
+            return path[history.upperBound...].hasPrefix("refs/")
+        }
+        return true
+    }
+
+    /// How many items the Library lists as recently added.
+    static let recentlyAdded: UInt32 = 12
+
+    /// Reads the Library's shelves and what's new again, off the main thread.
+    func reloadLibrary() async {
+        guard let handle else { return }
+        let recent = Self.recentlyAdded
+        library = try? await Task.detached { try handle.library(recent: recent) }.value
+    }
+
+    /// What waits in each queue, for the Librarian section and the librarian's line.
+    var waitingCounts: WaitingCounts {
+        WaitingCounts(
+            review: UInt32((archive?.reviewCount ?? 0) + (archive?.crawlerFindings.count ?? 0)),
+            questions: UInt32(archive?.questions.count ?? 0),
+            restructure: UInt32(archive?.restructureProposals.count ?? 0),
+            flagged: UInt32(flaggedCollections.count + flaggedItems.count))
+    }
+
+    /// The Librarian section's rows: only the queues with something, in order, and none when
+    /// nothing waits. A screen that's showing keeps its row, so deciding the last proposal
+    /// doesn't pull the row out from under the owner.
+    var waitingRows: [WaitingRow] {
+        var rows = CarrelKit.waitingRows(counts: waitingCounts)
+        if let showing = screen.flatMap(WaitingQueue.init(screen:)),
+            !rows.contains(where: { $0.queue == showing })
+        {
+            rows.append(WaitingRow(queue: showing, count: 0))
+            rows.sort { $0.queue.order < $1.queue.order }
+        }
+        return rows
+    }
+
+    /// Whether the window shows the Library as a page of its own, as wide as the window: on
+    /// the Library, unless a search's results are showing.
+    var showsLibraryPage: Bool {
+        _ = viewsChanged
+        return (screen == .library || screen == nil) && view(of: nil) == .covers
+            && search?.isActive != true
+    }
+
+    /// Whether Checked Out shows in the sidebar: when anything is checked out or on the desk,
+    /// or while it's showing.
+    var showsCheckedOut: Bool {
+        !(archive?.active.isEmpty ?? true) || screen == .active
     }
 
     /// The collection an item's card is filed in: the deepest collection folder holding it.
@@ -252,17 +374,78 @@ final class ArchiveWindowModel {
 
     /// The content column's list for the chosen screen.
     var listedItems: [ItemSummary] {
-        if case .collection(let path) = screen { items(in: path) } else { [] }
+        switch screen {
+        case .collection(let path): items(in: path)
+        case .library where view(of: nil) == .items:
+            items.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        default: []
+        }
+    }
+
+    // MARK: Views (#512)
+
+    static let viewsKey = "archiveViews"
+
+    /// The collection the chosen screen's views look at: `nil` for the Library, a
+    /// collection's path, or `nil` too for a screen that has no views.
+    var viewScope: String? {
+        if case .collection(let path) = screen { path } else { nil }
+    }
+
+    /// Whether the chosen screen has views: the Library and each collection.
+    var hasViews: Bool {
+        switch screen {
+        case .library, .collection, nil: true
+        default: false
+        }
+    }
+
+    /// The view the Library (`nil`) or a collection shows: the last one chosen there, else
+    /// its own, Covers or Items.
+    func view(of scope: String?) -> ArchiveView {
+        let views = archiveViews(collection: scope != nil)
+        let remembered = (defaults.dictionary(forKey: Self.viewsKey)?[viewKey(scope)] as? String)
+            .flatMap(archiveViewNamed(name:))
+        return remembered.flatMap { views.contains($0) ? $0 : nil } ?? views[0]
+    }
+
+    /// Shows `view` of the Library or a collection, and remembers it for next time.
+    func show(_ view: ArchiveView, of scope: String?) {
+        var all = defaults.dictionary(forKey: Self.viewsKey) ?? [:]
+        all[viewKey(scope)] = archiveViewName(view: view)
+        defaults.set(all, forKey: Self.viewsKey)
+        viewsChanged += 1
+    }
+
+    /// The view the chosen screen shows, for the toolbar's switcher.
+    var currentView: ArchiveView {
+        _ = viewsChanged
+        return view(of: viewScope)
+    }
+
+    /// Where a scope's view is remembered: by the archive, then the collection.
+    private func viewKey(_ scope: String?) -> String {
+        "\(root.path(percentEncoded: false))|\(scope ?? "")"
+    }
+
+    /// Starts a wander from a random item in the Library or the chosen collection, and shows
+    /// it.
+    func wanderHere() {
+        guard let discover else { return }
+        discover.wander(within: viewScope)
+        screen = .discover(.wander)
     }
 
     /// The chosen screen's name, shown under the archive's in the title bar.
     var screenTitle: String {
         switch screen {
-        case .status, nil: "Status"
-        case .review: "Review"
-        case .questions: "Questions"
-        case .restructure: "Restructure"
-        case .active: "Active"
+        case .library, nil: "Library"
+        case .status: "Status"
+        case .review: WaitingQueue.review.title
+        case .questions: WaitingQueue.questions.title
+        case .restructure: WaitingQueue.restructure.title
+        case .active: "Checked Out"
+        case .flagged: WaitingQueue.flagged.title
         case .collection(let path): collections.first { $0.path == path }?.title ?? path
         case .history: "History"
         case .backups: "Backups"
@@ -287,5 +470,50 @@ final class ArchiveWindowModel {
     func card(for item: ItemSummary) -> Card? {
         let url = root.appending(path: item.card)
         return (try? String(contentsOf: url, encoding: .utf8)).map(Card.init(text:))
+    }
+}
+
+extension WaitingQueue {
+    /// The queue `screen` decides, if it's one.
+    init?(screen: Screen) {
+        switch screen {
+        case .review: self = .review
+        case .questions: self = .questions
+        case .restructure: self = .restructure
+        case .flagged: self = .flagged
+        default: return nil
+        }
+    }
+
+    /// Its screen.
+    var screen: Screen {
+        switch self {
+        case .review: .review
+        case .questions: .questions
+        case .restructure: .restructure
+        case .flagged: .flagged
+        }
+    }
+
+    /// Its place in the Librarian section.
+    var order: Int {
+        switch self {
+        case .questions: 0
+        case .review: 1
+        case .restructure: 2
+        case .flagged: 3
+        }
+    }
+
+    /// Its name, from the core: Questions, To Approve, Suggestions or Flags.
+    var title: String { waitingQueueTitle(queue: self) }
+
+    var symbol: String {
+        switch self {
+        case .review: "tray.full"
+        case .questions: "questionmark.bubble"
+        case .restructure: "rectangle.3.group"
+        case .flagged: "flag"
+        }
     }
 }

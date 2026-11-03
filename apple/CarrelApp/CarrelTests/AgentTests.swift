@@ -60,6 +60,22 @@ final class AgentLoginItemTests: XCTestCase {
     }
 }
 
+/// Debug builds and test runs keep clear of the installed app (#443).
+@MainActor
+final class DebugIdentityTests: XCTestCase {
+    func testTheTestHostHasItsOwnIdentityGroupAndAgent() {
+        XCTAssertEqual(Bundle.main.bundleIdentifier, "me.hrose.carrel.dev")
+        XCTAssertEqual(AgentService.appGroup, "me.hrose.carrel.dev")
+        XCTAssertEqual(AgentLoginItem.identifier, "me.hrose.carrel.dev.Agent")
+    }
+
+    func testTheTestHostIsBareAndKeepsItsOwnDefaults() {
+        XCTAssertTrue(CarrelMain.isHostingTests)
+        XCTAssertTrue(NSApp.windows.filter(\.isVisible).isEmpty, "no windows on the screen")
+        XCTAssertFalse(UserDefaults.app === UserDefaults.standard)
+    }
+}
+
 @MainActor
 final class AgentLinkTests: XCTestCase {
     func testALinkOpensItsArchiveAndLeavesTheItemForItsWindow() throws {
@@ -92,5 +108,39 @@ final class AgentLinkTests: XCTestCase {
         let item = try XCTUnwrap(model.items.first { $0.id != checkedOut.id })
         await model.start(.checkOut, on: item.id)
         XCTAssertEqual(model.activeScreen?.checkingOut?.item, item.id)
+    }
+
+    func testALinkFromTheCLILeavesItsScreenForTheWindow() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "carrel-tests-\(UUID().uuidString)"))
+        let app = AppModel(recents: RecentArchives(defaults: defaults))
+        let link = AgentLink(archive: sampleArchive, screen: .discover(.wander))
+        var shown: [URL] = []
+        app.open(link: link.url) { shown.append($0) }
+        let pending = try XCTUnwrap(app.takePendingLink(for: shown[0]))
+        XCTAssertEqual(pending.screen, .discover(.wander))
+        XCTAssertNil(pending.item)
+
+        app.open(link: AgentLink(archive: sampleArchive).url) { shown.append($0) }
+        XCTAssertNil(app.takePendingLink(for: shown[1]), "nothing for the window to do")
+    }
+
+    func testTheWindowShowsTheScreenALinkNames() async throws {
+        let model = try await SampleWindow().model
+        let screens: [(AgentLink.Screen, Screen?)] = [
+            (.review, .review), (.questions, .questions), (.active, .active),
+            (.history, .history), (.backups, .backups), (.discover(.map), .library),
+            (.discover(.wander), .discover(.wander)), (.discover(nil), .library),
+            (.status, .status), (.library, .library),
+        ]
+        for (linked, screen) in screens {
+            model.show(linked: linked)
+            XCTAssertEqual(model.screen, screen, "\(linked)")
+        }
+        model.show(linked: .browse)
+        guard case .collection = model.screen else {
+            return XCTFail("Browse shows a collection, not \(String(describing: model.screen))")
+        }
+        model.show(linked: .librarian)
+        XCTAssertEqual(model.librarian?.isShown, true)
     }
 }

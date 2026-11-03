@@ -207,6 +207,7 @@ impl App {
             Pane::Collections => keys.extend([
                 ("→", "items"),
                 ("n", "new collection"),
+                ("f", "flag"),
                 ("E", "eagerness"),
                 ("R", "propose a shape"),
             ]),
@@ -228,12 +229,20 @@ impl App {
                 ("c", "correct"),
                 ("o", "check out"),
                 ("r", "rename"),
+                ("f", "flag"),
+                ("M", "missing feature"),
             ]);
             if self.browsed_is_compressed() {
                 keys.push(("z", "expand"));
             }
         }
-        keys.extend([("/", "search"), ("?", "help"), ("q", "quit")]);
+        keys.extend(self.sync_browse_keys());
+        keys.extend([
+            ("F", "flagged"),
+            ("/", "search"),
+            ("?", "help"),
+            ("q", "quit"),
+        ]);
         keys
     }
 

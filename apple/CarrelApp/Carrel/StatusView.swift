@@ -1,5 +1,6 @@
-// Status: the reminders due, what the archive holds, the intake queue and the worker's
-// progress, Recent, problems and suggestions, as `carrel status` shows them.
+// Status: the reminders due, what the archive holds, a line saying what's being added (the
+// queue itself is in the Add panel), Recent, problems and suggestions, as `carrel status` shows
+// them.
 
 import CarrelKit
 import SwiftUI
@@ -20,6 +21,9 @@ struct StatusView: View {
                 }
                 LabeledContent("Access", value: model.isReadOnly ? "Read only" : "Read and write")
                 LabeledContent("Version", value: versionSummary())
+                if let build = BuildInfo.label {
+                    LabeledContent("Build", value: build).textSelection(.enabled)
+                }
                 if let archive = model.archive, archive.status?.hasHistory == false {
                     LabeledContent {
                         Button("Start History") { Task { try? await archive.startHistory() } }
@@ -33,7 +37,7 @@ struct StatusView: View {
                     LabeledContent(
                         "Being changed by",
                         value:
-                            "\(writer.purpose), \(writer.thisDevice ? "on this Mac" : "on \(writer.device)")"
+                            "\(writer.purpose), \(writer.thisDevice ? "on \(thisDevice)" : "on \(writer.device)")"
                             + (writer.expired ? " (stopped)" : ""))
                 }
             }
@@ -50,12 +54,18 @@ struct StatusView: View {
                 }
             }
             if let intake = model.intake {
-                IntakeSection(intake: intake, isReadOnly: model.isReadOnly)
+                IntakeStatusLine(model: model, intake: intake)
             }
+            InboxStatusSection(model: model)
             StatusArchiveSections(model: model)
+            StatusFlaggedSection(model: model)
             StatusDiscoverySections(model: model)
             StatusQuestionsSection(window: model)
             StatusCrawlerSection(window: model)
+            StatusDevicesSection(window: model)
+            StatusGapsSection(window: model)
+            StatusFeedbackSection(window: model)
+            StatusSyncSection(window: model)
         }
         .formStyle(.grouped)
         .overlay {

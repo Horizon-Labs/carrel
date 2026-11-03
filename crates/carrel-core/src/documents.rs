@@ -69,6 +69,13 @@ pub struct CollectionDoc {
     /// This collection's tag vocabulary.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagDef>,
+    /// The owner's mark that the collection needs work (FORMAT.md §6.3).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "crate::card::needs_work_field"
+    )]
+    pub needs_work: Option<crate::card::NeedsWork>,
     /// Fields this version doesn't know.
     #[serde(flatten)]
     pub extra: Extra,
@@ -175,6 +182,12 @@ pub struct Settings {
         skip_serializing_if = "crate::crawl::CrawlerSettings::is_default"
     )]
     pub crawler: crate::crawl::CrawlerSettings,
+    /// How much of the archive Spotlight finds on a Mac (`docs/design/macos-integration.md`).
+    #[serde(
+        default,
+        skip_serializing_if = "crate::spotlight::SpotlightSettings::is_default"
+    )]
+    pub spotlight: crate::spotlight::SpotlightSettings,
     /// Keys this version doesn't know.
     #[serde(flatten)]
     pub extra: Extra,
@@ -456,6 +469,7 @@ impl Default for Settings {
             librarian: LibrarianSettings::default(),
             restructure: crate::restructure::eagerness::RestructureSettings::default(),
             crawler: crate::crawl::CrawlerSettings::default(),
+            spotlight: crate::spotlight::SpotlightSettings::default(),
             extra: Extra::new(),
         }
     }

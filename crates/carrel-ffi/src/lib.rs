@@ -18,14 +18,20 @@
 //! | [`active`] | Checkout and return, the desk, and work sessions' pending entries |
 //! | [`search`] | Search with filters and reasons, an item's card, history and related items |
 //! | [`history`] | The history and undo, Status's summary and Recent |
+//! | [`inbox`] | Changes sent to this device's inbox while another device writes, and the holding folder's kept versions |
 //! | [`settings`] | The archive's settings and this device's model choices |
 //! | [`models`] | The model catalog, providers, and downloads |
+//! | [`on_device`] | iPad and iPhone: choosing the in-process model, and downloading MLX models through the app |
 //! | [`intake`] | The intake queue |
+//! | [`sharing`] | Adding from a Mac's share sheet: notes, web addresses, and the inbox while another device writes |
 //! | [`backups`](mod@backups) | Backups: setting up a repository, the snapshots, taking one, verifying, restoring |
 //! | [`agent`] | The Mac app's agent: its claim on an archive, work sessions and scheduled snapshots |
 //! | [`librarian`] | The librarian: a conversation, saving it to the Journal, and its own changes |
 //! | [`discover`] | Discovery: on this day, wander, the timeline, the archive map, activity, resurfacing |
+//! | [`quick_look`] | Quick Look: cards laid out for the preview extension, and the drawings the agent keeps for it |
+//! | [`spotlight`] | Spotlight on the Mac: what the agent indexes, by `spotlight.index` |
 //! | [`creating`] | Creating an archive with a chosen embedding model |
+//! | [`feedback`] | Feedback from any screen, with the screen, step and screenshot |
 //!
 //! [`TextModel`] and [`ModelProvider`](correct::ModelProvider) are implemented in Swift and called from Rust, as is
 //! [`ProgressListener`], which long operations report to.
@@ -52,26 +58,43 @@ pub mod active;
 pub mod agent;
 pub mod backups;
 pub mod browse;
+pub mod cloud_lock;
 pub mod correct;
 pub mod crawl;
 pub mod creating;
+pub mod devices;
 pub mod discover;
+pub mod drawings;
 pub mod edit;
+pub mod feedback;
+pub mod flag_requests;
+pub mod flags;
+pub mod gaps;
 pub mod graph;
 pub mod history;
+pub mod inbox;
 pub mod index;
 pub mod intake;
 pub mod librarian;
+pub mod library;
 pub mod model_formats;
 pub mod models;
+pub mod on_device;
 pub mod previews;
+pub mod question_subjects;
 pub mod questions;
+pub mod quick_look;
+pub mod readings;
 pub mod records;
+pub mod redraft;
 pub mod reminders;
 pub mod restructure;
 pub mod review;
 pub mod search;
 pub mod settings;
+pub mod sharing;
+pub mod spotlight;
+pub mod sync;
 pub mod usage_report;
 pub mod working_copy;
 
@@ -121,6 +144,14 @@ pub enum CarrelError {
         /// Why, in words.
         message: String,
     },
+    /// Nothing was changed here: another device is the writer, so the change went into this
+    /// device's inbox, for the writer to apply as this device's (FORMAT.md §7.8). Show the
+    /// message instead of treating the change as made; Status lists what's waiting.
+    #[error("{message}")]
+    SentToInbox {
+        /// What happened and why, in words.
+        message: String,
+    },
 }
 
 impl CarrelError {
@@ -140,7 +171,7 @@ impl CarrelError {
 impl From<CoordinatorError> for CarrelError {
     fn from(error: CoordinatorError) -> Self {
         match error {
-            CoordinatorError::Held(_) => Self::Busy {
+            CoordinatorError::Held(_) | CoordinatorError::HistoryBehind { .. } => Self::Busy {
                 message: error.to_string(),
             },
             error => Self::failed(error),
@@ -181,6 +212,8 @@ failed_from!(
     carrel_core::search::run::SearchError,
     carrel_core::models::ModelError,
     carrel_core::card_file::CardFileError,
+    carrel_core::cloud_files::SyncError,
+    carrel_core::icloud_move::MoveError,
     std::io::Error,
 );
 
@@ -258,6 +291,8 @@ pub struct ItemSummary {
     pub card: String,
     /// The item's path relative to the archive root, if it has one.
     pub item: Option<String>,
+    /// The owner's flag, if they marked it as needing work.
+    pub flag: Option<flags::Flag>,
 }
 
 /// A collection, as listed in the apps.
@@ -269,6 +304,8 @@ pub struct CollectionSummary {
     pub title: String,
     /// Its one-line description, if it has one.
     pub description: Option<String>,
+    /// The owner's flag, if they marked it as needing work.
+    pub flag: Option<flags::Flag>,
 }
 
 /// A language model the platform provides, implemented in Swift.
@@ -513,6 +550,7 @@ impl ArchiveHandle {
                 path: c.path,
                 title: c.doc.title,
                 description: c.doc.description,
+                flag: c.doc.needs_work.as_ref().map(Into::into),
             })
             .collect())
     }
@@ -540,6 +578,7 @@ impl ArchiveHandle {
                     kind: item.kind.into(),
                     card: item.card,
                     item: item.item,
+                    flag: file.card().needs_work.as_ref().map(Into::into),
                 })
             })
             .collect()
@@ -932,15 +971,13 @@ mod tests {
     }
 
     #[test]
-    fn a_change_while_another_writer_holds_the_archive_says_who() {
+    fn a_change_while_this_device_is_busy_writing_says_what_with() {
         use carrel_core::coordinator::{Coordinator as _, DEFAULT_LEASE, DiskLock};
         let sample = Sample::new();
         let item = sample.item_titled("Desk lamp parts list");
         let archive = Archive::open(&sample.root()).unwrap();
-        let other = Holder {
-            person: carrel_core::card::Id::new_v7(),
-            device: carrel_core::card::Id::new_v7(),
-        };
+        // This device's agent, say; another device writing is in `inbox`'s tests.
+        let other = sample.handle.holder().unwrap();
         let lease = DiskLock::for_archive(&archive)
             .acquire(other, "ingest", DEFAULT_LEASE)
             .unwrap();
@@ -1195,7 +1232,7 @@ mod tests {
             .unwrap();
         assert_eq!(added.added.len(), 1);
         assert_eq!(sample.handle.intake().unwrap().waiting.len(), 1);
-        let drafted = sample.handle.draft_queued(None).unwrap();
+        let drafted = sample.handle.draft_queued(None, None).unwrap();
         assert_eq!(drafted.drafted, 1, "{drafted:?}");
         assert_eq!(sample.handle.intake().unwrap().waiting.len(), 0);
         let proposal = sample

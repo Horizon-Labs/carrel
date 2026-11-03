@@ -9,14 +9,22 @@ mod archives;
 mod asking;
 mod backups;
 mod browser;
+mod devices;
 mod discover;
 mod embedding;
+mod feedback;
+mod flag_requests;
+mod flagging;
+mod gaps;
+mod held;
 mod intake;
 mod item;
 mod librarian;
+mod library;
 mod model_changes;
 mod option_lines;
 mod preview;
+mod question_preview;
 mod reminders;
 mod review;
 mod review_crawler;
@@ -24,8 +32,11 @@ mod review_restructure;
 mod screens;
 mod search;
 mod settings;
+mod start_screen;
+mod sync;
 mod ui;
 mod ui_discovery;
+mod views;
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -57,8 +68,11 @@ fn lines_of(text: &str) -> Vec<String> {
 }
 
 /// Opens the interactive mode on the archive commands would use, and returns when the owner
-/// quits. The terminal is restored however it ends.
-pub fn run(archive: Option<&Path>) -> Result<Report, Failure> {
+/// quits, starting on `screen` when one is asked for. The terminal is restored however it ends.
+pub fn run(
+    archive: Option<&Path>,
+    screen: Option<crate::start_screen::StartScreen>,
+) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     // Noted among the recent archives, so the switcher can come back to it.
     if let Ok(root) = std::fs::canonicalize(archive.root()) {
@@ -70,6 +84,9 @@ pub fn run(archive: Option<&Path>) -> Result<Report, Failure> {
     app.previews = preview::Previews::detected();
     // The item shown first gets its preview too.
     app.load_card();
+    if let Some(screen) = screen {
+        app.start_on_screen(screen);
+    }
     let theme = ui::Theme::from_env();
     let mut terminal = enter();
     let result = event_loop(&mut terminal, &mut app, theme);
@@ -185,7 +202,6 @@ fn event_loop(
     app: &mut App,
     theme: ui::Theme,
 ) -> Result<(), Failure> {
-    let starts = ui::tab_starts();
     let mut running: Option<Done> = None;
     let mut preparing: Option<Preparing> = None;
     let mut checked = std::time::Instant::now();
@@ -231,6 +247,7 @@ fn event_loop(
         {
             Event::Key(key) if key.kind == KeyEventKind::Press => app.key(key),
             Event::Mouse(mouse) => {
+                let starts = ui::tab_starts(app);
                 app.mouse(mouse, &starts);
                 None
             }
@@ -260,7 +277,9 @@ fn event_loop(
                 let result = edit_browsed(app.archive.root(), &effect);
                 reenter(terminal, &mut painter);
                 changed(app.archive.root(), &result);
+                let card = flagging::edited_card(&effect, &result);
                 finished(app, result.map(|r| r.text).map_err(|Failure(e)| e));
+                app.offer_to_unflag(card.as_deref());
             }
             Some(Effect::EditEntry { item, number }) => {
                 // The editor needs the terminal to itself.
@@ -286,6 +305,20 @@ fn event_loop(
         }
     }
     Ok(())
+}
+
+/// Takes an entry off the intake queue, moves it to the front or retries it, as `effect`
+/// says.
+fn change_queued(root: &Path, effect: &Effect) -> Result<String, String> {
+    let (id, change) = match effect {
+        Effect::Unqueue(id) => (id, crate::ingest::Change::Remove),
+        Effect::Front(id) => (id, crate::ingest::Change::First),
+        Effect::Retry(id) => (id, crate::ingest::Change::Retry),
+        _ => return Ok(String::new()),
+    };
+    crate::ingest::change_queued(Some(root), &id.to_string(), change)
+        .map(|r| r.text)
+        .map_err(|Failure(e)| e)
 }
 
 /// Skips or dismisses a question, as `effect` says.
@@ -322,6 +355,7 @@ fn work_done(app: &mut App, result: Result<String, String>) {
     let succeeded = result.is_ok();
     finished(app, result);
     app.ask_about_working_copy(succeeded);
+    app.follow_moved_archive();
     // After a download, Settings finds what the providers offer again.
     app.settings_shown();
 }
@@ -383,6 +417,7 @@ fn correction(app: &mut App, step: Step, preparing: &mut Option<Preparing>) {
                 let fact = prepared.fact.clone();
                 let result = crate::correct::save(&app.archive, prepared);
                 let saved = result.is_ok();
+                let card = result.as_ref().ok().and_then(|s| s.card.clone());
                 if saved {
                     crate::worker::after_change(Some(app.archive.root()));
                 }
@@ -392,6 +427,8 @@ fn correction(app: &mut App, step: Step, preparing: &mut Option<Preparing>) {
                         about: fact.about,
                         fact: fact.fact,
                     });
+                } else {
+                    app.offer_to_unflag(card.as_deref());
                 }
             }
         }
@@ -496,19 +533,22 @@ fn background(app: &mut App, effect: Effect) -> Option<Done> {
         | Effect::CreateArchive(_)
         | Effect::StartHistory(_)) => switch_or_index_work(app, root, effect)?,
         Effect::QuestionsAbout(card) => option_lines::questions_about_work(root, card),
-        Effect::Queue { paths, options } => {
-            let result = queue(&root, &paths, options);
+        Effect::Queue {
+            paths,
+            options,
+            url,
+            note,
+            written,
+        } => {
+            let result = match written {
+                Some(text) => intake::queue_written_note(&root, &text, note.as_deref()),
+                None => queue(&root, &paths, options, url.as_deref(), note.as_deref()),
+            };
             finished(app, result.map_err(|Failure(e)| e));
             return None;
         }
-        Effect::Unqueue(id) | Effect::Front(id) | Effect::Retry(id) => {
-            let change = match effect {
-                Effect::Unqueue(_) => crate::ingest::Change::Remove,
-                Effect::Front(_) => crate::ingest::Change::First,
-                _ => crate::ingest::Change::Retry,
-            };
-            let result = crate::ingest::change_queued(Some(&root), &id.to_string(), change);
-            finished(app, result.map(|r| r.text).map_err(|Failure(e)| e));
+        effect @ (Effect::Unqueue(_) | Effect::Front(_) | Effect::Retry(_)) => {
+            finished(app, change_queued(&root, &effect));
             return None;
         }
         Effect::Answer { id, answer, learn } => answer_work(root, id, answer, learn),
@@ -519,23 +559,20 @@ fn background(app: &mut App, effect: Effect) -> Option<Done> {
         effect @ (Effect::BackupNow
         | Effect::BackupVerify(_)
         | Effect::BackupRestore { .. }
+        | Effect::RestoreHeld(_)
         | Effect::BackupSetup { .. }) => backup_work(root, effect),
-        Effect::ApproveAllHigh => (
-            "Filing every high-confidence proposal…".into(),
-            Box::new(move || {
-                let result = crate::review::approve(Some(&root), &[], true, None, None);
-                changed(&root, &result);
-                result
-            }),
-        ),
+        Effect::ApproveAllHigh => approve_all_high_work(root),
         Effect::Keep { id, kept, target } => keep(root, id, kept, target),
+        Effect::Redraft(chosen) => review::redraft_work(root, &chosen),
+        Effect::Sync(work) => sync::sync_work(app, root, work),
         effect @ (Effect::Checkout { .. }
         | Effect::DeskAdd(_)
         | Effect::DeskRemove { .. }
         | Effect::DeskArchive(_)
         | Effect::NewCollection(_)
         | Effect::Rename { .. }
-        | Effect::Expand { .. }) => archive_work(root, effect),
+        | Effect::Expand { .. }
+        | Effect::Flag(_)) => archive_work(root, effect),
     };
     app.busy = Some(busy);
     let (send, receive) = std::sync::mpsc::channel();
@@ -544,6 +581,18 @@ fn background(app: &mut App, effect: Effect) -> Option<Done> {
         let _ = send.send(result);
     });
     Some(receive)
+}
+
+/// Files every high-confidence proposal, in the background.
+fn approve_all_high_work(root: PathBuf) -> (String, Work) {
+    (
+        "Filing every high-confidence proposal…".into(),
+        Box::new(move || {
+            let result = crate::review::approve(Some(&root), &[], true, None, None);
+            changed(&root, &result);
+            result
+        }),
+    )
 }
 
 /// The work for restructuring and the crawler, downloading a model, the index and switching
@@ -618,18 +667,43 @@ fn picked_files(app: &mut App, picked: Result<Vec<PathBuf>, Failure>) {
     }
 }
 
-/// Adds `paths` to the intake queue and starts a worker, saying what happened in a line.
+/// Adds `paths`, or the web address `url`, to the intake queue with the owner's `note` and
+/// starts a worker, saying what happened in a line. While another device is the writer, they
+/// go into this device's inbox instead.
 fn queue(
     root: &Path,
     paths: &[PathBuf],
     options: carrel_core::ingest::IntakeOptions,
+    url: Option<&str>,
+    note: Option<&str>,
 ) -> Result<String, Failure> {
     let archive = carrel_core::archive::Archive::open(root)?;
     let identity = crate::config::Identity::load_or_create()?;
-    let queued = carrel_core::intake::add(&archive, paths, options, identity.device)?;
-    let started = crate::worker::start(&archive)?;
-    let n = queued.added.len();
-    Ok(match (n, started || crate::worker::running(&archive)?) {
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let holder = through.holder;
+        match url {
+            Some(url) => carrel_core::inbox::send_url(&archive, holder, url, None, note)?,
+            None => carrel_core::inbox::send_paths(&archive, holder, paths, options.each, note)?,
+        };
+        return Ok(through.sending.describe());
+    }
+    let n = match url {
+        Some(url) => usize::from(
+            carrel_core::intake::add_url(&archive, url, None, note, identity.device)?.is_some(),
+        ),
+        None => {
+            carrel_core::intake::add_with_note(&archive, paths, options, identity.device, note)?
+                .added
+                .len()
+        }
+    };
+    queued_line(&archive, n)
+}
+
+/// Starts a worker for the `n` items just queued, and says so in a line.
+fn queued_line(archive: &carrel_core::archive::Archive, n: usize) -> Result<String, Failure> {
+    let started = crate::worker::start(archive)?;
+    Ok(match (n, started || crate::worker::running(archive)?) {
         (0, _) => "Nothing new to queue".into(),
         (n, true) => format!(
             "Queued {n} item{}; the worker drafts them in the background",
@@ -655,8 +729,11 @@ fn backup_work(root: PathBuf, effect: Effect) -> (String, Work) {
         ),
         Effect::BackupRestore { item, at, to } => (
             format!("Restoring {item}…"),
-            Box::new(move || crate::backup::restore(Some(&root), &item, Some(&at), to.as_deref())),
+            Box::new(move || {
+                crate::backup::restore(Some(&root), &item, Some(&at), to.as_deref(), None)
+            }),
         ),
+        Effect::RestoreHeld(id) => held::restore_held_work(root, id),
         Effect::BackupSetup {
             repository,
             password,
@@ -764,6 +841,7 @@ fn archive_work(root: PathBuf, effect: Effect) -> (String, Work) {
             "Expanding it…",
             Box::new(move |root| crate::expand::expand(Some(root), &item, anyway)),
         ),
+        Effect::Flag(flagging) => flagging::flag_work(flagging),
         _ => unreachable!("only the archive's actions come here"),
     };
     (
@@ -934,17 +1012,21 @@ mod tests {
 
     #[test]
     fn status_shows_the_archive_what_waits_and_the_keys() {
-        let (_dir, app) = sample(false);
-        let text = screen(&app, 100, 30);
+        let (_dir, mut app) = sample(false);
+        let text = screen(&app, 140, 30);
         assert!(
             text.starts_with(
-                "  1 Status   2 Review   3 Active   4 Questions   5 Browse   6 History"
+                "  1 Library   2 Checked Out   3 Questions   4 To Approve   5 Browse   6 Status   7 History"
             ),
             "{text}"
         );
+        app.key(key(KeyCode::Char('6')));
+        let text = screen(&app, 100, 30);
         assert!(text.contains(" Sample archive "), "{text}");
         assert!(
-            text.contains("Waiting for you: 1 proposal (2 to review), 1 question (4 to answer)."),
+            text.contains(
+                "The librarian has 1 question and 1 item for you to approve. (3 Questions, 4 To Approve)"
+            ),
             "{text}"
         );
         assert!(text.contains("items in"), "the status report");
@@ -970,8 +1052,11 @@ mod tests {
     #[test]
     fn keys_and_clicks_switch_screens_help_and_quit() {
         let (_dir, mut app) = sample(false);
-        app.key(key(KeyCode::Char('4')));
+        app.key(key(KeyCode::Char('3')));
         assert_eq!(app.tab, Tab::Questions);
+        app.key(key(KeyCode::Tab));
+        assert_eq!(app.tab, Tab::Review);
+        assert!(screen(&app, 100, 30).contains("Desk lamp diffuser (print file)"));
         app.key(key(KeyCode::Tab));
         assert_eq!(app.tab, Tab::Browse);
         let browse = screen(&app, 100, 30);
@@ -980,23 +1065,25 @@ mod tests {
             "the tree, indented:\n{browse}"
         );
         app.key(key(KeyCode::BackTab));
+        assert_eq!(app.tab, Tab::Review);
+        app.key(key(KeyCode::BackTab));
+        assert_eq!(app.tab, Tab::Questions);
         app.key(key(KeyCode::BackTab));
         assert_eq!(app.tab, Tab::Active);
         app.key(key(KeyCode::BackTab));
-        assert_eq!(app.tab, Tab::Review);
-        assert!(screen(&app, 100, 30).contains("Desk lamp diffuser (print file)"));
+        assert_eq!(app.tab, Tab::Library);
 
-        let starts = ui::tab_starts();
+        let starts = ui::tab_starts(&app);
         let click = |column| MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column,
             row: 0,
             modifiers: KeyModifiers::NONE,
         };
-        app.mouse(click(starts[5] + 2), &starts);
+        app.mouse(click(starts[6] + 2), &starts);
         assert_eq!(app.tab, Tab::History);
         app.mouse(click(starts[0]), &starts);
-        assert_eq!(app.tab, Tab::Status);
+        assert_eq!(app.tab, Tab::Library);
 
         app.key(key(KeyCode::Char('?')));
         assert!(screen(&app, 100, 30).contains("Keys (any key closes)"));
@@ -1010,7 +1097,7 @@ mod tests {
     #[test]
     fn undo_from_history_asks_first() {
         let (_dir, mut app) = sample(true);
-        app.key(key(KeyCode::Char('6')));
+        app.key(key(KeyCode::Char('7')));
         let text = screen(&app, 100, 30);
         assert!(text.contains("Start history of “Sample archive”"), "{text}");
         app.key(key(KeyCode::Char('u')));
@@ -1087,7 +1174,7 @@ mod tests {
         }];
         queue.save(&entry).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('4')));
         let chosen = app.queue.iter().position(|e| e.id == entry.id).unwrap();
         app.chosen = chosen;
         app.load_detail();
@@ -1116,7 +1203,7 @@ mod tests {
     fn backups_are_set_up_with_a_masked_password_typed_twice() {
         let (_dir, mut app) = sample(false);
         app.picker_preference = Some("builtin".into());
-        app.key(key(KeyCode::Char('9')));
+        app.key(key(KeyCode::Char('8')));
         assert_eq!(app.tab, Tab::Backups);
         let text = screen(&app, 120, 30);
         assert!(text.contains("No backups set up"), "{text}");
@@ -1191,7 +1278,7 @@ mod tests {
         let parent = app.archive.root().parent().unwrap().to_owned();
         std::fs::create_dir_all(parent.join("Backups")).unwrap();
         app.start_folder = parent.clone();
-        app.key(key(KeyCode::Char('9')));
+        app.key(key(KeyCode::Char('8')));
         assert_eq!(app.key(key(KeyCode::Char('s'))), None);
         let browser = app.browser.as_ref().expect("the built-in browser opens");
         let at = browser
@@ -1263,7 +1350,7 @@ mod tests {
 
         // A backup folder isn't remembered for ingest.
         app.key(key(KeyCode::Esc));
-        app.key(key(KeyCode::Char('9')));
+        app.key(key(KeyCode::Char('8')));
         app.key(key(KeyCode::Char('s')));
         app.key(key(KeyCode::Left));
         app.key(key(KeyCode::Esc));
@@ -1273,7 +1360,7 @@ mod tests {
     #[test]
     fn review_shows_the_queue_by_destination_beside_the_chosen_proposal() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('4')));
         let text = screen(&app, 120, 30);
         assert!(text.contains("Holding"), "{text}");
         let holding = text.find("Holding").unwrap();
@@ -1289,9 +1376,33 @@ mod tests {
     }
 
     #[test]
+    fn brackets_step_through_choices_and_back_to_none() {
+        use super::screens::cycle;
+        assert_eq!(cycle(None, 2, true), Some(0));
+        assert_eq!(cycle(Some(0), 2, true), Some(1));
+        assert_eq!(cycle(Some(1), 2, true), None);
+        assert_eq!(cycle(None, 2, false), Some(1));
+        assert_eq!(cycle(Some(0), 2, false), None);
+        assert_eq!(cycle(None, 0, true), None);
+    }
+
+    #[test]
+    fn every_number_shows_its_tab_from_every_tab() {
+        let (_dir, mut app) = review_sample();
+        for from in Tab::ALL {
+            for to in Tab::ALL.into_iter().filter(|t| t.key().is_ascii_digit()) {
+                app.key(key(KeyCode::Char(from.key())));
+                assert_eq!(app.tab, from, "{} shows {from:?}", from.key());
+                app.key(key(KeyCode::Char(to.key())));
+                assert_eq!(app.tab, to, "{} from {from:?}", to.key());
+            }
+        }
+    }
+
+    #[test]
     fn review_keys_decide_the_chosen_or_the_marked_proposals() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('4')));
         let ids: Vec<Id> = app.queue.iter().map(|e| e.id).collect();
         assert_eq!(
             app.key(key(KeyCode::Char('a'))),
@@ -1349,7 +1460,7 @@ mod tests {
     fn z_keeps_a_compressed_file_compressed_or_expands_it() {
         use carrel_core::compressed::plan::{Choice, Plan};
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('4')));
         assert_eq!(app.key(key(KeyCode::Char('z'))), None);
         assert_eq!(app.message.as_deref(), Some("Not a compressed file"));
         let queue = carrel_core::review::ReviewQueue::of(&app.archive);
@@ -1383,7 +1494,7 @@ mod tests {
     #[test]
     fn the_picker_narrows_collections_as_you_type() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('4')));
         let id = app.queue[app.chosen].id;
         app.key(key(KeyCode::Char('m')));
         assert!(screen(&app, 120, 30).contains("Move to (type to narrow)"));
@@ -1411,7 +1522,7 @@ mod tests {
     #[test]
     fn c_opens_a_line_for_the_correction_without_leaving_the_screen() {
         let (_dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('4')));
         let first = app.queue[0].id;
         assert_eq!(app.key(key(KeyCode::Char('c'))), None);
         assert!(screen(&app, 120, 30).contains("What's wrong with it?"));
@@ -1453,7 +1564,7 @@ mod tests {
     #[test]
     fn the_correction_pops_up_and_saves_only_on_y() {
         let (dir, mut app) = review_sample();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('4')));
         let id = app.queue[0].id.to_string();
         let prepared =
             crate::correct::prepare_review(&app.archive, &id, "created: 2019-03-31").unwrap();
@@ -1810,7 +1921,7 @@ mod tests {
         queue.save(&term).unwrap();
         queue.save(&place).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('4')));
+        app.key(key(KeyCode::Char('3')));
         let text = screen(&app, 160, 30);
         assert!(
             text.contains("Which collection do items about “lamp” belong in?  (1 item)"),
@@ -1826,14 +1937,16 @@ mod tests {
             text.contains("1  Projects/Hardware  (where one was going)"),
             "{text}"
         );
+        assert_eq!(app.key(key(KeyCode::Char(']'))), None);
+        assert!(app.keys().contains(&("Enter", "pick it")));
         assert_eq!(
-            app.key(key(KeyCode::Char('1'))),
+            app.key(key(KeyCode::Enter)),
             Some(Effect::Answer {
                 id: place.id,
                 answer: "1".into(),
                 learn: false,
             }),
-            "a number picks a suggestion"
+            "] highlights a suggestion and Enter picks it"
         );
 
         app.key(key(KeyCode::Enter));
@@ -1907,7 +2020,7 @@ mod tests {
         queue.save(&item).unwrap();
         queue.save(&sender).unwrap();
         let mut app = App::new(app.archive.clone()).unwrap();
-        app.key(key(KeyCode::Char('4')));
+        app.key(key(KeyCode::Char('3')));
         assert_eq!(app.asked[0].id, item.id);
 
         app.key(key(KeyCode::Enter));
@@ -1925,7 +2038,8 @@ mod tests {
         );
 
         app.key(key(KeyCode::Down));
-        assert_eq!(app.key(key(KeyCode::Char('1'))), None, "it asks first");
+        app.key(key(KeyCode::Char(']')));
+        assert_eq!(app.key(key(KeyCode::Enter)), None, "it asks first");
         let text = screen(&app, 160, 30);
         assert!(text.contains("y with a rule   n without a rule"), "{text}");
         assert_eq!(
@@ -1937,7 +2051,8 @@ mod tests {
             }),
             "no to the rule still gathers them"
         );
-        app.key(key(KeyCode::Char('1')));
+        app.key(key(KeyCode::Char(']')));
+        app.key(key(KeyCode::Enter));
         assert_eq!(
             app.key(key(KeyCode::Char('y'))),
             Some(Effect::Answer {
@@ -1946,8 +2061,9 @@ mod tests {
                 learn: true,
             })
         );
+        app.key(key(KeyCode::Char('[')));
         assert_eq!(
-            app.key(key(KeyCode::Char('2'))),
+            app.key(key(KeyCode::Enter)),
             Some(Effect::Answer {
                 id: sender.id,
                 answer: "2".into(),
@@ -1985,6 +2101,9 @@ mod tests {
             Some(Effect::Queue {
                 paths: vec![file.clone()],
                 options: carrel_core::ingest::IntakeOptions::default(),
+                url: None,
+                note: None,
+                written: None,
             })
         );
         assert_eq!(app.planned, None);
@@ -2050,7 +2169,7 @@ mod tests {
     #[test]
     fn settings_are_shown_and_changed_the_way_the_command_does() {
         let (_dir, mut app) = sample(false);
-        app.key(key(KeyCode::Char('8')));
+        app.key(key(KeyCode::Char('9')));
         assert_eq!(app.tab, Tab::Settings);
         let screen_text = screen(&app, 120, 30);
         assert!(screen_text.contains("This device"), "{screen_text}");
@@ -2149,7 +2268,7 @@ mod tests {
     #[test]
     fn active_lists_checkouts_and_desk_items_with_their_pending_entries() {
         let (_dir, mut app) = active_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('2')));
         assert_eq!(app.tab, Tab::Active);
         assert_eq!(
             app.active.len(),
@@ -2217,7 +2336,7 @@ mod tests {
     #[test]
     fn active_keys_open_decide_entries_and_return_after_asking() {
         let (_dir, mut app) = active_sample();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('2')));
         let item = choose_parts_list(&mut app);
         let row = app.active_chosen;
         assert_eq!(

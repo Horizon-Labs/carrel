@@ -68,14 +68,18 @@ public final class Agent {
     private var badgesWritten: BadgeState?
     private let reminders: (any ReminderPoster)?
     private var sleeper: Task<Void, Never>?
+    private let quickLook: QuickLookDrawingsKeeper?
+    private let spotlight: SpotlightIndexer?
 
     /// An agent opening archives with `options` (the device's own when `nil`), keeping when
     /// it last backed each up in `state`, the badge state file at `badges` if given, and
     /// showing reminders through `reminders`, if given. It watches files only when `watching`
-    /// says so; tests tell it what changed instead.
+    /// says so; tests tell it what changed instead. It keeps Carrel's drawings for Quick Look
+    /// in `quickLook`, and what Spotlight finds in `spotlight`, when given them.
     public init(
         options: OpenOptions? = nil, state: UserDefaults = .standard, watching: Bool = true,
         badges: URL? = nil, reminders: (any ReminderPoster)? = nil,
+        quickLook: QuickLookStore? = nil, spotlight: (any SpotlightIndexing)? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.options = options
@@ -83,6 +87,8 @@ public final class Agent {
         self.watching = watching
         self.badges = badges
         self.reminders = reminders
+        self.quickLook = quickLook.map(QuickLookDrawingsKeeper.init)
+        self.spotlight = spotlight.map(SpotlightIndexer.init)
         self.now = now
     }
 
@@ -98,6 +104,7 @@ public final class Agent {
     /// can't be opened, or that another agent has claimed, is shown with what's wrong.
     public func follow(_ roots: [URL]) async {
         let roots = roots.map { URL(filePath: Self.realPath($0.path(percentEncoded: false))) }
+        let dropped = followed.keys.contains { !roots.contains($0) }
         for root in followed.keys where !roots.contains(root) {
             drop(root)
         }
@@ -131,13 +138,17 @@ public final class Agent {
         for root in opened { await refresh(root) }
         if !opened.isEmpty { nudge() }
         writeBadges()
+        keepForQuickLook(changed: !opened.isEmpty || dropped)
+        for root in opened { indexForSpotlight(root, changed: true) }
     }
 
     /// Reads what every archive followed shows again.
     public func refresh() async {
         for archive in archives where followed[archive.root] != nil {
             await refresh(archive.root)
+            indexForSpotlight(archive.root, changed: false)
         }
+        keepForQuickLook(changed: false)
     }
 
     private func open(_ root: URL) async throws {
@@ -158,6 +169,7 @@ public final class Agent {
     }
 
     private func drop(_ root: URL) {
+        if let handle = followed[root]?.handle { spotlight?.remove(handle.id()) }
         followed[root]?.claim?.release()
         stopWatching(root)
         followed[root] = nil
@@ -214,7 +226,42 @@ public final class Agent {
         if followed[root]?.plan.noticed(paths, at: now()) == true {
             Task { await refresh(root) }
         }
+        if paths.contains(where: QuickLookStore.isDrawn) { keepForQuickLook(changed: true) }
+        if paths.contains(where: Self.changesSpotlight) { indexForSpotlight(root, changed: true) }
         nudge()
+    }
+
+    // MARK: - Quick Look
+
+    /// Keeps Carrel's drawings for Quick Look current: at once when something `changed`.
+    private func keepForQuickLook(changed: Bool) {
+        let roots = archives.map(\.root).filter { followed[$0] != nil }
+        quickLook?.keep(
+            roots.compactMap { followed[$0]?.handle }, roots: roots, at: now(), changed: changed)
+    }
+
+    /// Waits until the drawings kept for Quick Look are current.
+    public func quickLookKept() async {
+        await quickLook?.settled()
+    }
+
+    // MARK: - Spotlight
+
+    /// Brings what Spotlight finds in `root` up to date: at once when something `changed`.
+    private func indexForSpotlight(_ root: URL, changed: Bool) {
+        guard let handle = followed[root]?.handle else { return }
+        spotlight?.sync(handle, root: root, at: now(), changed: changed)
+    }
+
+    /// Whether a change at `path` may change what Spotlight finds: a card, a collection's
+    /// design document, the glossary or the settings.
+    nonisolated static func changesSpotlight(_ path: String) -> Bool {
+        path.hasSuffix(".md") || path.hasSuffix("/_System/settings.json")
+    }
+
+    /// Waits until what Spotlight finds is up to date.
+    public func spotlightIndexed() async {
+        await spotlight?.settled()
     }
 
     private func watch(_ root: URL) {
@@ -301,8 +348,9 @@ public final class Agent {
                     guard let item else { return }
                     Task { @MainActor in self?.activity = "Working on \(item) in “\(name)”" }
                 }
-                let drafted = try await Task.detached { try handle.draftQueued(progress: relay) }
-                    .value
+                let drafted = try await Task.detached {
+                    try handle.draftQueued(model: nil, progress: relay)
+                }.value
                 if let failure = drafted.failures.last {
                     problem(root, "Couldn’t draft \(failure.path): \(failure.reason)")
                 } else {
@@ -363,6 +411,12 @@ public final class Agent {
         {
             archives[index].crawled = "The crawler \(summary)"
         }
+        // Flags waiting for the librarian use the same idle time (#454).
+        activity = "The librarian is looking at what’s flagged in “\(name)”"
+        _ = try? await Task.detached(priority: .background) {
+            try handle.flagsWhenIdle(
+                idleSeconds: device.idle, onPower: device.onPower, model: nil, memoryGb: memory)
+        }.value
     }
 
     /// Posts the reminders due that this Mac hasn't shown yet, and marks those posted shown.

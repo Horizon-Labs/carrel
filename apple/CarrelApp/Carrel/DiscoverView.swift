@@ -9,6 +9,8 @@ struct DiscoverView: View {
     let page: DiscoverPage
     @Bindable var discover: DiscoverModel
     let window: ArchiveWindowModel
+    /// The collection the page looks at, with those inside it; `nil` for the whole archive.
+    var scope: String?
 
     var body: some View {
         Group {
@@ -29,7 +31,10 @@ struct DiscoverView: View {
                     .padding()
             }
         }
-        .task(id: page) { await discover.refresh(page) }
+        .task(id: [page.rawValue, scope ?? ""]) {
+            discover.scope = scope
+            await discover.refresh(page)
+        }
     }
 }
 
@@ -327,13 +332,19 @@ private struct ArchiveMapPage: View {
     /// The collection the map has zoomed into, or `nil` for the whole archive.
     @State private var inside: String?
 
+    /// Where the map starts: inside the collection a collection's view looks at, when it has
+    /// collections inside it, else the top.
+    private func top(_ map: ArchiveMap) -> String? {
+        discover.scope.flatMap { map.regions(in: $0).isEmpty ? nil : $0 }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Button("Archive") { inside = nil }.buttonStyle(.link).disabled(inside == nil)
+                Button("Archive") { inside = nil }.linkButtonStyle().disabled(inside == nil)
                 ForEach(breadcrumbs, id: \.path) { region in
                     Image(systemName: "chevron.right").foregroundStyle(.tertiary)
-                    Button(region.title) { inside = region.path }.buttonStyle(.link)
+                    Button(region.title) { inside = region.path }.linkButtonStyle()
                 }
                 Spacer()
                 if let map = discover.map {
@@ -343,7 +354,7 @@ private struct ArchiveMapPage: View {
             .padding(8)
             if let map = discover.map {
                 TreemapView(
-                    regions: map.regions(in: inside), measure: effectiveMeasure(map),
+                    regions: map.regions(in: inside ?? top(map)), measure: effectiveMeasure(map),
                     hasInside: { path in !map.regions(in: path).isEmpty },
                     zoom: { inside = $0 },
                     open: { window.screen = .collection($0) }

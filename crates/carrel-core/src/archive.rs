@@ -239,6 +239,7 @@ impl Archive {
             description: Some("Items waiting for a better home".into()),
             item_template: None,
             tags: Vec::new(),
+            needs_work: None,
             extra: crate::card::Extra::new(),
         };
         let mut settings = Settings::default();
@@ -299,6 +300,15 @@ impl Archive {
     /// [`ArchiveError::Invalid`] if `archive.json`, `ARCHIVE.md` or `settings.json` is
     /// malformed, and [`ArchiveError::IdMismatch`] if `archive.json` and `ARCHIVE.md` disagree.
     pub fn open(root: &Path) -> Result<Self, ArchiveError> {
+        // On a device that hasn't opened the archive before, iCloud may have left only
+        // placeholders for these, as on iPad and iPhone.
+        for name in [
+            "_System/archive.json",
+            "ARCHIVE.md",
+            "_System/settings.json",
+        ] {
+            let _ = crate::cloud_files::fetch_if_placeholder(&root.join(name));
+        }
         let info_path = root.join("_System/archive.json");
         let info_text = match std::fs::read_to_string(&info_path) {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -349,7 +359,7 @@ impl Archive {
     }
 
     /// Finds the archive containing `start` by looking in it and each parent folder for
-    /// `_System/archive.json`, and opens it.
+    /// `_System/archive.json`, or iCloud's placeholder for it, and opens it.
     ///
     /// # Errors
     ///
@@ -359,7 +369,11 @@ impl Archive {
         let start = std::fs::canonicalize(start).map_err(io(start))?;
         let root = start
             .ancestors()
-            .find(|dir| dir.join("_System/archive.json").is_file())
+            .find(|dir| {
+                let info = dir.join("_System/archive.json");
+                info.is_file()
+                    || crate::cloud_files::placeholder_path(&info).is_some_and(|p| p.is_file())
+            })
             .ok_or_else(|| ArchiveError::NotAnArchive(start.clone()))?;
         Self::open(root)
     }
@@ -531,16 +545,32 @@ fn cards_in(dir: &Path) -> Result<Vec<(PathBuf, crate::card::Card)>, ArchiveErro
 
 /// A folder's entries, sorted by path, leaving out hidden entries (names starting with `.`,
 /// such as `.obsidian` or `.DS_Store`). Collection discovery never looks inside those.
+///
+/// Cards and design documents iCloud evicted to `.icloud` placeholders are downloaded and
+/// listed: they're small, and the archive is read from them.
 fn read_dir_sorted(dir: &Path) -> Result<Vec<PathBuf>, ArchiveError> {
     let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)
         .map_err(io(dir))?
         .map(|e| e.map(|e| e.path()))
         .collect::<Result<_, _>>()
         .map_err(io(dir))?;
+    let mut fetched = Vec::new();
     entries.retain(|p| {
-        p.file_name()
-            .is_some_and(|n| !n.to_string_lossy().starts_with('.'))
+        let name = p
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if let Some(real) = crate::cloud_files::placeholder_for(&name)
+            && real.to_ascii_lowercase().ends_with(".md")
+        {
+            let real = dir.join(real);
+            if !real.exists() && crate::cloud_files::fetch_if_placeholder(&real) {
+                fetched.push(real);
+            }
+        }
+        !name.starts_with('.')
     });
+    entries.extend(fetched);
     entries.sort();
     Ok(entries)
 }
@@ -562,7 +592,7 @@ fn walk_collections(
     found: &mut Vec<Collection>,
 ) -> Result<(), ArchiveError> {
     let doc_path = dir.join("_collection.md");
-    if doc_path.is_file() {
+    if crate::cloud_files::fetch_if_placeholder(&doc_path) && doc_path.is_file() {
         let text = std::fs::read_to_string(&doc_path).map_err(io(&doc_path))?;
         let split = frontmatter::split(&text).map_err(|e| invalid(&doc_path, e))?;
         let doc: CollectionDoc =

@@ -67,6 +67,8 @@ pub fn input_text(purpose: &InputPurpose) -> Option<(&'static str, String)> {
                  links to it follow. The name shown works on every system:"
             ),
         ),
+        InputPurpose::FlagNote { title, .. } => super::flagging::input_text(title),
+        InputPurpose::FlagAnswer { question, .. } => super::flag_requests::input_text(question),
         _ => return None,
     })
 }
@@ -275,6 +277,12 @@ impl App {
                     tags,
                 }));
             }
+            InputPurpose::FlagNote { target, .. } => {
+                return Some(super::flagging::flag_note(target, &text));
+            }
+            InputPurpose::FlagAnswer { target, .. } => {
+                return super::flag_requests::flag_answer(target, &text);
+            }
             InputPurpose::Rename { card, from } => {
                 if text.is_empty() || text == from {
                     self.message = Some("Same name; nothing changed".into());
@@ -364,6 +372,9 @@ pub fn confirm_text(confirm: &Confirm) -> (&'static str, String, String, &'stati
                 ),
                 " create it   ",
             )
+        }
+        Confirm::Unflag { title, note, .. } => {
+            super::flagging::confirm_text(title, note.as_deref())
         }
         Confirm::Rename { from, to, .. } => (
             " Rename ",
@@ -566,7 +577,7 @@ mod tests {
         let (dir, mut app) = active_sample();
         app.picker_preference = Some("builtin".into());
         app.start_folder = dir.path().to_owned();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('2')));
         app.key(key(KeyCode::End));
         let desk = app.active_item().unwrap().clone();
         assert_eq!(desk.title, "Thesis");
@@ -664,7 +675,7 @@ mod tests {
         let (dir, mut app) = active_sample();
         app.picker_preference = Some("builtin".into());
         app.start_folder = dir.path().to_owned();
-        app.key(key(KeyCode::Char('3')));
+        app.key(key(KeyCode::Char('2')));
         let notes = dir.path().join("Notes");
         std::fs::create_dir_all(&notes).unwrap();
         // As `carrel desk add --title --summary` gives them.

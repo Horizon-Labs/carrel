@@ -63,10 +63,39 @@ impl CliJobs {
         Ok((!done.is_empty()).then(|| done.join(", ")))
     }
 
-    /// A crawler pass, when its pace says one is due and the device is idle and on power.
+    /// A crawler pass, when its pace says one is due and the device is idle and on power,
+    /// after downloading what collections kept downloaded need, in a synced archive; then
+    /// this device's profile brought up to date and weaker devices' cards re-checked.
     fn crawl(archive: &Archive) -> Result<Option<String>, JobError> {
+        let kept = Self::keep_downloaded(archive);
         let crawled = crate::crawl::when_idle(archive).map_err(|Failure(e)| JobError::Failed(e))?;
-        Ok(crawled.and_then(|c| c.summary()))
+        // Flags waiting for the librarian use the same idle time.
+        let looked =
+            crate::flag_librarian::when_idle(archive).map_err(|Failure(e)| JobError::Failed(e))?;
+        let rechecked =
+            crate::devices::for_agent(archive).map_err(|Failure(e)| JobError::Failed(e))?;
+        let done: Vec<String> = kept
+            .into_iter()
+            .chain(crawled.and_then(|c| c.summary()))
+            .chain(looked)
+            .chain(rechecked)
+            .collect();
+        Ok((!done.is_empty()).then(|| done.join("; ")))
+    }
+
+    /// Downloads the evicted files of collections that keep their items downloaded
+    /// (`sync.keep_downloaded`), when the archive is in a synced folder.
+    fn keep_downloaded(archive: &Archive) -> Option<String> {
+        if !DiskLock::is_synced_folder(archive.root()) {
+            return None;
+        }
+        let pass = carrel_core::cloud_files::keep_downloaded_pass(archive).ok()?;
+        (!pass.downloaded.is_empty()).then(|| {
+            format!(
+                "downloaded {} kept on this device",
+                plural(pass.downloaded.len(), "file")
+            )
+        })
     }
 
     fn sessions(&self, archive: &Archive) -> Result<Option<String>, JobError> {
@@ -375,6 +404,14 @@ pub(crate) fn install_in(
         names(roots)
     );
     writeln!(text, "Wrote {}", done.file.display()).unwrap();
+    if let Some(old) = &done.removed_old {
+        writeln!(
+            text,
+            "Removed {}, the agent under its old name",
+            old.display()
+        )
+        .unwrap();
+    }
     commands_text(&done, ran, &mut text);
     match platform {
         Platform::Launchd | Platform::TaskScheduler => {
@@ -392,6 +429,7 @@ pub(crate) fn install_in(
             "as": platform.describe(),
             "file": done.file,
             "archives": roots,
+            "removed_old": done.removed_old,
             "ran": if ran { done.ran.clone() } else { Vec::new() },
             "failed": done.failed,
         }),
@@ -420,7 +458,7 @@ pub(crate) fn uninstall_in(
     ran: bool,
 ) -> Result<Report, Failure> {
     let done = service::uninstall(platform, places, manager)?;
-    if !done.was_installed {
+    if !done.was_installed && done.removed_old.is_none() {
         return Ok(Report::new(
             format!(
                 "The Carrel agent isn't installed here: there's no {}. Nothing was changed.\n",
@@ -429,17 +467,25 @@ pub(crate) fn uninstall_in(
             json!({"installed": false, "removed": Value::Null}),
         ));
     }
-    let mut text = format!(
-        "Uninstalled the Carrel agent ({}).\nRemoved {}\n",
-        platform.describe(),
-        done.file.display()
-    );
+    let mut text = format!("Uninstalled the Carrel agent ({}).\n", platform.describe());
+    if done.was_installed {
+        writeln!(text, "Removed {}", done.file.display()).unwrap();
+    }
+    if let Some(old) = &done.removed_old {
+        writeln!(
+            text,
+            "Removed {}, the agent under its old name",
+            old.display()
+        )
+        .unwrap();
+    }
     commands_text(&done, ran, &mut text);
     Ok(Report::new(
         text,
         json!({
             "installed": false,
-            "removed": done.file,
+            "removed": done.was_installed.then_some(&done.file),
+            "removed_old": done.removed_old,
             "ran": if ran { done.ran.clone() } else { Vec::new() },
             "failed": done.failed,
         }),

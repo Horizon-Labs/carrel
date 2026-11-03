@@ -289,7 +289,10 @@ fn usage_mistakes_exit_with_status_2() {
     let out = sandbox.run_in(sandbox.dir.path(), &["frobnicate"]);
     assert_eq!(out.status.code(), Some(2));
     let version = sandbox.ok(sandbox.dir.path(), &["--version"]);
-    assert!(version.starts_with("carrel 0."), "{version}");
+    assert!(
+        version.starts_with(&format!("carrel {}", env!("CARGO_PKG_VERSION"))),
+        "{version}"
+    );
 }
 
 #[test]
@@ -2282,7 +2285,16 @@ fn expand_opens_a_filed_zip_in_one_change_that_undo_reverses() {
     assert_eq!(expanded["kind"], "folder");
     assert!(root.join(to).join("run2.csv").is_file());
     assert!(!root.join(&zip_path).exists());
-    assert!(sandbox.path("Trash/Spectra.zip").is_file());
+    // Without backups, the compressed file waits in the holding folder for a snapshot.
+    let held = expanded["held"]
+        .as_str()
+        .expect("kept in the holding folder");
+    assert!(
+        root.join("_System/holding")
+            .join(held)
+            .join("Spectra.zip")
+            .is_file()
+    );
     let card = std::fs::read_to_string(root.join(expanded["card"].as_str().unwrap())).unwrap();
     assert!(
         card.contains("kind: folder") && card.contains("name: Spectra.zip"),
@@ -4124,4 +4136,661 @@ echo "snapshots: return-only" >> "$1"
         after.contains("title: My title") && after.contains("snapshots: return-only"),
         "{after}"
     );
+}
+
+/// A proposal drafted with no text model offers `carrel review redraft`, which fails clearly,
+/// with what to download, until a model is there (#445).
+#[test]
+fn review_redraft_needs_a_model_and_says_which() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    sandbox.ok(sandbox.dir.path(), &["init", root.to_str().unwrap()]);
+    let empty = sandbox.path("no-providers");
+    std::fs::create_dir_all(&empty).unwrap();
+    let file = sandbox.path("lamp-notes.txt");
+    std::fs::write(&file, "Notes on the desk lamp's diffuser.").unwrap();
+    let ingested = run_with_providers(
+        &sandbox,
+        &root,
+        &empty,
+        &["ingest", "--wait", file.to_str().unwrap(), "--json"],
+    );
+    let id = json_of(&ingested)["proposals"][0]["id"]
+        .as_str()
+        .expect("a proposal")
+        .to_owned();
+    let short = &id[id.len() - 8..];
+
+    let list = sandbox.ok(&root, &["review"]);
+    assert!(list.contains("draft again?"), "{list}");
+    let shown = sandbox.ok(&root, &["review", "show", short]);
+    assert!(
+        shown.contains(&format!("`carrel review redraft {short}`")),
+        "{shown}"
+    );
+
+    let failed = run_with_providers(&sandbox, &root, &empty, &["review", "redraft", short]);
+    assert_eq!(failed.status.code(), Some(1));
+    let why = String::from_utf8_lossy(&failed.stderr);
+    assert!(
+        why.contains("no text model on this device; write the card by hand"),
+        "{why}"
+    );
+    assert!(why.contains("Drafting cards needs a text model"), "{why}");
+    let all = run_with_providers(
+        &sandbox,
+        &root,
+        &empty,
+        &["review", "redraft", "--all-failed"],
+    );
+    assert_eq!(
+        all.status.code(),
+        Some(1),
+        "the same problem for --all-failed"
+    );
+
+    let unchanged = sandbox.json(&root, &["review", "show", short]);
+    assert_eq!(unchanged["id"], id.as_str());
+    assert_eq!(unchanged["state"], "needs-owner");
+}
+
+/// `carrel questions` names where each question's item is, so it can be opened (#446).
+#[test]
+fn questions_name_the_path_of_what_they_ask_about() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    sandbox.ok(sandbox.dir.path(), &["init", root.to_str().unwrap()]);
+    sandbox.ok(&root, &["status"]);
+    let listed = sandbox.json(&root, &["questions"]);
+    let question = listed["questions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|q| q["question"] == "What was this project for?")
+        .expect("the question about the notes")
+        .clone();
+    let subject = &question["subjects"][0];
+    assert_eq!(subject["card"], ASKED_ABOUT);
+    assert_eq!(subject["restricted"], false);
+    let path = subject["path"].as_str().unwrap();
+    assert!(
+        path.replace('\\', "/").ends_with("Projects/Hardware/notes"),
+        "{path}"
+    );
+    let text = sandbox.ok(&root, &["questions"]);
+    assert!(text.contains(&format!(": {path}")), "{text}");
+}
+
+#[test]
+fn ingest_url_files_a_web_address_with_its_note_and_goes_to_the_inbox_while_another_writes() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.path("shared");
+    sandbox.ok(
+        sandbox.dir.path(),
+        &["init", root.to_str().unwrap(), "--name", "Shared"],
+    );
+    let url = "https://example.org/prc";
+    let ingested = sandbox.json(
+        &root,
+        &[
+            "ingest",
+            "--url",
+            url,
+            "--title",
+            "Phase response curves",
+            "--note",
+            "For chapter two",
+            "--wait",
+        ],
+    );
+    let proposal = ingested["proposals"][0]["id"].as_str().unwrap().to_owned();
+    let wrong = sandbox.run_in(&root, &["ingest", "--url", "example.org"]);
+    assert!(!wrong.status.success());
+    assert!(String::from_utf8_lossy(&wrong.stderr).contains("isn't a web address"));
+    sandbox.ok(&root, &["review", "hold", &proposal]);
+    let card = std::fs::read_dir(root.join("Holding"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| {
+            std::fs::read_to_string(p).is_ok_and(|t| t.contains("kind: url") && t.contains(url))
+        })
+        .expect("a url card in Holding");
+    let text = std::fs::read_to_string(&card).unwrap();
+    assert!(text.contains("kind: url"), "{text}");
+    assert!(text.contains("For chapter two"), "{text}");
+
+    // Another device holds the writer lease: what's added goes into this device's inbox.
+    let lock = serde_json::json!({
+        "token": "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b",
+        "person": "01928f39-eeee-7fff-8000-000000000005",
+        "device": "01928f3a-0000-7000-8000-00000000d002",
+        "purpose": "ingest",
+        "program": "carrel 0.1.0",
+        "acquired": "2026-10-29T14:02:11-07:00",
+        "expires": "2999-01-01T00:00:00Z",
+    });
+    std::fs::write(root.join("_System/writer.lock"), lock.to_string()).unwrap();
+    let sent = sandbox.json(&root, &["ingest", "--url", "https://example.org/other"]);
+    assert_eq!(sent["writer"], "01928f3a-0000-7000-8000-00000000d002");
+    let inbox = std::path::PathBuf::from(sent["inbox"].as_str().unwrap());
+    let inboxes = root.canonicalize().unwrap().join("_System/inbox");
+    assert!(inbox.starts_with(&inboxes), "{}", inbox.display());
+    assert!(inbox.is_file());
+}
+
+#[test]
+fn flag_unflag_and_flagged_mark_items_and_collections_that_need_work() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    sandbox.ok(sandbox.dir.path(), &["init", root.to_str().unwrap()]);
+    let card = "Reading/On the Origin of Species.md";
+
+    let flagged = sandbox.json(&root, &["flag", card, "--note", "wrong title"]);
+    assert_eq!(flagged["changed"], true);
+    assert_eq!(flagged["flagged"]["kind"], "item");
+    let text = std::fs::read_to_string(root.join(card)).unwrap();
+    assert!(
+        text.contains("needs_work:") && text.contains("wrong title"),
+        "{text}"
+    );
+    let out = sandbox.ok(&root, &["flag", "Projects", "--note", "split this folder"]);
+    assert!(out.contains("Flag “Projects” as needing work"), "{out}");
+
+    let listed = sandbox.json(&root, &["flagged"]);
+    let flagged = listed["flagged"].as_array().unwrap();
+    assert_eq!(flagged.len(), 2);
+    assert_eq!(flagged[0]["kind"], "collection");
+    assert_eq!(flagged[0]["path"], "Projects");
+    assert_eq!(flagged[1]["card"], card);
+    assert_eq!(flagged[1]["flag"]["note"], "wrong title");
+    let out = sandbox.ok(&root, &["flagged"]);
+    assert!(
+        out.contains("⚑ Projects/ (collection): split this folder"),
+        "{out}"
+    );
+
+    let status = sandbox.ok(&root, &["status"]);
+    assert!(status.contains("Flagged as needing work"), "{status}");
+    assert!(
+        status.contains("flagged as needing work: split this folder"),
+        "{status}"
+    );
+    let found = sandbox.json(&root, &["search", "flagged"]);
+    assert_eq!(found["total"], 1, "{found}");
+    let shown = sandbox.ok(&root, &["show", card]);
+    assert!(shown.contains("flagged      wrong title"), "{shown}");
+
+    // Undo reverses a flag, and unflagging clears one.
+    let log = sandbox.json(&root, &["log"]);
+    let last = log[0]["id"].as_str().unwrap().to_owned();
+    sandbox.ok(&root, &["undo", &last]);
+    let unflagged = sandbox.json(&root, &["unflag", card]);
+    assert_eq!(unflagged["changed"], true);
+    assert_eq!(sandbox.json(&root, &["flagged"])["flagged"], json!([]));
+    let again = sandbox.ok(&root, &["unflag", card]);
+    assert!(again.contains("isn't flagged"), "{again}");
+}
+
+#[test]
+fn gaps_are_logged_without_names_and_drafted_as_issues_carrel_never_sends() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let downloads = sandbox.path("Downloads");
+    std::fs::create_dir(&downloads).unwrap();
+    std::fs::write(
+        downloads.join("Secret Plans.F3D"),
+        [0u8, 159, 146, 150, 255, 1, 2],
+    )
+    .unwrap();
+    sandbox.ok(
+        &root,
+        &["ingest", "--wait", "--each", downloads.to_str().unwrap()],
+    );
+    let log = std::fs::read_to_string(sandbox.path("config/gaps.json")).unwrap();
+    assert!(log.contains("\"kind\": \"unread-format\""), "{log}");
+    assert!(!log.contains("Secret"), "no file names: {log}");
+
+    let gaps = sandbox.json(&root, &["report", "gaps"]);
+    let gap = &gaps["gaps"][0];
+    assert_eq!(gap["extension"], "f3d", "{gaps}");
+    assert_eq!(gap["items"], 1);
+    let number = gap["number"].as_u64().unwrap().to_string();
+    let text = sandbox.ok(&root, &["report", "gaps"]);
+    assert!(text.contains("no reader for the file type: .f3d"), "{text}");
+
+    // The draft is only printed: nothing is sent, and nothing from the archive is in it.
+    let draft = sandbox.json(
+        &root,
+        &[
+            "report",
+            "gaps",
+            "--report",
+            &number,
+            "--print",
+            "--add",
+            "Fusion files",
+        ],
+    );
+    let url = draft["url"].as_str().unwrap();
+    assert!(
+        url.starts_with("https://github.com/Horizon-Labs/carrel/issues/new?title="),
+        "{url}"
+    );
+    assert_eq!(draft["opened"], false);
+    let body = draft["body"].as_str().unwrap();
+    assert!(body.contains("Fusion files"), "{body}");
+    for private in ["Secret", "Plans", "Downloads", root.to_str().unwrap()] {
+        assert!(!body.contains(private), "{private} in {body}");
+        assert!(!url.contains(private), "{private} in {url}");
+    }
+
+    let issue = "https://github.com/Horizon-Labs/carrel/issues/999";
+    sandbox.ok(&root, &["report", "gaps", "--reported", &number, issue]);
+    let text = sandbox.ok(&root, &["report", "gaps"]);
+    assert!(text.contains(&format!("Reported: {issue}")), "{text}");
+    let refused = sandbox.run_in(&root, &["report", "gaps", "--reported", &number, "soon"]);
+    assert!(!refused.status.success());
+    let why = String::from_utf8_lossy(&refused.stderr);
+    assert!(why.contains("isn't the issue's web address"), "{why}");
+}
+
+#[test]
+fn the_owner_reports_a_missing_feature_on_an_item_in_their_own_words() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let reported = sandbox.json(
+        &root,
+        &[
+            "report",
+            "gaps",
+            "--missing",
+            "Read the equations in it",
+            "--item",
+            "Reading/Coupled oscillators note.pdf",
+        ],
+    );
+    let gap = &reported["gap"];
+    assert_eq!(gap["kind"], "owner-reported", "{reported}");
+    assert_eq!(gap["extension"], "pdf");
+    assert_eq!(gap["words"], "Read the equations in it");
+    let log = std::fs::read_to_string(sandbox.path("config/gaps.json")).unwrap();
+    assert!(!log.contains("oscillators"), "no names: {log}");
+    let number = gap["number"].as_u64().unwrap().to_string();
+    let draft = sandbox.json(&root, &["report", "gaps", "--report", &number, "--print"]);
+    assert!(
+        draft["body"]
+            .as_str()
+            .unwrap()
+            .contains("Read the equations in it"),
+        "{draft}"
+    );
+}
+
+#[test]
+fn tui_and_gui_take_the_same_screens() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    for command in ["tui", "gui"] {
+        let help = sandbox.ok(&root, &[command, "--help"]);
+        for screen in ["status", "librarian", "discover:wander", "discover:graph"] {
+            assert!(help.contains(screen), "{command}: {help}");
+        }
+        let wrong = sandbox.run_in(&root, &[command, "restructure"]);
+        assert!(!wrong.status.success());
+        let stderr = String::from_utf8_lossy(&wrong.stderr);
+        assert!(stderr.contains("invalid value 'restructure'"), "{stderr}");
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn gui_points_to_the_interactive_mode_off_macos() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let out = sandbox.run_in(&root, &["gui", "review"]);
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("only on macOS"), "{stderr}");
+    assert!(stderr.contains("carrel tui"), "{stderr}");
+}
+
+#[test]
+fn sync_status_keep_resolve_and_move_into_icloud_drive() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    sandbox.ok(&root, &["init"]);
+    let status = sandbox.json(&root, &["sync", "status"]);
+    assert_eq!(status["synced"], false, "{status}");
+    assert_eq!(status["conflicts"], json!([]));
+
+    std::fs::write(
+        root.join("Reading/On the Origin of Species 2.md"),
+        "another device's card",
+    )
+    .unwrap();
+    let text = sandbox.ok(&root, &["sync"]);
+    assert!(text.contains("On the Origin of Species 2.md"), "{text}");
+    sandbox.ok(
+        &root,
+        &[
+            "sync",
+            "resolve",
+            "Reading/On the Origin of Species 2.md",
+            "--keep",
+            "original",
+        ],
+    );
+    assert!(!root.join("Reading/On the Origin of Species 2.md").exists());
+
+    sandbox.ok(&root, &["sync", "keep", "Projects", "on"]);
+    let kept = sandbox.json(&root, &["sync", "keep", "Projects/Hardware"]);
+    assert_eq!(kept["keep_downloaded"], true, "{kept}");
+    let downloaded = sandbox.json(
+        &root,
+        &["sync", "download", "Reading/Coupled oscillators note.pdf"],
+    );
+    assert_eq!(downloaded["downloaded"], 0);
+
+    let to = sandbox.path("iCloud/Sample");
+    std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+    let moved = sandbox.json(
+        &root,
+        &["sync", "move", "--to", to.to_str().unwrap(), "--yes"],
+    );
+    assert_eq!(moved["moved"], true, "{moved}");
+    assert!(to.join("Reading/Coupled oscillators note.pdf").exists());
+    let old = sandbox.ok(&root, &["status"]);
+    assert!(old.contains("This is the old copy"), "{old}");
+    let elsewhere = sandbox.path("config");
+    let now = sandbox.ok(&elsewhere, &["status"]);
+    assert!(!now.contains("This is the old copy"), "{now}");
+}
+
+#[test]
+fn ask_about_an_item_or_collection_loads_it_so_this_means_it() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    sandbox.ok(sandbox.dir.path(), &["init", root.to_str().unwrap()]);
+    let parts = "01a18701-0500-776a-9867-080d24773181";
+    let script = [
+        // Its card was loaded up front, so asking for it again isn't a step.
+        librarian_tool("show", parts),
+        librarian_answer("Yes, Hardware is for builds.", &[PARTS_LIST], json!([])),
+    ];
+    let out = with_script(
+        &sandbox,
+        &root,
+        &script,
+        &[
+            "ask",
+            "Is this in the right place?",
+            "--about",
+            PARTS_LIST,
+            "--json",
+        ],
+        "",
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let answer: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(
+        answer["about"],
+        format!("the item “Desk lamp parts list” ({PARTS_LIST})")
+    );
+    assert_eq!(answer["steps"], json!([]), "{answer}");
+
+    let script = [librarian_answer("It's tidy.", &[], json!([]))];
+    let out = with_script(
+        &sandbox,
+        &root,
+        &script,
+        &["ask", "Anything missing?", "--about", "Hardware", "--json"],
+        "",
+    );
+    let answer: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(
+        answer["about"],
+        "the collection “Hardware” (Projects/Hardware)"
+    );
+
+    let out = with_script(
+        &sandbox,
+        &root,
+        &script,
+        &["ask", "What?", "--about", "nowhere at all"],
+        "",
+    );
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("no item or collection is nowhere at all"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn ingest_text_files_a_written_note_as_an_item_from_the_flag_or_standard_input() {
+    use std::io::Write as _;
+    let sandbox = Sandbox::new();
+    let root = sandbox.path("noted");
+    sandbox.ok(
+        sandbox.dir.path(),
+        &["init", root.to_str().unwrap(), "--name", "Noted"],
+    );
+    let ingested = sandbox.json(
+        &root,
+        &[
+            "ingest",
+            "--text",
+            "Ring the framer about the lamp print.",
+            "--title",
+            "Framer",
+            "--note",
+            "For the hallway",
+            "--wait",
+        ],
+    );
+    assert_eq!(
+        ingested["proposals"].as_array().unwrap().len(),
+        1,
+        "{ingested}"
+    );
+    let kept = sandbox.path("config/notes");
+    let notes: Vec<_> = std::fs::read_dir(&kept)
+        .unwrap()
+        .map(|e| e.unwrap().path().join("Framer.md"))
+        .collect();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(
+        std::fs::read_to_string(&notes[0]).unwrap(),
+        "Ring the framer about the lamp print.\n"
+    );
+
+    let empty = sandbox.run_in(&root, &["ingest", "--text", "  "]);
+    assert!(!empty.status.success());
+    assert!(String::from_utf8_lossy(&empty.stderr).contains("empty"));
+    let both = sandbox.run_in(&root, &["ingest", "--text", "a", "--url", "https://a.org"]);
+    assert!(!both.status.success(), "a note or a web address, not both");
+
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_carrel"))
+        .args(["ingest", "--text", "-", "--json"])
+        .current_dir(&root)
+        .env("CARREL_CONFIG_DIR", sandbox.path("config"))
+        .env("CARREL_TRASH_DIR", sandbox.path("Trash"))
+        .env("CARREL_WORKER", "off")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"Piped in from another program\n")
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let queued = json_of(&out);
+    let path = queued["queued"][0]["path"].as_str().unwrap();
+    assert!(
+        path.replace('\\', "/")
+            .ends_with("/Piped in from another program.md"),
+        "{path}"
+    );
+}
+
+#[test]
+fn devices_update_writes_this_devices_profile_and_status_shows_the_rechecks_waiting() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let updated = sandbox.json(&root, &["devices", "update"]);
+    let devices = updated["devices"].as_array().unwrap();
+    assert_eq!(devices.len(), 2, "{updated}");
+    let this_device = updated["this_device"].as_str().unwrap();
+    let mine = devices.iter().find(|d| d["id"] == this_device).unwrap();
+    assert!(
+        mine["capabilities"]["benchmark"]["mb_per_second"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert!(
+        root.join(format!("_System/devices/{this_device}/device.json"))
+            .is_file()
+    );
+
+    // The sample's two cards drafted below the preferred level now wait for a stronger
+    // device, one file each in _System/tasks.
+    let rechecks = sandbox.json(&root, &["devices", "rechecks"]);
+    assert_eq!(rechecks["summary"]["waiting"], 2, "{rechecks}");
+    assert_eq!(
+        std::fs::read_dir(root.join("_System/tasks"))
+            .unwrap()
+            .count(),
+        2
+    );
+    let text = sandbox.ok(&root, &["devices", "rechecks"]);
+    assert!(text.contains("Holding/untitled scan.txt.md"), "{text}");
+
+    // Status, with a home of its own so it doesn't look for active work in the real one.
+    let status = |args: &[&str]| {
+        let out = sandbox.agent_command(&root, args).output().unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let json: Value = serde_json::from_str(&status(&["status", "--json"])).unwrap();
+    assert_eq!(json["devices"]["rechecks"]["waiting"], 2, "{json}");
+    assert_eq!(
+        json["devices"]["devices"].as_array().unwrap().len(),
+        2,
+        "{json}"
+    );
+}
+
+#[test]
+fn feedback_is_saved_per_device_listed_exported_and_marked_sent() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let sent = sandbox.json(
+        &root,
+        &[
+            "feedback",
+            "The inspector hides the path",
+            "--about",
+            "01a18701-0500-776a-9867-080924eb019c",
+            "--kind",
+            "confusing",
+            "--screen",
+            "Browse",
+            "--step",
+            "collection inspector",
+        ],
+    );
+    let entry = &sent["feedback"];
+    assert_eq!(entry["kind"], "confusing", "{sent}");
+    assert_eq!(entry["in_view"][0]["title"], "oscillator-sim", "{sent}");
+    assert_eq!(entry["interface"], "command line");
+    assert!(
+        std::path::Path::new(entry["path"].as_str().unwrap()).starts_with(
+            std::fs::canonicalize(&root)
+                .unwrap()
+                .join("_System/feedback")
+        ),
+        "{sent}"
+    );
+    sandbox.ok(&root, &["feedback", "Status is slow"]);
+    let empty = sandbox.run_in(&root, &["feedback", " "]);
+    assert!(!empty.status.success(), "empty words are refused");
+
+    let listed = sandbox.json(&root, &["feedback", "list"]);
+    assert_eq!(listed["unsent"], 2, "{listed}");
+    let bundle = sandbox.ok(&root, &["feedback", "export"]);
+    assert!(
+        bundle.find("## Browse").unwrap() < bundle.find("## Command line").unwrap(),
+        "{bundle}"
+    );
+    assert!(bundle.contains("Browse → collection inspector"), "{bundle}");
+    let issue = sandbox.json(&root, &["feedback", "issue", "1", "--print"]);
+    assert!(
+        issue["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://github.com/Horizon-Labs/carrel/issues/new?"),
+        "{issue}"
+    );
+    sandbox.ok(
+        &root,
+        &[
+            "feedback",
+            "sent",
+            "1",
+            "https://github.com/Horizon-Labs/carrel/issues/1",
+        ],
+    );
+    assert_eq!(sandbox.json(&root, &["status"])["feedback_unsent"], 1);
+    assert_eq!(
+        sandbox.json(&root, &["feedback", "list", "--unsent"])["feedback"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn library_lists_whats_waiting_the_collections_and_whats_new() {
+    let sandbox = Sandbox::new();
+    let root = sandbox.sample();
+    let text = sandbox.ok(&root, &["library"]);
+    assert!(
+        text.starts_with("The librarian has 1 item for you to approve."),
+        "{text}"
+    );
+    assert!(
+        text.find("  Projects").unwrap() < text.find("  Holding").unwrap(),
+        "Holding comes last: {text}"
+    );
+    assert!(text.contains("Recently added\n  Untitled scan"), "{text}");
+    let library = sandbox.json(&root, &["library"]);
+    let shelves = library["library"]["shelves"].as_array().unwrap();
+    assert_eq!(shelves[0]["path"], "Projects", "{library}");
+    assert_eq!(shelves[0]["items"], 7, "{library}");
+    assert_eq!(library["waiting"]["review"], 1, "{library}");
+
+    let empty = sandbox.path("Empty");
+    sandbox.ok(sandbox.dir.path(), &["init", empty.to_str().unwrap()]);
+    let text = sandbox.ok(&empty, &["library"]);
+    assert!(text.starts_with("Nothing is filed yet."), "{text}");
 }

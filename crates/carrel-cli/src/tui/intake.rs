@@ -36,6 +36,19 @@ pub struct Plan {
     pub count: usize,
     /// Why it can't be queued as it is, such as a folder that needs `e` or `w`.
     pub problem: Option<String>,
+    /// A web address to add instead of paths, as a `url` item.
+    pub url: Option<String>,
+    /// The owner's note, for the drafts and the cards.
+    pub note: Option<String>,
+    /// A note the owner wrote, to add instead as an item of its own.
+    pub written: Option<String>,
+}
+
+/// Whether `text` typed on the Ingest line is a web address rather than paths.
+pub(super) fn is_web_address(text: &str) -> bool {
+    let text = text.trim().to_ascii_lowercase();
+    !text.contains(char::is_whitespace)
+        && (text.starts_with("https://") || text.starts_with("http://"))
 }
 
 impl App {
@@ -171,6 +184,9 @@ impl App {
             lines: Vec::new(),
             count: 0,
             problem: None,
+            url: None,
+            note: self.planned.as_ref().and_then(|p| p.note.clone()),
+            written: None,
         };
         match preview(&self.archive, &plan.paths, options, device) {
             Ok(queued) => {
@@ -194,6 +210,58 @@ impl App {
         self.planned = Some(plan);
     }
 
+    /// Plans the web address `url`, to be filed as a `url` item drafted from the address
+    /// alone, and shows the plan on the Ingest screen.
+    pub(super) fn plan_url(&mut self, url: &str) {
+        self.tab = Tab::Ingest;
+        self.planned = Some(Plan {
+            paths: Vec::new(),
+            options: IntakeOptions::default(),
+            lines: vec![format!("  {url}, as a web address; nothing is fetched")],
+            count: 1,
+            problem: None,
+            url: Some(url.to_owned()),
+            note: None,
+            written: None,
+        });
+    }
+
+    /// Opens the line to write a note on, to add as an item of its own.
+    pub(super) fn ask_for_written_note(&mut self) {
+        self.input = Some(Input {
+            purpose: InputPurpose::IngestWritten,
+            text: String::new(),
+        });
+    }
+
+    /// Plans the note the owner wrote, `text`, to be added as an item of its own, and shows
+    /// the plan on the Ingest screen.
+    pub(super) fn plan_written_note(&mut self, text: &str) {
+        self.tab = Tab::Ingest;
+        if text.trim().is_empty() {
+            self.message = Some("Nothing written".into());
+            return;
+        }
+        let name = carrel_core::written_note::written_note_file_name(text, None);
+        self.planned = Some(Plan {
+            paths: Vec::new(),
+            options: IntakeOptions::default(),
+            lines: vec![format!("  {name}, a note you wrote")],
+            count: 1,
+            problem: None,
+            url: None,
+            note: None,
+            written: Some(text.trim().to_owned()),
+        });
+    }
+
+    /// Sets the note on the plan shown, from what the owner typed.
+    pub(super) fn noted(&mut self, text: &str) {
+        if let Some(plan) = &mut self.planned {
+            plan.note = Some(text.trim().to_owned()).filter(|t| !t.is_empty());
+        }
+    }
+
     /// Handles a key on the Ingest screen.
     pub(super) fn intake_key(&mut self, key: KeyEvent) -> Handled {
         if let Some(plan) = self.planned.clone() {
@@ -203,18 +271,28 @@ impl App {
                     Some(Effect::Queue {
                         paths: plan.paths,
                         options: plan.options,
+                        url: plan.url,
+                        note: plan.note,
+                        written: plan.written,
                     })
                 }
                 KeyCode::Enter => {
                     self.message = Some("Nothing to queue".into());
                     None
                 }
-                KeyCode::Char('e') => {
+                KeyCode::Char('n') => {
+                    self.input = Some(Input {
+                        purpose: InputPurpose::IngestNote,
+                        text: plan.note.clone().unwrap_or_default(),
+                    });
+                    None
+                }
+                KeyCode::Char('e') if plan.url.is_none() && plan.written.is_none() => {
                     let each = !plan.options.each;
                     self.plan(plan.paths, IntakeOptions { each, whole: false });
                     None
                 }
-                KeyCode::Char('w') => {
+                KeyCode::Char('w') if plan.url.is_none() && plan.written.is_none() => {
                     let whole = !plan.options.whole;
                     self.plan(plan.paths, IntakeOptions { each: false, whole });
                     None
@@ -232,6 +310,10 @@ impl App {
             (KeyCode::Char('x'), Some(id)) => Effect::Unqueue(id),
             (KeyCode::Char('t'), Some(id)) => Effect::Front(id),
             (KeyCode::Char('r'), Some(id)) => Effect::Retry(id),
+            (KeyCode::Char('a'), _) => {
+                self.ask_for_written_note();
+                return Handled::Yes(None);
+            }
             _ => return Handled::No,
         };
         Handled::Yes(Some(effect))
@@ -251,6 +333,27 @@ impl App {
     }
 }
 
+/// Adds the note the owner wrote, `text`, as an item of its own, kept in this device's notes
+/// folder, with their `note`, and starts a worker, saying what happened in a line. While another
+/// device is the writer, it goes into this device's inbox instead.
+pub(super) fn queue_written_note(
+    root: &std::path::Path,
+    text: &str,
+    note: Option<&str>,
+) -> Result<String, crate::Failure> {
+    use carrel_core::written_note::{WrittenNoteAdded, add_written_note, written_notes_dir};
+    let archive = carrel_core::archive::Archive::open(root)?;
+    let identity = crate::config::Identity::load_or_create()?;
+    let folder = written_notes_dir().ok_or_else(|| {
+        crate::Failure::new("there's no configuration folder to keep the note in")
+    })?;
+    let holder = crate::commands::holder(&identity);
+    match add_written_note(&archive, &folder, text, None, note, holder)? {
+        WrittenNoteAdded::Sent { sending, .. } => Ok(sending.describe()),
+        WrittenNoteAdded::Queued { queued, .. } => super::queued_line(&archive, queued.added.len()),
+    }
+}
+
 fn describe(entry: &IntakeEntry) -> String {
     let name = entry.path.file_name().map_or_else(
         || entry.path.display().to_string(),
@@ -260,5 +363,83 @@ fn describe(entry: &IntakeEntry) -> String {
         Some(failure) if entry.stuck() => format!("{name}  failed: {failure}"),
         Some(failure) => format!("{name}  (trying again: {failure})"),
         None => name,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui::crossterm::event::KeyCode;
+
+    use super::super::app::{App, Effect};
+    use super::super::tests::{key, sample, screen};
+
+    fn typed(app: &mut App, text: &str) -> Option<Effect> {
+        for c in text.chars() {
+            app.key(key(KeyCode::Char(c)));
+        }
+        app.key(key(KeyCode::Enter))
+    }
+
+    #[test]
+    fn a_web_address_is_planned_as_one_item_and_n_adds_a_note() {
+        let (_dir, mut app) = sample(false);
+        assert!(super::is_web_address(" https://example.org/a "));
+        assert!(!super::is_web_address("/Users/me/https://x"));
+        assert!(!super::is_web_address("https://a b"));
+
+        app.ask_for_paths();
+        assert_eq!(typed(&mut app, "https://example.org/prc"), None);
+        let text = screen(&app, 120, 30);
+        assert!(
+            text.contains("https://example.org/prc, as a web address"),
+            "{text}"
+        );
+        assert_eq!(app.key(key(KeyCode::Char('e'))), None, "e is for folders");
+        assert!(!app.planned.as_ref().unwrap().options.each);
+
+        app.key(key(KeyCode::Char('n')));
+        assert_eq!(typed(&mut app, "For chapter two"), None);
+        assert!(screen(&app, 120, 30).contains("Note: For chapter two"));
+        assert_eq!(
+            app.key(key(KeyCode::Enter)),
+            Some(Effect::Queue {
+                paths: Vec::new(),
+                options: carrel_core::ingest::IntakeOptions::default(),
+                url: Some("https://example.org/prc".into()),
+                note: Some("For chapter two".into()),
+                written: None,
+            })
+        );
+    }
+
+    #[test]
+    fn a_on_ingest_writes_a_note_to_add_as_an_item_of_its_own() {
+        let (_dir, mut app) = sample(false);
+        app.tab = super::super::app::Tab::Ingest;
+        assert_eq!(app.key(key(KeyCode::Char('a'))), None);
+        assert!(app.input.is_some(), "a line to write on");
+        assert_eq!(typed(&mut app, "Ring the framer about the print"), None);
+        let text = screen(&app, 120, 30);
+        assert!(
+            text.contains("Ring the framer about the print.md, a note you wrote"),
+            "{text}"
+        );
+        assert_eq!(app.key(key(KeyCode::Char('w'))), None, "w is for folders");
+        app.key(key(KeyCode::Char('n')));
+        assert_eq!(typed(&mut app, "For the hallway"), None);
+        assert_eq!(
+            app.key(key(KeyCode::Enter)),
+            Some(Effect::Queue {
+                paths: Vec::new(),
+                options: carrel_core::ingest::IntakeOptions::default(),
+                url: None,
+                note: Some("For the hallway".into()),
+                written: Some("Ring the framer about the print".into()),
+            })
+        );
+
+        app.key(key(KeyCode::Char('a')));
+        assert_eq!(typed(&mut app, "   "), None);
+        assert_eq!(app.planned, None, "nothing written, nothing planned");
     }
 }

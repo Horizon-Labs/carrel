@@ -14,7 +14,7 @@ The spec settles the look (SwiftUI, Apple's design guidelines and Liquid Glass: 
 
 One window per archive, a three-column `NavigationSplitView`:
 
-- **Sidebar:** the screens the interactive mode has, in the same order, with their counts as badges: **Status**, **Review**, **Questions**, **Active**, then the collection tree (**Browse**), then **History**. A search field sits at the top of the sidebar's toolbar.
+- **Sidebar:** the screens the interactive mode has, in the same order, around what owners do most ([the Library](library-home.md), #512): **Library**, where the window opens; **Checked Out** (Active) while anything is out or on the desk; a **Librarian** section of what it's asking, **Questions**, **To Approve** (Review), **Suggestions** (Restructure) and **Flags** (Flagged), with their counts as badges, shown only when it's asking anything and each row only when it has any; the collection tree under **Collections** (Browse); and **Status**, **History** and **Backups** under **Archive**. Discover's pages are views of the Library and of each collection (Covers, Items, Timeline, Map, Connections, Activity), in a switcher in the toolbar, with **Wander** beside it. Search is in the toolbar, beside **+**, which opens the Add panel.
 - **Content:** the list for the chosen screen: proposals grouped by destination, questions by rank, checked-out and desk items, a collection's items, search results, changes.
 - **Inspector:** the chosen thing in full: a proposal's or item's card with its fields, summary, sensitivity and reasons, history and related items; a question with the items it affects; a change with what it did.
 
@@ -22,14 +22,16 @@ Each screen does what its interactive-mode counterpart does, through the same co
 
 | Screen | In the app |
 | --- | --- |
-| Status | What `carrel status` shows, with the worker's progress, Recent, and suggestions (folders to track, desk items to archive). |
+| Library | Where the window opens: a line from the librarian when it's asking anything, the top-level collections as covers of their newest items' thumbnails with their counts and descriptions, Recently Added, and On This Day; an empty archive invites adding. |
+| Status | What `carrel status` shows, with a line saying what's being added (the queue itself is in the Add panel), Recent, and suggestions (folders to track, desk items to archive). |
 | Review | Approve, hold, move and reject, one at a time or a selection; batches approve together. The inspector edits the card in place. |
 | Questions | Answer a term in a text field or pick a collection; dismiss. |
-| Active | Checked-out and desk items with their pending entries: return, cancel, open the working copy, approve, combine, edit or drop entries. |
+| Checked Out | Checked-out and desk items with their pending entries: return, cancel, open the working copy, approve, combine, edit or drop entries. |
 | Browse | The collection tree in the sidebar, items in the content column as a list or a grid of thumbnails, and the chosen item's preview above its card in the inspector. Quick actions: check out, correct, edit, show in Finder. |
 | History | Every change, with undo after a confirmation sheet that says what undoing does and doesn't restore. |
 | Backups | What the interactive mode's Backups screen and `carrel backup` do: set up a repository on a folder or drive (the password asked for once and kept in the keychain by Kopia), the snapshots taken with each change, newest first and read from history so they show without the drive, Snapshot Now, Verify, and restoring an item from the chosen snapshot into a new folder beside the archive. |
 
+- **Changes made elsewhere show as they happen:** the window watches the archive's folder and reads everything again a second after anything changes outside it, whether the command line or the TUI approved a proposal, the worker drafted one, or another device's change arrived through iCloud. Caches, the search index, device profiles and the history's internal files don't count; where its branch points does. On iPad and iPhone, which can't watch folders, the window reads everything again whenever the app comes back to the foreground.
 - **Search** is the toolbar field (⌘F): the same `carrel search` with its filters, results as a list with the matched passage highlighted. Typing filters as you go over words; meaning search runs when you pause, so typing never waits on the model.
 - **Adding items:** drag files or folders onto the window, or File → Add to Archive… (⌘O). They join the intake queue, as `carrel ingest` adds them, and the agent drafts them.
 - **Corrections:** ⌘K on a proposal or an item opens a sheet: type the correction, see the changes the model proposes, confirm. The same flow as `c` in the interactive mode.
@@ -59,7 +61,7 @@ Each screen does what its interactive-mode counterpart does, through the same co
   - runs scheduled backups once backups are set up.
 - **The menu bar list** (a `MenuBarExtra`): what's checked out and on the desk, pending entries, what the agent is doing now, and Pause. Choosing an item opens it in the app.
 - **No new protocol between them in v0.5.** The agent, the app and the CLI coordinate the way the CLI and its worker already do: through the archive's files, the writer lease and the worker's status file. The app reads the status file to show progress; the CLI's own detached worker steps aside when the agent is running, through the same per-device lock. An XPC service can come later if the app needs to talk to the agent directly; nothing here prevents it.
-- **Off switch:** the agent is optional. With it off, the app starts a worker on demand as the CLI does, and work sessions are noticed when the app or the CLI runs.
+- **Off switch:** running at login is optional. With it off, the app starts the agent when it opens and the agent runs until logout or Quit, since on a Mac archives in iCloud Drive take their writer lock through it (`docs/design/sync-and-mobile.md`). Work sessions are noticed when the app or the CLI runs.
 - **One worker loop.** The worker loop moves from `carrel-cli/src/worker.rs` into the core, so the CLI's worker and the agent run the same code.
 
 ## Building and shipping it
@@ -68,6 +70,7 @@ Each screen does what its interactive-mode counterpart does, through the same co
 - **macOS 26 and later**, Apple silicon only, like the XCFramework: Foundation Models and Liquid Glass need it, and every Mac that runs Apple's model has it.
 - **Development builds from CI:** each push to dev builds the app on a hosted macOS runner, signed ad hoc, as a zipped `.app` artifact kept for 30 days. Developer ID signing, notarization and TestFlight stay with v1.0 (#47), so there are no signing secrets in CI yet.
 - **Locally,** Xcode builds and runs it with the owner's personal team.
+- **Test builds are flagged.** Until the first stable release, the sidebar, Status and the welcome window show a flag such as "v1.0 Beta (5a81b54c1d)": the version and the git commit the build came from, so a report names the exact build. `CARREL_CHANNEL` (Beta) turns it on and `CARREL_BUILD` is the commit, which CI and `scripts/testflight.sh` pass; an Xcode build without it says "local build". `carrel --version` names the same commit, and the TUI shows the flag at the top right. A release clears `CARREL_CHANNEL`, and a version without a pre-release part has no flag in the CLI.
 - **Tests:** CarrelKit's Swift tests against the sample archive; the FFI layer's Rust tests; and UI tests for the review, correction and checkout flows against a temporary archive, run on the self-hosted runner because they need a logged-in session.
 
 ## Previews
@@ -87,8 +90,8 @@ The cache is `_System/cache.nosync/previews/`, made and read through `carrel_cor
 
 ## Not in v0.5
 
-- **Finder integration** (badges, context actions), the share sheet, Quick Look previews of cards, Spotlight and App Intents: v0.8, macOS system integration (#35).
-- **iPad and iPhone,** and iCloud with its `CloudKit` coordinator: v0.9 (#7).
+- **Finder integration** (badges, context actions), the share sheet, Quick Look previews of cards, Spotlight and App Intents: v0.7, macOS system integration (#35).
+- **iPad and iPhone,** and iCloud with its `CloudKit` coordinator: v0.8 (#7).
 - **Signed and notarized builds,** TestFlight: v1.0 (#47).
 - **Kopia bundled inside the app:** backups use the installed Kopia, as the CLI does.
 
@@ -109,5 +112,5 @@ The cache is `_System/cache.nosync/previews/`, made and read through `carrel_cor
 1. **One window per archive, a sidebar of the interactive mode's screens with a content list and an inspector,** each screen doing what its interactive-mode counterpart does through the same core functions. Recommended: the owner already knows the screens, the two can't drift apart, and it's the layout the spec and Apple's guidelines describe. The alternative is a document-style app that opens collections as windows, which suits browsing but not the queues.
 2. **The app calls the core in-process through CarrelKit's UniFFI bindings, and logic the app needs moves into `carrel-core` first.** Recommended: the proof of concept already works this way, it's fast, and the CLI and the app share one implementation. The alternative, running `carrel --json` commands, needs no bindings but parses text and can't stream progress or hold a lease.
 3. **The app runs the same provider helpers the CLI does, bundled, rather than calling Apple's models in-process.** Recommended: the same results from the app and the CLI, crash isolation, and one models folder. The cost is a helper process per provider, which the CLI already pays.
-4. **A login-item agent runs the worker, notices work sessions as they happen and shows the menu bar list, coordinating through the archive's files and writer lease, with no new protocol in v0.5.** Recommended: it's what the spec describes, it reuses coordination that already works between the CLI and its worker, and an XPC channel can be added later. The alternative is no agent until v0.8, with work sessions noticed only while something runs.
+4. **A login-item agent runs the worker, notices work sessions as they happen and shows the menu bar list, coordinating through the archive's files and writer lease, with no new protocol in v0.5.** Recommended: it's what the spec describes, it reuses coordination that already works between the CLI and its worker, and an XPC channel can be added later. The alternative is no agent until v0.7, with work sessions noticed only while something runs.
 5. **macOS 26 and Apple silicon only; ad hoc–signed development builds from CI, with Developer ID signing and notarization left for v1.0.** Recommended: Apple's model needs macOS 26, the XCFramework is Apple silicon only, and keeping signing secrets out of CI until v1.0 keeps the repository simple. The owner runs Xcode builds locally with their personal team in the meantime.

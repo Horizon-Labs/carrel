@@ -26,7 +26,7 @@ pub const AUTO: &str = "auto-generated";
 const NOTES: &str = "My notes:";
 
 /// One history entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HistoryEntry {
     /// When, as `YYYY-MM-DD`.
     pub date: String,
@@ -40,6 +40,7 @@ pub struct HistoryEntry {
     pub lines: Vec<String>,
     /// The lines it was read from, exactly, so an entry nothing changed is written back as
     /// the owner left it. Empty for a new entry.
+    #[serde(skip)]
     source: Vec<String>,
 }
 

@@ -34,6 +34,17 @@ PROFILE=dev scripts/build-xcframework.sh
 
 Then open `apple/CarrelApp/CarrelApp.xcodeproj` in Xcode and run the **Carrel** scheme (⌘R). It's signed to run on your own Mac; to sign with your own team instead, choose it under Signing & Capabilities. [The app's README](../../apple/CarrelApp/README.md) has the details.
 
+### Building it signed with your team, for iCloud
+
+An archive in iCloud Drive used from more than one device needs the CloudKit writer lock, which the agent can only hold when it's signed with your Apple Developer team and the iCloud entitlement. The build above, and CI's, are signed ad hoc and use the lock file in the archive instead, as for one device. To sign with your team, build the core for release and then the app, from the repository's folder:
+
+```bash
+scripts/build-xcframework.sh
+xcodebuild -project apple/CarrelApp/CarrelApp.xcodeproj -scheme Carrel -configuration Release -derivedDataPath target/mac-app DEVELOPMENT_TEAM=4V63YRQU43 CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" CARREL_ICLOUD=YES -allowProvisioningUpdates build
+```
+
+Use your own team's identifier for `DEVELOPMENT_TEAM`. `CARREL_ICLOUD=YES` gives the agent the iCloud entitlement for the `iCloud.me.hrose.carrel` container, and `-allowProvisioningUpdates` lets Xcode register the app's identifiers, the container and this Mac with the team the first time. The app is at `target/mac-app/Build/Products/Release/Carrel.app`; `codesign -d --entitlements - "target/mac-app/Build/Products/Release/Carrel.app/Contents/Library/LoginItems/Carrel Agent.app"` should list the container. Leave `CARREL_ICLOUD` off for an ad hoc build: macOS stops an ad hoc program that claims iCloud at launch.
+
 ### Models and Kopia
 
 The app uses the same models, providers and Kopia as the command line, and the same models folder, so a model downloaded from either is there for both. The development build doesn't carry the provider programs inside it yet. **Settings → Providers** shows which ones the app found; if it lists fewer than `carrel providers` does in your terminal, that's why.
@@ -56,19 +67,34 @@ Collections are made in the app too (see [Browse](#browse)), but their design do
 
 The window has three columns:
 
-- **The sidebar:** the screens, in the interactive mode's order, with counts beside Review, Questions, Restructure and Active: **Status**, **Review**, **Questions**, **Restructure**, **Active**, then your **Collections** (Browse), then **Discover**'s views, then **History** and **Backups**.
+- **The sidebar:** the screens, in the interactive mode's order, around what you do most: **Library**, where the window opens; **Checked Out**, while anything is checked out or on the desk; **Librarian**, with what it's asking: **Questions**, **To Approve** (proposals and the crawler's findings), **Suggestions** (restructure proposals) and **Flags**, with their counts, shown only when it's asking anything, and each row only when it has any; your **Collections** (Browse); and under **Archive**, **Status**, **History** and **Backups**. Discover's pages are views of the Library and of each collection, in the toolbar (see [Views](#views)).
 - **The list** for the chosen screen.
 - **The inspector:** the chosen thing in full, such as a proposal's card, an item's preview and card, or what a change did.
 
 Beside them, the **Librarian** panel opens on the right when you want it (see [The librarian](#the-librarian)).
 
+On iPad and iPhone the window has the same sidebar, and on iPhone the Library is the first screen. The **+** menu there adds photos, a photo you take, a scanned document, files, a web address, a note or the clipboard, and **Show Queue…** opens the Add panel.
+
 Every action is in the menus, so you can find it there and see its key. In lists, single letters work too, as in the interactive mode, where they can't be mistaken for typing. Right-click anything in a list for its actions.
+
+### Library
+
+Each archive opens on its Library:
+
+- **A line from the librarian** when it's asking anything, such as "The librarian has 1 question and 5 items for you to approve." Click a part of it to go there. It goes when nothing is asked.
+- **Collections:** each top-level collection as a cover of its newest items' thumbnails, with its title, description and how many items it holds, nested collections included. Holding comes last. Click one to open it in Browse.
+- **Recently Added:** the items filed most recently. Click one to see it in Browse.
+- **On This Day:** what you made, filed or worked on on this day in other years, when there's anything.
+
+An empty archive invites you to add: drop files on the window, or choose **+**.
+
+`carrel library` prints the same, and the interactive mode opens on it too.
 
 ### Status
 
 What the archive holds: its name and folder, whether it's read only, its format version, how many items, collections and items in Holding it has, and items by kind.
 
-**Intake** shows the worker drafting new items, with its progress, how many are waiting, and how many failed (hover over the count to see why). When items are waiting and nothing is drafting them, because the agent is off or paused, **Draft Now** drafts them in the app.
+**Adding** says in one line what's being added: the worker's progress, or how many items wait to be drafted and how many failed. **Show Queue** opens the Add panel.
 
 **Not Opened in a While** appears now and then: a collection you haven't opened in six months, with an item or two from it, as `carrel status` names it ([Discovering the archive](user-guide.md#discovering-the-archive)). Choose the collection or an item to open it in Browse, which counts as opening it.
 
@@ -90,6 +116,7 @@ Proposals waiting for your decision, grouped by the collection each would go to.
 | `h` | Hold | Files them in Holding, for later |
 | `m` | Move To… | Points them at another collection, chosen from a list you can filter by typing |
 | `r` | Reject | Leaves their files where they are and drops the proposals |
+| `d` | Draft Again | Drafts them again with the models this Mac has now, keeping what you edited, corrected or chose; offered first in the inspector when a card or collection couldn't be settled |
 | `z` | Expand When Filed, Keep Compressed | For a zip or other compressed file, whether it's expanded on approval |
 | `v` | File as Version | For a duplicate, files it as a new version of the item it duplicates |
 | `b` | Keep Both | For a duplicate, files it beside the item it duplicates |
@@ -100,7 +127,7 @@ A duplicate shows the archived item beside it in the inspector, so you can compa
 
 ### Questions
 
-Carrel asks here instead of guessing, most useful first: what a term means, where items go (alone or as a group), whether a sender or project should have its own collection, and things about a single item. Choose a question to see what it's about and the items it holds up, then:
+Carrel asks here instead of guessing, most useful first: what a term means, where items go (alone or as a group), whether a sender or project should have its own collection, and things about a single item. Choose a question to see what it's about: the item's preview, as in Browse, or a strip of thumbnails for a group, each with **Open**, and the items it holds up. A restricted item's preview waits for **Show Preview**. Then:
 
 - **Pick a suggested answer:** the likely answers come first, with why each is likely; a click answers with it. One marked "a new collection" creates it.
 - **Answer it yourself:** type what a term means, choose where items go, or say **Yes** or **No** to a sender's collection. After a sender's answer, Carrel asks before adding a routing rule for future items. An item question's answer opens the correction sheet: you see what it changes on the card, and it's saved, and the question answered, only when you confirm (**Mark Answered** when it changes nothing).
@@ -121,9 +148,9 @@ Proposals to reorganize the archive wait here, as `carrel restructure` lists the
 - **Each change,** with why it's proposed and how invasive it is, from rewriting tags and design documents (one dot) to moving top-level collections (five), the items it changes and those it leaves alone, and why. Untick a change to leave it out; one that needs it is dropped too, and the inspector says so.
 - **Approve Chosen** or **Approve All** makes the changes as one change in History, which undoes them together; **Reject** drops the proposal and changes nothing.
 
-### Active
+### Checked Out
 
-What you're working on: items **checked out** to a working copy, and folders and files **on the desk**, where they are. Each shows when it was checked out, when it's due back and whether it has changed. Under each are its **pending entries**: work sessions Carrel noticed, waiting for you to approve them into the item's Journal. See [Working on items](user-guide.md#working-on-items) for how these work.
+Shown in the sidebar while anything is checked out or on the desk (called Active in the app's links and `carrel tui active`). What you're working on: items **checked out** to a working copy, and folders and files **on the desk**, where they are. Each shows when it was checked out, when it's due back and whether it has changed. Under each are its **pending entries**: work sessions Carrel noticed, waiting for you to approve them into the item's Journal. See [Working on items](user-guide.md#working-on-items) for how these work.
 
 | Key | Active menu | What it does |
 | --- | --- | --- |
@@ -153,10 +180,11 @@ With no item chosen, the inspector shows the **collection**: what it holds, and 
 | --- | --- | --- |
 | Edit Card | ⌘E | Edits the chosen item's card in the inspector: every field you set, links, location, URL and snapshots among them where the kind has them, and its notes and body too. Saving (⌘S) runs the same checks `carrel edit` does, and shows problems beside the field. A field saved another way meanwhile is kept unless you changed it too; then nothing is saved: **Keep Mine** saves yours over it, and **Reload** takes the card as it is now. If the notes were saved another way meanwhile, on the same lines, **Keep Both** puts both versions in the editor to tidy and save, and **Reload** takes the card as it is now |
 | Correct… | ⌘K | Opens a sheet: say what's wrong in your own words, such as a title, a date or where it belongs. The model works out the changes, you see them, then confirm or change your words |
-| Check Out… | ⌥⌘C | As on [Active](#active) |
+| Check Out… | ⌥⌘C | As on [Checked Out](#checked-out) |
 | New Collection… | ⌥⌘N | Asks for its path, what belongs there and its tags; it's made inside the collection you're in |
 | Rename… | ⇧⌘R | Renames the item, starting from a name that works on every system |
 | Expand… | ⇧⌘E | For a filed zip or other compressed file, asks first, then expands it in place |
+| Flag… / Unflag | | Flags the item as needing work, with a few words saying what, or clears its flag ([Flagging what needs work](user-guide.md#flagging-what-needs-work)). A flagged item carries a flag in the list and the grid, and **Flagged** in the sidebar lists everything flagged. A collection's are in its context menu in the sidebar and in the inspector. After you edit or correct a flagged card, Carrel offers to clear its flag. **Needs Work** under a flagged item's card shows what the librarian made of it: its question to answer, its fixes to accept (which clears the flag), or why it can't help, with **Report to Development…** when Carrel is missing something, and **Ask the Librarian Now** or **Look Again**. The agent hands waiting flags to the librarian when the Mac is idle |
 
 Edit Card and Correct… are in the Edit menu; New Collection, Rename and Expand in the File menu; Check Out in the Active menu. They're also in each item's context menu, with **Ask About This** (⇧⌘L), which asks [the librarian](#the-librarian). ⌘K works on a proposal in Review too.
 
@@ -180,7 +208,8 @@ The **Librarian** panel answers questions about your archive in your own words, 
 
 - **Ask:** type a question and press Return (or ⌘Return). While it works, the panel shows its steps ("Step 2 of up to 8 · searched…"). Each question can build on the ones before.
 - **Each answer** lists the **Items** it's about, the **Passages** it read, quoted from the items, and its **Suggestions**. Choose an item or a passage's title to show the item in Browse; hover over an item for its card's path. Under the answer is the model that gave it and how many steps it took, and hovering there lists each step.
-- **Ask About This** (⇧⌘L, in the View menu, an item's context menu, and on a wander step) opens the panel with a question about the chosen item, for you to finish and ask.
+- **About what's in view:** while the panel is open, a chip above the question field says what your questions are about ("About: Receipts 2023"): the chosen item, else the collection or Discover page shown. It follows what you choose, so "is this in the right place?" means the item in front of you; the librarian has its card and its collection's design document from the start. **✕** on the chip asks about the whole archive, until you choose something else.
+- **Ask About This** (⇧⌘L, in the View menu, the context menu of an item or a collection, a collection's inspector, and on a wander step) opens the panel about it.
 - **Save to Journal** in the panel's toolbar writes the conversation to this month's Journal, as one change in History; the panel says where. **New Conversation** starts again. A conversation you don't save is gone when you start a new one or close the window, and nothing about it is written into the archive.
 - **Which model:** the line under the question field names the model that answers, and whether the librarian only suggests changes or may make them. Choose a model in **Settings → Models → Librarian**.
 
@@ -190,14 +219,13 @@ With `librarian.changes` on in **Settings → General**, it makes the changes it
 
 A **restricted** item is found by its card only: the librarian can say it exists, but never reads or quotes its text.
 
-### Discover
+### Views
 
-The **Discover** section of the sidebar has the discovery views ([Discovering the archive](user-guide.md#discovering-the-archive)). Choose an item in any of them to see its preview and card in the inspector; its context menu has **Show in Browse** and **Ask About This**.
+The Library and every collection have a **view switcher** in the toolbar, as Finder's and Photos' view modes are ([Discovering the archive](user-guide.md#discovering-the-archive)): **Covers** (the Library's own), **Items** (a collection's own, as a list or a grid; every item in the Library), **Timeline**, **Map**, **Connections** and **Activity**. In a collection, each looks only at that collection and those inside it. The app remembers the last view of the Library and of each collection. **Wander** beside the switcher starts a walk from a random item there. Choose an item in any of them to see its preview and card in the inspector; its context menu has **Show in Browse** and **Ask About This**.
 
-- **On This Day:** what was made, filed or worked on on today's date in other years, by year. The date picker in the toolbar looks back from another day.
 - **Wander:** a walk through the stacks, one item at a time: its title, why it came next, its preview, its card's summary, the start of its text and its tags, with **Show in Browse** and **Ask About This**. **Next** (→) takes the next step, and **Start Again** starts a new walk. The items visited so far are along the bottom, to go back to. A restricted item shows its card only.
 - **Timeline:** items by date, newest period first, each period with a bar for how many it has. Type words or search's filters, such as `tag:receipts after:2024`, and press Return; **By** places items by when they were made, filed or worked on, and **Per** groups them by year, month or day. Below, it says how many items have no such date.
-- **Archive Map:** collections as a treemap, each sized by how much space it takes or how many items it holds (**Measure** in the toolbar). Hover for a collection's items and size. Click one to zoom into it (or, with nothing inside, to show it in Browse), and double-click to show it in Browse; the path above the map takes you back out.
+- **Map:** collections as a treemap, each sized by how much space it takes or how many items it holds (**Measure** in the toolbar). Hover for a collection's items and size. Click one to zoom into it (or, with nothing inside, to show it in Browse), and double-click to show it in Browse; the path above the map takes you back out.
 - **Activity:** when you filed and worked on things over the last year, as a heatmap, a column a week, darker for busier days. Hover over a day for what happened on it.
 - **Connections:** the tag and link graph, drawn: collections round a circle, sized by how many items they hold, with a line between two as thick as what ties their items (shared tags, links, and days you worked on both). A dashed line joins a collection to one inside it. Click a collection to see only its connections, or choose a connection in the list for why they connect and the items that tie them, each a click from Browse. `carrel discover graph` lists the same.
 
@@ -226,11 +254,17 @@ What `carrel backup` does (see [Backups](user-guide.md#backups)), using the Kopi
 
 ## Adding items
 
-Drag files or folders onto an archive's window, or choose **File → Add to Archive…** (⌘O). They join the intake queue, just as `carrel ingest` adds them. Nothing moves yet.
+Adding is something you switch on, not a place to go. **+** in the toolbar, or **File → Add Items…** (⌘N), opens the **Add panel**: **Files and Folders…**, **Web Address…**, **Note…** and **From the Clipboard**, and below them the intake queue. The queue shows the worker drafting new items, with its progress, how many are waiting, and how many failed (hover over one to see why); right-click an entry to try it again, move it to the front or remove it. When items are waiting and nothing is drafting them, because the agent is off or paused, **Draft Now** drafts them in the app.
 
-- A **folder** goes in as one item. For a pile such as Downloads, where each file should be its own item, choose the files inside it, or use `carrel ingest --each`.
+Drag files or folders anywhere onto an archive's window, or choose **File → Add to Archive…** (⌘O). A sheet lists them, with a **note** for their cards (given to the model drafting each one, and kept in the card) and, for folders, how they go in. **Add** (Return) puts them in the intake queue, just as `carrel ingest` adds them. Nothing moves yet.
+
+- A **folder** goes in as one item unless its name suggests a pile, such as Downloads, whose entries go in one by one. The sheet's **Folders** menu chooses either way, as `carrel ingest --each` and `--whole` do.
+- **File → Add Web Address…** (⇧⌘U) adds a web address, with an optional title and note, filed as a `url` item: a card with no file, drafted from the address and title alone. Nothing is fetched.
+- **File → Add Note…** (⌃⌘N) adds a note you write, with an optional title, as an item of its own: a Markdown file named by its title or first words.
+- **Paste** onto the window (⌘V), or choose **File → Add from Clipboard** (⇧⌘V): files and folders open the add sheet, a web address Add Web Address and text Add Note, filled in for you to add.
+- While **another device is the writer**, what you add goes into this Mac's inbox, and the alert says so; that device adds it to its queue.
 - An alert says what was added, and what was left out and why: duplicates of items already in the archive, items already waiting, files your rules ignore.
-- **Drafts arrive by themselves.** The agent, or the command line's worker, drafts each item in the background; Status → Intake shows the progress. Each proposal appears in Review as soon as it's ready, with the count beside Review going up. If nothing is drafting, Status offers **Draft Now**.
+- **Drafts arrive by themselves.** The agent, or the command line's worker, drafts each item in the background; the Add panel shows the progress, and Status says it in a line. Each proposal appears in Review as soon as it's ready, under Waiting in the sidebar, with its count going up. If nothing is drafting, the Add panel offers **Draft Now**.
 
 ## The background agent
 
@@ -247,7 +281,7 @@ It looks after the archives the app has open or opened lately.
 
 Turn it on in **Settings → Agent** with **Run the Carrel agent at login**. It starts at once, and at every login after. macOS may ask you to allow it: Settings then says so, with a button to open System Settings → General → Login Items, where you switch it on. Turn the switch off to stop it and keep it from starting at login.
 
-With the agent off, the app drafts new items while it's open (Draft Now on Status), as the command line does, and work sessions are noticed when the app or the command line runs.
+With the agent off, the app drafts new items while it's open (Draft Now in the Add panel), as the command line does, and work sessions are noticed when the app or the command line runs.
 
 ### The menu bar list
 
@@ -270,6 +304,24 @@ The command line has its own agent, [`carrel agent`](user-guide.md#keeping-work-
 
 While either agent runs, `carrel ingest` and the interactive mode start no worker of their own: the agent drafts what they add.
 
+## Quick Look
+
+Press Space on a card in Finder to see it as the app's inspector shows it: its title, summary, collection and tags, fields, notes and history. A restricted item's card shows its title only, with "Restricted: open in Carrel to see it". A Markdown file that isn't a card shows as its text.
+
+Carrel's own drawings of STEP, IGES and 3MF models show in Quick Look and Finder's previews too. The agent keeps them, so they appear for items in the archives it looks after, once it has drawn them, and never for restricted items. Drawing STEP and IGES needs the CAD provider ([3D models](../design/models-3d.md)).
+
+## Spotlight
+
+While the agent runs, Spotlight finds what's in the archives it looks after: each item's card (its title, summary, tags, collection, dates and kind), the collections and the glossary's facts. Choosing a result opens the item, or the archive, in Carrel. Spotlight already finds the files themselves where macOS can read them.
+
+Anyone using your Mac sees Spotlight, so **Settings → General → Spotlight finds** (`spotlight.index`) says how much goes in:
+
+- **standard,** the default: public and personal items in full, sensitive items by title only;
+- **all-but-restricted:** every item in full but restricted ones;
+- **off:** nothing.
+
+Restricted items are never in Spotlight. The index stays current as items are filed, edited and moved, and an archive's entries are removed when the agent stops looking after it, or when you turn the setting off.
+
 ## Working alongside the command line and the interactive mode
 
 The app, `carrel` and its interactive mode are three ways into the **same archive**, through the same core. Use whichever suits the moment; you can have all three open on one archive at once.
@@ -278,5 +330,7 @@ The app, `carrel` and its interactive mode are three ways into the **same archiv
 - **One writer at a time.** Only one program changes the archive at any moment: it holds the [writer lock](user-guide.md#writing-safely) while it writes, usually for a moment. If the app can't take it, because the command line is filing a batch say, it tells you who holds it; try again when that's done.
 - **One history.** Every change, from any of them, is in History, with the device it was made on, and can be undone from any of them.
 - **This Mac's settings are shared.** The app reads and writes the same configuration folder as `carrel`, so the models, backups and this device's preferences are the same in both. The app keeps its own list of recent archives.
+
+`carrel gui` opens the app from the command line, on the archive `carrel` would use, and `carrel gui SCREEN` on one screen, such as `carrel gui questions` or `carrel gui discover:wander`, with the names `carrel tui SCREEN` uses ([Commands](commands.md#the-interactive-mode)). `--item ITEM` chooses an item too.
 
 Some things are only in one interface for now, and some always will be, such as `carrel bench`; [Interfaces](../dev/interfaces.md) lists where each capability stands.

@@ -1,5 +1,6 @@
 // The window shown when no archive is open: create or open one, or pick a recent one.
 
+#if os(macOS)
 import CarrelKit
 import SwiftUI
 
@@ -20,6 +21,9 @@ struct WelcomeView: View {
                     .accessibilityHidden(true)
                 Text("Carrel").font(.largeTitle.bold())
                 Text(versionSummary()).font(.callout).foregroundStyle(.secondary)
+                if let build = BuildInfo.label {
+                    Text(build).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                }
                 VStack(alignment: .leading, spacing: 8) {
                     Button("New Archive…", systemImage: "plus") {
                         app.chooseNewArchive(then: show)
@@ -63,3 +67,4 @@ struct WelcomeView: View {
         dismissWindow(id: Self.windowID)
     }
 }
+#endif

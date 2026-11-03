@@ -2,6 +2,8 @@
 
 How Carrel works, and how to use each part of it. If you haven't used Carrel yet, start with [Getting started](getting-started.md); every command and key is in [Commands](commands.md). The Mac app, its screens and its agent are in [The Mac app](mac-app.md).
 
+`carrel tui` opens the interactive mode in the terminal (so does `carrel` alone), and `carrel gui` opens the Mac app on the same archive. Both take a screen to start on, by the same names: `carrel tui questions`, `carrel gui discover:wander` ([Commands](commands.md#the-interactive-mode)).
+
 ## The archive
 
 An archive is an ordinary folder. Everything in it is readable without Carrel: in Finder, in a text editor, or as an [Obsidian](https://obsidian.md) vault. Carrel's own data lives in `_System/`.
@@ -49,7 +51,7 @@ Models read Purpose and scope, and Not here, before filing anything, so these ar
 
 Ingest is how files come into the archive. It never moves anything until you approve, and on approval it moves the original in, unless you set originals to be kept (see [Settings](#settings)).
 
-1. **Choose files:** `i` in the interactive mode (with your file picker or the built-in browser), or `carrel ingest PATH...` in the shell. A folder is one item, unless you ask for each entry (`--each`, or `e` in the plan). A folder named like a pile (Downloads, Desktop, Inbox) makes you choose.
+1. **Choose files:** `i` in the interactive mode (with your file picker or the built-in browser), or `carrel ingest PATH...` in the shell. A folder is one item, unless you ask for each entry (`--each`, or `e` in the plan). A folder named like a pile (Downloads, Desktop, Inbox) makes you choose. A web address goes in as a `url` item (`carrel ingest --url`, or typed on the interactive mode's Ingest line), and a note you write as an item of its own (`carrel ingest --text`, or `a` on the Ingest screen).
 2. **The plan** shows what will be added, its kind and size, and what's left out: duplicates of items already in the archive or of each other, items already waiting for review, files your rules ignore. `--dry-run` shows only the plan.
 3. **The queue:** each item waits in `_System/queue/intake/` until a **worker** drafts it. The worker runs in the background, one item at a time, and keeps going after you close the terminal. If it's stopped, it picks up where it left off the next time anything is added (or when you run `carrel worker`). `carrel ingest --status`, or the interactive mode's Ingest screen, shows what's waiting and what failed.
 4. **Drafting each item:** the worker reads the item's text (PDF text, OCR for scans, for images what they show, and for 3D models their shape; see [Images](#images) and [3D models and CAD files](#3d-models-and-cad-files)), drafts its card with a model (title, summary, tags, dates), chooses a collection, and rates how sensitive it is. The proposal is saved as soon as it's ready, and appears in Review.
@@ -116,6 +118,12 @@ A model's file name often says little (`part_v3_final.stl`), so Carrel looks at 
 - **Dates:** when the model gives none, the date the file was exported becomes the card's **created** date.
 - **Thumbnails:** a 3MF's thumbnail is described like an image on a Mac. The drawings and thumbnails aren't kept.
 
+### When Carrel isn't sure what an item is
+
+Sometimes an item could be one of several things: `cognitogram_keychain_plate copy.stl` might look like a fish to a model, though its name says it's a keychain plate. The model then offers two or three readings, each with why it read the item that way, and the most likely one fills the card. When the item's file name, folder or text fits one reading and not another, the one that fits goes first, the proposal's confidence drops, and a question asks what the item is, with the readings to pick from.
+
+To use another reading, press `p` and its number in Review, choose Use This Reading in the app's inspector, or run `carrel review pick ID N`. Its title, summary and tags replace the card's, as one correction you see before it's saved.
+
 ### Correcting a card
 
 When a card is wrong, say what's wrong: `c` on a proposal in Review or on an item in Browse, or `carrel review correct ID "…"` and `carrel correct ITEM "…"`.
@@ -161,7 +169,7 @@ Apple's on-device model has safety filters that sometimes refuse documents, ofte
 
 ## Reviewing
 
-Review is where proposals become filed items. In the interactive mode (`2`), each proposal shows the card it would write, the destination with its confidence and reasons, its sensitivity and why, and anything left to settle.
+Review is where proposals become filed items. In the interactive mode (**To Approve**, `4`), each proposal shows the card it would write, the destination with its confidence and reasons, its sensitivity and why, and anything left to settle.
 
 | Decision | Key | Command |
 | --- | --- | --- |
@@ -171,6 +179,9 @@ Review is where proposals become filed items. In the interactive mode (`2`), eac
 | Change the card first | `e` | `carrel review edit ID` |
 | File it in Holding | `h` | `carrel review hold ID` |
 | Leave the file where it is | `x` | `carrel review reject ID` |
+| Draft it again with the models here now | `d` | `carrel review redraft ID`, or `--all-failed` |
+
+A proposal drafted while no text model could be reached, or whose models all failed, is marked **draft again?**: once a model is there, `d` (Draft Again in the Mac app) drafts its card, collection and sensitivity again. It stays the same proposal, and whatever you edited, corrected or chose is kept. Without a model, it says which one to download.
 
 Mark several with `Space` to decide them together, or approve every high-confidence, non-sensitive proposal with `A`. Each batch you approve is one change in history, with one backup snapshot.
 
@@ -196,7 +207,7 @@ Editing opens the card's fields in your editor. When you save, Carrel checks the
 
 ## Questions and the glossary
 
-Questions are where you teach Carrel what it can't know. When several items share something it doesn't know, such as a project's code name in their file names, it asks one question instead of guessing on each. Questions wait on the Questions screen (`4`), in `carrel questions`, or on the Mac app's Questions screen, the most worth answering first: those whose answer would place or improve the most items Carrel is least sure of. Each shows the items it's about, and likely answers to pick by number, beside your own answer, Skip and Dismiss.
+Questions are where you teach Carrel what it can't know. When several items share something it doesn't know, such as a project's code name in their file names, it asks one question instead of guessing on each. Questions wait on the Questions screen (`4`), in `carrel questions`, or on the Mac app's Questions screen, the most worth answering first: those whose answer would place or improve the most items Carrel is least sure of. Each shows the items it's about, with where each one is and, in the Mac app and in terminals that draw images, a preview of it (a restricted item's only when you ask for it, in the Mac app), and likely answers to pick by number, beside your own answer, Skip and Dismiss.
 
 - **A term** ("What is “scope-ds”?"): answer in a sentence. Carrel saves it to `_System/glossary.md`, which every model reads from then on, and puts the waiting items back at the front of the queue, so the worker drafts them again with what you said.
 - **A collection or a group** ("These 12 items about “Daves Chicken”: Finances, or a new Finances/Daves Chicken collection?"): pick or choose a collection, and the waiting items go there. Picking a new collection creates it; typing one that doesn't exist needs `--create` on the command line.
@@ -216,21 +227,22 @@ The Mac app's Questions screen does all of this too ([The Mac app](mac-app.md#qu
 Carrel also asks about items at natural moments, never in a pop-up, and an answer always goes through the same correction, shown before it's saved, with the fields you wrote yourself kept:
 
 - **Beside an item in Browse:** under **Carrel asks** above its card; `a` answers it. `carrel show` lists the same questions, and `carrel questions about ITEM` adds them to the queue.
-- **On a wander:** now and then a step asks about its item, at most every three steps and never on the first; `a` answers it in Discover, and `carrel discover wander` prints it with the command that answers it.
+- **On a wander:** now and then a step asks about its item, at most every three steps and never on the first; `a` answers it on the wander, and `carrel discover wander` prints it with the command that answers it.
 - **From the librarian:** when an item it found has a question, it asks after its answer ("While we're here…"), at most once an answer, never after two answers in a row, and never twice about the same item in a conversation. `a` answers it on the Librarian screen; in a conversation at the terminal, `carrel ask` asks for your answer there (a number picks a suggestion, an empty line leaves it for later).
 - **On Status:** at most three new questions a day, the same all day, chosen from all over the archive; they join Questions, and drop off Status once answered or skipped.
 
-The Mac app asks them in the same places: under **Carrel Asks** below an item's card in the inspector, on a wander step in Discover, in the Librarian panel and under **Today's Questions** on Status.
+The Mac app asks them in the same places: under **Carrel Asks** below an item's card in the inspector, on a wander step, in the Librarian panel and under **Today's Questions** on Status.
 
 A question you skipped rests and one you declined is never asked again, wherever it would have come up.
 
 ## Finding things
 
+- **The Library** is where the interactive mode and the apps open: what the librarian is asking, in one line such as "The librarian has 1 question and 5 items for you to approve.", each top-level collection with how many items it holds (Holding last), the items you added most recently and On This Day. `Enter` (or a click) opens a queue, a collection or an item. `carrel library` prints the same.
 - `carrel search WORDS` finds items by what's in their cards and their contents, and by what they mean (below).
 - **Browse** (`5`) lists collections and their items, with each card in full. `/` searches the whole archive the way `carrel search` does, filters and all (below).
 - **An item's view:** below its card, Browse lists every change that touched the item, newest first, from its filing to its latest correction or return, then under **Related** the items its card links to (`version-of`, `related`, `part-of`) and the five items nearest it by meaning (`near`; see [Related items](#related-items)). `Enter` on an item moves into its view: `u` undoes the chosen change (after asking, as History does), `Enter` on a related item goes to it, and `←` or `Esc` go back.
 - **Previews:** in a terminal that draws images, Browse shows the chosen item beside its card (above it when the terminal is narrow): Kitty, WezTerm and Ghostty through the Kitty graphics protocol, iTerm2 through its inline images, and foot, mlterm, Konsole, Windows Terminal and contour through Sixel. Carrel recognises the terminal when it starts. Elsewhere, and inside tmux or screen, Browse looks as it always has. Images show directly; PDFs, documents and 3D models show the thumbnails and drawings cached on this device (`_System/cache.nosync/previews/`, the Mac app's too), and a folder shows what's in it as text. PNG, JPEG and TIFF images show in every one of them, from a thumbnail Carrel makes and caches; another kind of image, such as HEIC or WebP, shows only in iTerm2 until a thumbnail of it is cached. The card always draws first; previews are made in the background and never written into the archive itself. A restricted item shows its card only. Turn previews off with `carrel settings set previews off`, or name the protocol (`kitty`, `iterm2` or `sixel`) for a terminal Carrel doesn't recognise.
-- **Recent**, on the Status screen (`1`) and in `carrel status`, lists the last ten things filed, changed or worked on across the archive: each recorded change, and each approved work session on the day it happened.
+- **Recent**, on the Status screen (`6`) and in `carrel status`, lists the last ten things filed, changed or worked on across the archive: each recorded change, and each approved work session on the day it happened.
 - `carrel show ITEM` prints a card, the items related to it (its links, and those nearest it by meaning), and the changes that touched it, each with the identifier `carrel undo` takes.
 - `ARCHIVE.md` and each collection's design document end with a generated list of its contents, so the archive is browsable in Finder or Obsidian too.
 - **From Neovim or Emacs:** `:CarrelSearch` and `M-x carrel-search` search the same way and open what you choose; `:CarrelShow` and `M-x carrel-show` show the card of the file you're in. See [Neovim and Emacs](editors.md).
@@ -252,6 +264,7 @@ Filters narrow the items found, and can be used with words or alone:
 | `before:2026` | Dated before that year, month or day |
 | `sensitivity:sensitive` | At that level |
 | `checked-out` | Checked out now |
+| `flagged` | Flagged as needing work ([Flagging what needs work](#flagging-what-needs-work)) |
 
 A value with spaces goes in quotes: `collection:"Tax returns"`. `carrel search tag:receipts after:2025` lists every receipt since 2025, newest first.
 
@@ -302,6 +315,7 @@ Search is for you alone, so sensitive and restricted items come back like any ot
 The **librarian** answers questions about what's in your archive, in plain words: "what do I have about the lamp build?", "what did I work on last spring?", "what does the lease say about notice?". It runs on a text model on this device and reads the archive through the same search, cards, related items and history you use, so nothing leaves the device.
 
 - `carrel ask "…"` gives one answer. `carrel ask` alone starts a conversation: type a question per line, and an empty line ends it. Each question can build on the ones before.
+- **About something in particular:** `carrel ask --about "Receipts 2023" "is anything missing here?"` asks about a collection, and `--about` with an item's identifier, card or title about the item, so "this" and "here" mean it. The librarian starts with its card and its collection's design document, or the collection's. The Librarian screen and the Mac app's panel take what's in view, as below.
 - Each answer comes with the **items** it's about, as card paths you can open, and the **passages** it used, quoted word for word from the items. It ends with the model that gave it and how many steps it took.
 - It answers first, then often offers something you didn't ask for: a related item, a collection you haven't opened in a while, or a gap ("you have the 2023 and 2025 statements but not 2024").
 - **Restricted items are found by their card only,** as search finds them: the librarian can tell you a restricted bank statement exists, but it never reads or quotes what's in it. Sensitive items are read like any other, since everything stays on this device.
@@ -328,12 +342,13 @@ Along the way the librarian notices things that could be better: a receipt in th
 
 In the interactive mode, `L` opens the **Librarian** screen: the conversation on the left, and on the right the item it's discussing, with its preview where the terminal draws one.
 
+- `L` from Browse, Questions or a view brings what's in view there: the chosen item, the collection while you're choosing among them, the item a question is about, or the Discover view. It's shown above the conversation ("About: Hardware"), and your questions are about it; `x` asks about the whole archive again.
 - `Enter` asks a question. While the librarian works, the help line shows its steps. Each answer shows the passages it read and the model that gave it; under it are the items it found and the changes it suggests, to choose with `↑↓`. The chosen item's card is on the right, and `o` opens it in Browse.
 - With `librarian.changes` off, `y` makes the chosen suggestion through the usual steps: a refile or a correction is shown before and after and saved only on your yes, and a rename or a new collection asks first. Each is your own change.
 - With it on, the changes it made are listed under **The librarian's changes this week**: `u` undoes the chosen one and `U` all of them, after asking.
 - `s` saves the conversation to the Journal, and `n` starts a new one; an unsaved conversation is gone when you leave.
 
-In the Mac app, the **Librarian** panel sits beside the window (⌥⌘L), and **Ask About This** (⇧⌘L) asks about the chosen item; each suggestion opens the sheet that makes it, and the librarian's own changes can be undone there, on Status and in History (see [The Mac app](mac-app.md#the-librarian)).
+In the Mac app, the **Librarian** panel sits beside the window (⌥⌘L), and a chip says what your questions are about, following what you choose, and **Ask About This** (⇧⌘L) asks about an item or a collection; each suggestion opens the sheet that makes it, and the librarian's own changes can be undone there, on Status and in History (see [The Mac app](mac-app.md#the-librarian)).
 
 ## Discovering the archive
 
@@ -347,9 +362,11 @@ Search finds what you ask for. Discovery shows you the archive itself, so you co
 - **The graph** (`carrel discover graph`): which collections connect and why, strongest first. Two items are tied by the tags they share (a tag on fewer items ties them more), the links between them, and the days both were worked on; two collections are tied by all their items' ties. Each connection says how many pairs of items it has, and its links, days and tags. `--items` lists the strongest ties between items in different collections instead, and `-n N` lists `N` (10 by default).
 - **Resurfacing:** now and then, `carrel status` names a collection you haven't opened in six months, with an item or two from it. It names the same one all day, then none for a week. Showing an item in it (`carrel show`, or a wander step) counts as opening it.
 
-In the interactive mode, `D` opens the **Discover** screen, with a key for each view: `d` on this day, `w` wander (`Space` takes the next step, `n` starts another walk, `o` opens the item in Browse; the item's preview is beside it where the terminal draws one), `t` the timeline (`p` changes between months, days and years), `m` the archive map as a sized tree, `h` activity as a block heatmap, and `g` the graph's strongest connections, as `carrel discover graph` lists them (`c` switches between collections and items). Status shows the resurfaced collection, and showing an item in Browse counts as opening its collection.
+These are views of the archive, as Finder's and Photos' view modes are: the Library and every collection have **Timeline**, **Map**, **Connections** and **Activity**, each looking only inside the collection, and the Library's covers show **On This Day**. **Wander** starts from a random item in the Library or the collection. `carrel discover map`, `activity`, `graph` and `wander` take `--in COLLECTION` for a collection's view, and the timeline `collection:` as search does.
 
-In the Mac app, the views are in the sidebar's **Discover** section: wander with each item's preview, the archive map as a treemap, activity as a heatmap, **Connections**, the graph drawn as collections round a circle with a line between two as thick as their ties, and Status's **Not Opened in a While** (see [The Mac app](mac-app.md#discover)).
+In the interactive mode, `v` on the Library, or on a collection in Browse, cycles through its views and `Esc` goes back; on them, a key shows each: `d` on this day, `w` wander (`Space` takes the next step, `n` starts another walk, `o` opens the item in Browse; the item's preview is beside it where the terminal draws one), `t` the timeline (`p` changes between months, days and years), `m` the archive map as a sized tree, `h` activity as a block heatmap, and `g` the graph's strongest connections, as `carrel discover graph` lists them (`c` switches between collections and items). Status shows the resurfaced collection, and showing an item in Browse counts as opening its collection.
+
+In the Mac app, the views are in the toolbar's view switcher on the Library and each collection, and the app remembers each one's last: wander with each item's preview, the archive map as a treemap, activity as a heatmap, **Connections**, the graph drawn as collections round a circle with a line between two as thick as their ties, and Status's **Not Opened in a While** (see [The Mac app](mac-app.md#views)).
 
 Which collections you opened, and your last walk, are kept on this device (see [What Carrel keeps on this device](#what-carrel-keeps-on-this-device)), never in the archive: looking around never changes it. A collection this device has never opened counts as last seen when something in it was last filed or worked on.
 
@@ -362,7 +379,7 @@ Most items are filed and left alone, but some are still being worked on: a proje
 - **The desk** is for things you work on where they are, without archiving them yet: `carrel desk add PATH` writes a card beside the file or folder, drafted by your text model as ingest would, and nothing inside it is changed or moved. When it's done, `carrel desk archive PATH` queues it for ingest: you review its proposal as usual, and the card it had on the desk, history and all, goes into the archive with it. `carrel status` suggests folders on your Desktop or in `~/Code` that look like work in progress, and desk items you haven't touched for 60 days.
 - **Work sessions:** Carrel notices work on checked-out and desk items and adds a pending history entry for each finished stretch of it; see [Work sessions](#work-sessions). Approve, edit, combine or drop them with `carrel sessions`, or on the Active screen.
 
-The **Active** screen (`3`) lists what's checked out and what's on this device's desk, each with its pending entries under it. The chosen item's details are on the right: where the working copy is, when it was checked out and is due, what has changed, and its pending entries, numbered.
+The **Checked Out** screen (`2`, called Active in `carrel tui active` and the app's links) lists what's checked out and what's on this device's desk, each with its pending entries under it. The chosen item's details are on the right: where the working copy is, when it was checked out and is due, what has changed, and its pending entries, numbered.
 
 - `r` returns the chosen checkout, after showing what changed; `x` cancels it, after asking.
 - `o` opens the working copy (or the desk item) in Finder, or in the app its type opens with, and leaves the interactive mode as it is.
@@ -389,10 +406,10 @@ Returning an item lists its session snapshots. Once the item is back, Carrel sna
 Without the [Mac app](mac-app.md#the-background-agent), work is noticed when `carrel` runs, at most every five minutes. **`carrel agent`** does in the background what the Mac app's agent does, on macOS, Linux and Windows. It drafts the queue as soon as something is added, keeps the meaning index current when filed items change, records work sessions as soon as they finish (once a working copy has been idle for `sessions.idle_minutes` and a minute more), and takes a snapshot every day once backups are set up. A snapshot that fails, say because the drive isn't plugged in, is tried again within the hour. The agent hears changes as they happen through the operating system's file events. For archives on network drives, which may not send them, `--poll` has it look every few seconds instead.
 
 - `carrel agent [ARCHIVE...]` runs it in the terminal until you press Ctrl-C, writing a line for each thing it does. With no archives it uses the one found as for any command.
-- `carrel agent install [ARCHIVE...]` starts it at log-in, and now. It writes one file and says which: on macOS a launchd user agent, `~/Library/LaunchAgents/io.github.hannaharose.carrel.agent.plist`; on Linux a systemd user service, `~/.config/systemd/user/carrel-agent.service`; on Windows a Task Scheduler task, "Carrel Agent", made from `carrel-agent.xml` in Carrel's folder. It runs the `carrel` you installed it with, with the `PATH` you installed it from, so it finds Kopia and the providers as your terminal does. Run it again after moving `carrel`, or to change the archives.
+- `carrel agent install [ARCHIVE...]` starts it at log-in, and now. It writes one file and says which: on macOS a launchd user agent, `~/Library/LaunchAgents/me.hrose.carrel.agent.plist`; on Linux a systemd user service, `~/.config/systemd/user/carrel-agent.service`; on Windows a Task Scheduler task, "Carrel Agent", made from `carrel-agent.xml` in Carrel's folder. It runs the `carrel` you installed it with, with the `PATH` you installed it from, so it finds Kopia and the providers as your terminal does. Run it again after moving `carrel`, or to change the archives. On a Mac, it and `carrel agent uninstall` also remove an agent installed before 1.0.0-rc.2, under its old name (`io.github.hannaharose.carrel.agent.plist`), so only one runs.
 - `carrel agent status` says whether it's installed, for which archives, and whether an agent looks after each one now.
 - `carrel agent uninstall` stops it and removes exactly the file or task `install` made.
-- In the interactive mode, Settings' **Agent** row (`8`) shows the same: whether it's installed, as what, its file, and whether an agent looks after this archive now. `Enter` installs it for this archive, keeping the archives it already looks after, and `x` uninstalls it. Both ask first, then say exactly what they wrote or removed.
+- In the interactive mode, Settings' **Agent** row (`9`) shows the same: whether it's installed, as what, its file, and whether an agent looks after this archive now. `Enter` installs it for this archive, keeping the archives it already looks after, and `x` uninstalls it. Both ask first, then say exactly what they wrote or removed.
 
 There's one agent per archive on each device. While the Mac app's agent looks after an archive, `carrel agent` steps aside and says so, and takes over within a minute once the app's agent stops. While either one runs, `carrel ingest` and changes to filed items start no worker of their own, and `carrel ingest --status` says the agent drafts the queue. Its log is `workers/agent.log` in Carrel's folder on macOS and Windows; on Linux, `journalctl --user -u carrel-agent` shows it.
 
@@ -411,7 +428,7 @@ The `reminders` setting (`carrel settings set reminders idle,weekly,due-date,men
 
 Every change Carrel makes to the archive is recorded: filing a batch, renaming, creating a collection, changing a shared setting, answering a term question. History is a Git repository in `_System/history.git` holding the cards and documents, not the files themselves (backups have those).
 
-- **History** (`6`) or `carrel log` lists changes, newest first.
+- **History** (`7`) or `carrel log` lists changes, newest first.
 - `u` on a change, or `carrel undo CHANGE`, reverses it with a new change: files it moved go back, and cards and documents return to how they were. The change that created the history can't be undone.
 - Changes the librarian made on its own are marked **by the librarian**; `carrel undo --librarian SINCE` undoes them all together (see [What the librarian may change](#what-the-librarian-may-change)). The crawler's are marked **by the crawler**, and `carrel crawl undo SINCE` undoes them (see [The crawler](#the-crawler)).
 - A restructure, a tag proposal approved, or a collection's eagerness set is one change too, undone the same way (see [Reorganizing the archive](#reorganizing-the-archive)).
@@ -419,11 +436,25 @@ Every change Carrel makes to the archive is recorded: filing a batch, renaming, 
 
 ### Writing safely
 
-Only one program changes an archive at a time: it holds the **writer lock** (`_System/writer.lock`) while it writes, and `carrel status` shows who holds it. A lock file is only safe while one device uses the archive, so Carrel warns when the archive is in iCloud Drive, Dropbox, OneDrive or Google Drive. Syncing between devices comes with the Mac app's CloudKit lock (v0.9).
+Only one program changes an archive at a time: it holds the **writer lock** (`_System/writer.lock`) while it writes, and `carrel status` shows who holds it. A lock file is only safe while one device uses the archive, so Carrel warns when the archive is in iCloud Drive, Dropbox, OneDrive or Google Drive. Syncing between devices comes with the Mac app's CloudKit lock (v0.8).
 
 ### Names that work everywhere
 
 `carrel status` lists names that won't work on every system: characters Windows forbids (`: ? * |`), reserved names like `CON`, trailing dots or spaces, or two names that differ only in case. `carrel rename ITEM` renames an item and its card to the suggested portable name, and updates links to it; give a name after it to choose your own. In Browse, `r` on an item does the same, starting from the suggested name, and asks first. Ingest files new items under portable names automatically.
+
+### Flagging what needs work
+
+While browsing, you'll notice a card with the wrong title or a collection that's become a jumble. Flag it, with a few words saying what: `carrel flag ITEM --note "wrong title"`, or `carrel flag Projects --note "split this folder"` for a collection; `f` in Browse in the interactive mode; or **Flag…** in the Mac app's context menus and inspector. The flag is the `needs_work` field on the card, or in the collection's `_collection.md`, with who flagged it and when, and it's one change undo can reverse.
+
+- **What it feeds:** Status lists what's flagged, and `carrel flagged` (`F` in Browse, **Flags** in the app's sidebar, under Librarian) lists it whenever you like. The crawler looks at flagged items, and the items of flagged collections, first, reading your note with the card. A flagged collection counts as a sign a restructure may help. Ask the librarian "what needs work?" and it lists them.
+- **Clearing it:** `carrel unflag`, `f` again, or **Unflag**. When you save an edit or a correction on a flagged card, Carrel asks whether that settled it; it never clears a flag on its own.
+- **Searching:** the filter `flagged` finds flagged items, alone or with words and other filters.
+- **The librarian takes a look:** a flag is a request to the [librarian](#asking-the-librarian). When the device is idle, as the crawler runs, it reads what you flagged, its collection and your note, and comes to one of three ends:
+  - **It knows the fix:** a correction, refile, rename or new collection, waiting for you. Accept it and the flag is cleared. With `librarian.changes` on, it makes the fixes it's sure of itself, each undoable.
+  - **It needs more:** a question, first in your queue, such as "what's wrong with it: too mixed, or the wrong year?" Your answer goes back to the librarian, which tries again.
+  - **It can't help:** it says why. When the fix needs something Carrel can't do, such as reading a kind of file, that's recorded as a gap you can report to development (`carrel report gaps`).
+
+  Status lists flags by where the librarian is with each. `carrel flagged ITEM` shows what it suggested or asked; `--answer "…"`, `--accept N` and `--again` act on it, and `carrel flag ITEM --ask` (or `carrel flagged ITEM --ask`) hands it over now rather than waiting for idle time. In the interactive mode, `f` on Status opens Flags; in the app, **Needs Work** under a flagged item's card, or in a collection's inspector, does the same.
 
 ## Reorganizing the archive
 
@@ -439,16 +470,16 @@ An archive's shape drifts as it grows, and Carrel can propose a better one. Ever
 
 Filing puts each item where it fits best today, but an archive's shape drifts: a collection fills up with dozens of loose items, Holding gathers what didn't fit, a collection is left with two items that belong elsewhere. `carrel restructure propose Reading` proposes a better shape for Reading and everything in it; leave out the collection for the whole archive. Nothing changes until you approve.
 
-- **What it can propose:** a new subcollection for items that belong together (subdividing), a new collection gathering items from Holding or from several branches, merging a small collection into the one its items belong with, renaming a collection whose name no longer fits, and rewriting the design documents that name the new collections.
+- **What it can propose:** a new subcollection for items that belong together (subdividing), a new collection gathering items from Holding or from several branches, moving items back into a collection that's already there, merging a small collection into the one its items belong with, renaming a collection whose name no longer fits, and rewriting the design documents that name the new collections.
 - **What it never does:** it never enters a sealed bundle (bundles move whole), never moves a checked-out item or a collection holding one, never deletes anything, and leaves the fields you wrote alone.
-- **How it decides:** items are grouped by meaning (the meaning index) and by the tags, links and work sessions they share. A group becomes a change only when its benefit (how alike its items are, items leaving Holding or an uncertain place, relief for a crowded collection) beats its cost (each move weighted by how invasive it is, more for a section restructured recently) by the margin your eagerness asks for. With a text model on the device, the model names the new collections and writes the rationale, and the **findability test** checks the new shape: held-out cards are looked for by walking the tree from their summaries alone, and the proposal goes forward only if they're found more often than now. Without one, the names are plain ones from the groups' tags and the proposal says it's untested.
+- **How it decides:** items are grouped by meaning (the meaning index) and by the tags, links and work sessions they share. The crawler's verdicts count too: an item it judged doesn't fit where it is has reason to move, and one it judged fits stays, whatever the numbers say. A single item moves on its own when it's far more like another collection's items than its own, or when the crawler says where it belongs and its meaning doesn't say otherwise. Since a part of a collection and items that don't belong there look alike by meaning alone, a collection that isn't crowded is subdivided only when most of the group has a reason to leave, such as the crawler's verdict. A change goes forward only when its benefit (items with reason to leave where they are, alike items brought together, items more like where they go, relief for a crowded collection) beats its cost (each move weighted by how invasive it is, more for a section restructured recently) by the margin your eagerness asks for. With a text model on the device, the model names the new collections and writes the rationale, and the **findability test** checks the new shape: held-out cards are looked for by walking the tree from their summaries alone, and the proposal goes forward only if they're found more often than now. Without one, the names are plain ones from the groups' tags and the proposal says it's untested.
 - **Reading it:** each change says why, and the changes are grouped by how invasive they are, from rewriting design documents through subdividing and renaming to moving items between branches and moving top-level collections. The proposal gives its rationale, cost, benefit and findability result, and lists what it held back and why.
 
 Approve it all with `carrel restructure approve`, or part of it with `--only 1,2`: a change that needs one you left out (moving items into a collection you didn't create, say) is dropped too, and Carrel says so. Approving takes a backup snapshot first when backups are set up, applies the changes to the archive as it is then (an item checked out or moved since is left alone and reported), rewrites links to the moved cards and rebuilds the listings, and records it all as **one change in History**, so `carrel undo` puts every item, folder, design document and link back.
 
 In the interactive mode, `f` on Review (twice from the proposals to file) shows the restructure proposals waiting, tag proposals too. The chosen one's changes are beside the archive as it is now and as they would leave it. `↑↓` choose a change, with its reason and what it touches below, `Space` leaves one out (the after side follows), `a` approves the rest, `x` rejects the proposal, and `[` `]` go to another. `p` proposes a new shape for the whole archive, and on a collection in Browse, `R` proposes one for it.
 
-In the Mac app, the **Restructure** screen lists the proposals waiting. **Propose Changes…** in its toolbar looks over a collection or the whole archive, and **Propose Changes Here** in a collection's inspector looks over that one; when nothing is worth proposing, the bar at the bottom says why. Choose a proposal to see the archive before and after side by side, how it was judged, and each change with its reason and how invasive it is (one dot to five). Untick the changes to leave out, then **Approve Chosen**, or **Approve All**, or **Reject** (see [The Mac app](mac-app.md#restructure)).
+In the Mac app, **Suggestions** in the sidebar's Librarian section lists the restructure proposals waiting. **Propose Changes…** in its toolbar looks over a collection or the whole archive, and **Propose Changes Here** in a collection's inspector looks over that one; when nothing is worth proposing, the bar at the bottom says why. Choose a proposal to see the archive before and after side by side, how it was judged, and each change with its reason and how invasive it is (one dot to five). Untick the changes to leave out, then **Approve Chosen**, or **Approve All**, or **Reject** (see [The Mac app](mac-app.md#restructure)).
 
 **Undoing a restructure:** it's one change in History, wherever it was approved. `carrel undo CHANGE`, `u` on it in the interactive mode's History, or **Undo Change…** in the app's History puts every item, folder, design document, tag and link back as it was. Changes you've made since are kept; if one touched the same lines of a card or design document, the undo says which and changes nothing.
 
@@ -483,7 +514,8 @@ Set it for the archive with `carrel settings set restructure.eagerness settled`,
 
 Filing puts each item where it fits best on the day, with whatever model the device had then. The **crawler** keeps checking in the background, a few items at a time, with the strongest model the device has: whether each still fits its collection's design document, where it would go instead, and whether its card could be better (a summary a small model wrote, a vague title, missing tags, a date the text gives).
 
-- **Its order:** Holding first, then items filed with low confidence, then the items of crowded collections, then a slow sweep of everything. An item it checked waits a week in Holding, a month otherwise, and half a year in the sweep before it's checked again. Restricted and checked-out items are left alone.
+- **Its order:** what you've [flagged](#flagging-what-needs-work) first, then Holding, then items filed with low confidence, then the items of crowded collections, then cards drafted by a weaker model or an older Carrel, then a slow sweep of everything.
+- **Better drafts:** each card records the model and the drafting version that wrote it (`generated` in the card). When you install a stronger model, or a Carrel whose drafting improved, the cards drafted before come back to the crawler at once, weakest and oldest first. It rewrites only what a model wrote, never what you wrote or corrected, as a correction in Review, or directly with `crawler.changes` on. Status says how many could get a better draft; `carrel crawl status` lists them. An item it checked waits a week in Holding, a month otherwise, and half a year in the sweep before it's checked again. Restricted and checked-out items are left alone.
 - **What it finds waits in Review,** under "From the crawler" in `carrel review`: a move, or a correction. Approve it to make the change as yours, or reject it, and it won't be suggested again. **Fields you wrote yourself are never corrected.**
 - **Its changes, if you let it:** with `carrel settings set crawler.changes on`, it makes the refiles and corrections it's at least 90% sure of itself. Each is an ordinary change marked **by the crawler** in History and listed on Status for a week; `carrel undo` takes back one, and `carrel crawl undo 7d` all of them. Whole-section restructures always wait for you, whatever the setting.
 - **Its pace** (`crawler.pace`: `off`, `gentle`, `steady` by default, or `brisk`) is how much of the device's idle time it uses. It runs in `carrel agent` and after the background worker, only when the device has been idle a while and is on power, and stops as soon as you use it or add something to the queue. `restructure.eagerness` doesn't slow it: it gathers the evidence any reorganization needs.
@@ -501,7 +533,7 @@ History keeps the cards; [Kopia](https://kopia.io) keeps the files. After `carre
 - `carrel backup verify` checks the repository, reading back a sample of the files.
 - `carrel backup restore ITEM [--at CHANGE]` restores an item as it was, into a new folder beside the archive. It never overwrites anything.
 - The password is asked for once and kept in your keychain. Losing it means losing the backups, so keep it in a password manager too.
-- The interactive mode's Backups screen (`9`) does the same: it lists the snapshots with their changes (from history, so it works with the drive unplugged), and `n` takes a snapshot, `v` verifies, `r` restores an item as of the chosen snapshot, and `s` sets up or connects a repository: choose its folder with your file picker or the built-in browser (`/` to type a path), then type the password, shown as dots.
+- The interactive mode's Backups screen (`8`) does the same: it lists the snapshots with their changes (from history, so it works with the drive unplugged), and `n` takes a snapshot, `v` verifies, `r` restores an item as of the chosen snapshot, and `s` sets up or connects a repository: choose its folder with your file picker or the built-in browser (`/` to type a path), then type the password, shown as dots.
 
 If the backup drive isn't connected, filing still works; the next snapshot covers what was missed.
 
@@ -523,7 +555,7 @@ Carrel never sends your files anywhere. Everything it does with them runs on you
 
 ## Settings
 
-The Settings screen (`8`), or `carrel settings`, shows two kinds:
+The Settings screen (`9`), or `carrel settings`, shows two kinds:
 
 **This device**, kept in `cli.json`:
 
@@ -551,6 +583,7 @@ The Settings screen (`8`), or `carrel settings`, shows two kinds:
 | `restructure.margin`, `restructure.stability_penalty`, `restructure.stability_days`, `restructure.move_budget` | The numbers behind the eagerness levels, to tune them directly; `default` puts one back to its level's | the level's |
 | `crawler.changes` | `on` lets the crawler make the refiles and corrections it's sure of, each undoable; `off` leaves them in Review (see [The crawler](#the-crawler)) | `off` |
 | `crawler.pace` | How much of the device's idle time the crawler uses: `off`, `gentle`, `steady` or `brisk` | `steady` |
+| `spotlight.index` | What Spotlight finds on a Mac, where anyone at it can see: `standard` finds public and personal items in full and sensitive ones by title only, `all-but-restricted` every item but restricted ones in full, `off` nothing. Restricted items are never found (see [Spotlight](mac-app.md#spotlight)) | `standard` |
 | `outside_edits` | `flag` changes made outside Carrel for review, `reconcile` them as edits, or treat them as `drift` to undo. Stored now; it takes effect when Carrel starts watching for outside changes, in a later version | `flag` |
 
 Changing an archive setting is a change in history, so it can be undone.
@@ -559,7 +592,7 @@ The Settings screen also shows the **Archive** it's on, which `Enter` (or `Ctrl-
 
 ## How Carrel is doing
 
-After using Carrel for a few days or weeks, `carrel report` shows how well it's working for you and what to tweak. The interactive mode shows the same at the bottom of Status (`1`), and the Mac app will have a Report view.
+After using Carrel for a few days or weeks, `carrel report` shows how well it's working for you and what to tweak. The interactive mode shows the same at the bottom of Status (`6`), and the Mac app will have a Report view.
 
 It's made from a **decision log** each device keeps in its own folder (see [What Carrel keeps on this device](#what-carrel-keeps-on-this-device)), never in the archive. The log records, by identifier:
 
@@ -578,6 +611,22 @@ The report covers the last 30 days, or `--since 14d`, `--since 2w` or a date. It
 
 **To turn the log off**, `carrel settings set report.log off`, or **Decision log** in Settings; nothing more is recorded on this device until you turn it on again. What's older than `report.keep_days` (90 days unless you set it) is removed as Carrel starts. Deleting the `decisions/` folder removes the log.
 
+### Reporting what Carrel can't do
+
+Sometimes a card isn't up to par because Carrel is missing something: nothing on the device reads a file type, reading a file's text or drafting its card fails, or the crawler's model fails. Carrel keeps each such **gap** in `gaps.json` in its own folder, one entry per kind, file type and stage, with how many items it affected and the version of Carrel that saw it. Like the decision log, **it never records titles, text, names, file names or paths**. The file types in `unreadable.json` are gaps too.
+
+`carrel report gaps` lists them, most items first (`--json` for the same as JSON); the interactive mode lists them from Status (`g`), and the Mac app in Status's Gaps section.
+
+**To report one to development**, `carrel report gaps --report N` (or `r` in the interactive mode, or **Report…** in the app) builds an issue draft for Carrel on GitHub: a title, the gap, the version and the counts, and anything you add (`--add "…"`). It opens in your browser as a new issue for you to read, edit and submit; **Carrel never sends anything itself**. `--print` prints the draft's address instead of opening it. Once it's submitted, `carrel report gaps --reported N ADDRESS` (`l` in the interactive mode, **Reported at** in the app) records the issue's address, and the gap shows as reported; when a newer Carrel hasn't seen it since, it says so.
+
+**To report a missing feature yourself**, `carrel report gaps --missing "what Carrel should do"`, with `--item ITEM` when it's about an item (`M` on an item in Browse, `m` in the Gaps view, or **Report a Missing Feature…** on an item or in Status in the app). The item's type is recorded with your words, never its name.
+
+### Feedback from any screen
+
+To tell development about something as you use Carrel, send feedback from where you are: **Help → Send Feedback** (⇧⌘F) or the toolbar's overflow in the Mac app, a **shake** or the **•••** menu on iPad and iPhone, `!` on any screen of the interactive mode, or `carrel feedback "what happened"`. Choose a kind (bug, idea or confusing; in the interactive mode, start the line with `idea:` or `confusing:`) and write a sentence or two. Carrel adds the screen and step you were on, the item or collection in view (identifiers and titles, **never contents**), its version, the device, the model in use and the last few problems from the gap log. On the Mac and iOS the form shows a screenshot of the window, which you can leave out.
+
+It's kept in the archive, in `_System/feedback/<device-id>/`, so it syncs to your other devices, and a device that isn't the writer can always send it. `carrel feedback list` and Status's Feedback show every device's, with how many aren't sent yet; `carrel feedback export` gives them as Markdown grouped by screen; `carrel feedback issue N` (**Issue Draft** in the app) opens a prefilled GitHub issue in your browser to submit yourself, and `carrel feedback sent N` marks it sent. Nothing is posted automatically.
+
 ## What Carrel keeps on this device
 
 Outside any archive, in `~/Library/Application Support/Carrel` on macOS, `%APPDATA%\Carrel` on Windows, or `~/.config/carrel` elsewhere (or `CARREL_CONFIG_DIR`):
@@ -595,6 +644,7 @@ Outside any archive, in `~/Library/Application Support/Carrel` on macOS, `%APPDA
 | `questions/` | For each archive, the day's few questions Status names, so they stay the same all day |
 | `decisions/` | The decision log for `carrel report`, a file per month, by identifier only (see [How Carrel is doing](#how-carrel-is-doing)) |
 | `unreadable.json` | The file types this device couldn't read, by type and extension only |
+| `gaps.json` | What Carrel couldn't do on this device, to report to development, by kind, type and stage only (see [Reporting what Carrel can't do](#reporting-what-carrel-cant-do)) |
 | `logs/network.log` | Every request `carrel-fetch` made |
 
 ## Troubleshooting

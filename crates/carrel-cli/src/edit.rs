@@ -7,12 +7,37 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use carrel_core::actions;
+use carrel_core::card::Id;
 use carrel_core::edit::Saved;
+use carrel_core::inbox::Request;
 use serde_json::json;
 
 use crate::commands::{find_item, holder, locate};
 use crate::config::Identity;
 use crate::{Failure, Report};
+
+/// `carrel edit ITEM [--body]`: [`edit`] or [`edit_body`], then, when the card is flagged as
+/// needing work, the offer to clear its flag. The interactive mode offers it its own way.
+///
+/// # Errors
+///
+/// As [`edit`] and [`edit_body`], or if the flag can't be cleared.
+pub fn edit_command(archive: Option<&Path>, query: &str, body: bool) -> Result<Report, Failure> {
+    let mut report = if body {
+        edit_body(archive, query)?
+    } else {
+        edit(archive, query)?
+    };
+    let id = report.json["item"]
+        .as_str()
+        .and_then(|id| uuid::Uuid::parse_str(id).ok());
+    if let Some(id) = id
+        && report.json["commit"].is_string()
+    {
+        crate::flag::offer_to_clear(&locate(archive)?, carrel_core::card::Id(id), &mut report)?;
+    }
+    Ok(report)
+}
 
 /// `carrel edit ITEM`: the card's fields in the owner's editor, saved against the fields it
 /// opened ([`carrel_core::edit::save`]), so a field saved another way meanwhile isn't
@@ -27,6 +52,7 @@ pub fn edit(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
     let item = find_item(&archive, &items, query)?.clone();
     let (registry, _) = crate::providers::registry();
     let identity = Identity::load_or_create()?;
+    let through = crate::through_inbox::check(&archive)?;
     let editing = carrel_core::edit::open(&archive, &registry, &item)?;
     // `base` is the fields the editor last opened, which the save is checked against.
     let mut base = editing.fields();
@@ -56,6 +82,15 @@ pub fn edit(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
                 continue;
             }
         };
+        if let Some(through) = &through {
+            let _ = std::fs::remove_file(&temp);
+            let request = Request::EditFields {
+                item: item.id,
+                base: Box::new(base),
+                fields: Box::new(fields),
+            };
+            return sent_edit(&archive, through, request, item.id);
+        }
         let editing = carrel_core::edit::open(&archive, &registry, &item)?;
         match carrel_core::edit::save(&archive, editing, &base, fields, holder(&identity))? {
             Saved::Problems(problems) => text = with_field_problems(&problems, &edited),
@@ -82,6 +117,20 @@ pub fn edit(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
             json!({"item": item.id, "changed": [], "commit": null}),
         )),
     }
+}
+
+/// Sends an edit of `item` to this device's inbox, for the writer to merge with the card as it
+/// is then.
+fn sent_edit(
+    archive: &carrel_core::archive::Archive,
+    through: &crate::through_inbox::ThroughInbox,
+    request: Request,
+    item: Id,
+) -> Result<Report, Failure> {
+    let mut report = through.send(archive, request)?;
+    report.json["item"] = json!(item);
+    report.json["commit"] = json!(null);
+    Ok(report)
 }
 
 /// `edited` with a line on top for each of `problems`, replacing the problems put there
@@ -150,6 +199,7 @@ pub fn edit_body(archive: Option<&Path>, query: &str) -> Result<Report, Failure>
     let item = find_item(&archive, &items, query)?.clone();
     let (registry, _) = crate::providers::registry();
     let identity = Identity::load_or_create()?;
+    let through = crate::through_inbox::check(&archive)?;
     // The process's own, so two edits of one item at once don't share a file.
     let temp =
         std::env::temp_dir().join(format!("carrel-body-{}-{}.md", item.id, std::process::id()));
@@ -169,6 +219,15 @@ pub fn edit_body(archive: Option<&Path>, query: &str) -> Result<Report, Failure>
             break Saved::Unchanged;
         }
         let body = without_body_problems(&edited);
+        if let Some(through) = &through {
+            let _ = std::fs::remove_file(&temp);
+            let request = Request::EditBody {
+                item: item.id,
+                base,
+                body,
+            };
+            return sent_edit(&archive, through, request, item.id);
+        }
         let editing = carrel_core::edit::open(&archive, &registry, &item)?;
         match carrel_core::edit::save_body(&archive, editing, &base, &body, holder(&identity))? {
             Saved::Problems(problems) => {

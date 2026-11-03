@@ -87,6 +87,9 @@ pub struct FoundItem {
     pub tags: Vec<String>,
     /// Whether it's checked out.
     pub checked_out: bool,
+    /// Whether the owner flagged it as needing work.
+    #[serde(default)]
+    pub flagged: bool,
 }
 
 /// Why a result came back: where the words matched, or how else it was found.
@@ -435,7 +438,13 @@ fn item_doc(card: &Card, card_path: &str, item: Option<&String>, body: &str) -> 
             .collect();
         fields.push((Field::Date, days.join(" ")));
     }
-    let notes = owner_text(body);
+    let mut notes = owner_text(body);
+    // Handwritten notes are found by the text recognised in them (FORMAT.md §5.10).
+    for said in card.drawings.iter().filter_map(|d| d.text.as_deref()) {
+        notes.push('\n');
+        notes.push_str(said);
+    }
+    let notes = notes.trim().to_owned();
     if !notes.is_empty() {
         fields.push((Field::Notes, notes));
     }
@@ -451,6 +460,7 @@ fn item_doc(card: &Card, card_path: &str, item: Option<&String>, body: &str) -> 
             date: date_of(card),
             tags,
             checked_out: card.checked_out.is_some(),
+            flagged: card.needs_work.is_some(),
         }),
         fields,
         text: (!restricted)
@@ -501,6 +511,7 @@ pub(crate) fn passes(filters: &Filters, item: &FoundItem) -> bool {
         && filters.tags.iter().all(|t| item.tags.contains(t))
         && (filters.sensitivity.is_empty() || filters.sensitivity.contains(&item.sensitivity))
         && (!filters.checked_out || item.checked_out)
+        && (!filters.flagged || item.flagged)
         && filters
             .after
             .as_ref()

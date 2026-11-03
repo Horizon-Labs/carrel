@@ -92,6 +92,9 @@ pub struct ExpandedItem {
     pub trash_problem: Option<String>,
     /// The history commit.
     pub commit: Option<String>,
+    /// The compressed file, kept in the holding folder instead of the Trash on a device
+    /// without Kopia, until a snapshot has it.
+    pub held: Option<crate::inbox::HeldVersion>,
 }
 
 impl From<CollectionError> for CarrelError {
@@ -150,6 +153,7 @@ impl ArchiveHandle {
     /// # Errors
     ///
     /// [`CarrelError::Invalid`] for a path or tag that can't be used, or one that's taken,
+    /// [`CarrelError::SentToInbox`] when another device is the writer, which creates it,
     /// [`CarrelError::Busy`] if another writer holds the archive, or
     /// [`CarrelError::Failed`] if it can't be written.
     pub fn create_collection(
@@ -166,6 +170,13 @@ impl ArchiveHandle {
                 .map(|t| (t.name.trim().to_owned(), t.meaning.trim().to_owned()))
                 .collect(),
         };
+        self.through_inbox(&archive, || {
+            Ok(carrel_core::inbox::Request::CreateCollection {
+                path: path.clone(),
+                description: new.description.clone(),
+                tags: new.tags.clone(),
+            })
+        })?;
         let created = self.with_lease(&archive, "collection", |lease| {
             Ok(carrel_core::collections::create(
                 &archive, &path, &new, lease,
@@ -202,8 +213,9 @@ impl ArchiveHandle {
     /// # Errors
     ///
     /// [`CarrelError::Invalid`] for an unknown item, a name that isn't portable or is taken,
-    /// or an item that's checked out, [`CarrelError::Busy`] if another writer holds the
-    /// archive, or [`CarrelError::Failed`] if it can't be renamed.
+    /// or an item that's checked out, [`CarrelError::SentToInbox`] when another device is the
+    /// writer, which renames it, [`CarrelError::Busy`] if another writer holds the archive, or
+    /// [`CarrelError::Failed`] if it can't be renamed.
     pub fn rename_item(&self, item: String, new_name: String) -> Result<RenamedItem, CarrelError> {
         let archive = self.fresh()?;
         let item = Self::item(&archive, &item)?;
@@ -211,6 +223,16 @@ impl ArchiveHandle {
         if new_name.is_empty() {
             return Err(CarrelError::invalid("give the item a name"));
         }
+        let problems = carrel_core::names::problems(new_name);
+        if !problems.is_empty() {
+            return Err(RenameError::NotPortable(problems).into());
+        }
+        self.through_inbox(&archive, || {
+            Ok(carrel_core::inbox::Request::Rename {
+                item: item.id,
+                name: new_name.to_owned(),
+            })
+        })?;
         let renamed = self.with_lease(&archive, "rename", |lease| {
             Ok(carrel_core::rename::rename(
                 &archive, &item, new_name, lease,
@@ -260,6 +282,20 @@ impl ArchiveHandle {
     pub fn expand_item(&self, item: String, anyway: bool) -> Result<ExpandedItem, CarrelError> {
         let archive = self.fresh()?;
         let item = Self::item(&archive, &item)?;
+        self.through_inbox(&archive, || {
+            // What won't expand is said here, rather than sent for the writer to skip.
+            match examine(&archive, &item) {
+                Err(e @ (ExpandError::NotCompressed(_) | ExpandError::CheckedOut)) => {
+                    return Err(e.into());
+                }
+                Err(e @ ExpandError::Kept { .. }) if !anyway => return Err(e.into()),
+                _ => {}
+            }
+            Ok(carrel_core::inbox::Request::Expand {
+                item: item.id,
+                anyway,
+            })
+        })?;
         let expanded = self.with_lease(&archive, "expand", |lease| {
             Ok(expand_item(&archive, &item, anyway, lease)?)
         })?;
@@ -272,6 +308,7 @@ impl ArchiveHandle {
             size: expanded.size,
             trash_problem: expanded.trash_problem,
             commit: expanded.commit,
+            held: expanded.held.as_ref().map(Into::into),
         })
     }
 }

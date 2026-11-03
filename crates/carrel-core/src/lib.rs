@@ -29,6 +29,7 @@
 //! | [`ingest`] | Ingest: intake, text, cards, routing, sensitivity, and filing approved items | `docs/design/ingest.md` |
 //! | [`review`] | The review queue: proposals to file items, waiting for the owner | §7.9 |
 //! | [`search`] | Search: the word index, the text cache, filters and results | §7.11, §7.12, `docs/design/search.md` |
+//! | [`library`] | The Library every interface opens on: shelves, recently added and what's waiting | `docs/design/library-home.md` |
 //! | [`librarian`] | The librarian: a conversation over the archive through read-only tools, and its optional undoable changes | §8.2, §9.3, `docs/design/librarian.md` |
 //! | [`questions`] | Questions for the owner, and the glossary their answers teach | §7.3, §7.9 |
 //! | [`local`] | Where this device keeps its own data: configuration and models | none |
@@ -64,6 +65,7 @@ pub mod bench;
 pub mod card;
 pub mod card_file;
 pub mod checkout;
+pub mod cloud_files;
 pub mod collections;
 pub mod compressed;
 pub mod coordinator;
@@ -72,20 +74,30 @@ pub mod crawl;
 pub mod decisions;
 pub mod desk;
 pub mod detect;
+pub mod device_profile;
 pub mod discover;
 pub mod documents;
+pub mod drafting_choice;
+pub mod drawings;
 pub mod edit;
 pub mod entries;
+pub mod feedback;
 pub mod file_pickers;
 pub mod finder;
+pub mod flags;
 pub mod formats;
 pub mod frontmatter;
+pub mod gaps;
 pub mod graph;
 pub mod history;
+pub mod holding;
+pub mod icloud_move;
+pub mod inbox;
 pub mod index;
 pub mod ingest;
 pub mod intake;
 pub mod librarian;
+pub mod library;
 pub mod listing;
 pub mod local;
 pub mod manifest;
@@ -95,6 +107,8 @@ pub mod names;
 pub mod previews;
 pub mod providers;
 pub mod questions;
+pub mod quick_look;
+pub mod recheck;
 pub mod reminders;
 pub mod rename;
 pub mod restructure;
@@ -104,15 +118,35 @@ pub mod sections;
 pub mod sessions;
 pub mod settings;
 pub mod signals;
+pub mod spotlight;
 pub mod status;
+pub mod sync_status;
 pub mod trash;
 pub mod worker;
+pub mod written_note;
 
 /// The version of the archive format this build reads and writes (`FORMAT.md`).
 pub const FORMAT_VERSION: FormatVersion = FormatVersion { major: 1, minor: 0 };
 
 /// The version of this crate, which is also the Carrel version.
 pub const CARREL_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The flag a test build shows, such as "v1.0 Beta (5a81b54c1d)": its version without the
+/// patch number, and the git commit it was built from, so a report names the exact build. A
+/// release, with no pre-release part in its version, shows none.
+#[must_use]
+pub fn build_label() -> Option<String> {
+    label(CARREL_VERSION, feedback::GIT_COMMIT)
+}
+
+fn label(version: &str, commit: Option<&str>) -> Option<String> {
+    let (release, _) = version.split_once('-')?;
+    let short = release.rsplit_once('.').map_or(release, |(v, _)| v);
+    Some(format!(
+        "v{short} Beta ({})",
+        commit.unwrap_or("local build")
+    ))
+}
 
 /// An archive format version, `MAJOR.MINOR` (FORMAT.md §12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -222,6 +256,19 @@ pub fn human_size(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_builds_are_labelled_with_their_commit() {
+        assert_eq!(
+            label("1.0.0-rc.1", Some("5a81b54c1d")).as_deref(),
+            Some("v1.0 Beta (5a81b54c1d)")
+        );
+        assert_eq!(
+            label("1.2.0-beta.3", None).as_deref(),
+            Some("v1.2 Beta (local build)")
+        );
+        assert_eq!(label("1.0.0", Some("5a81b54c1d")), None);
+    }
 
     #[test]
     fn parses_and_displays_format_versions() {

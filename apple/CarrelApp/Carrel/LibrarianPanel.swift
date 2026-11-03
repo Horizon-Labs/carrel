@@ -1,5 +1,5 @@
-// The Librarian panel beside an archive's window (⌥⌘L), "Ask About This" for any item
-// (⇧⌘L, the item's context menu and its card), and confirming what the librarian suggests
+// The Librarian panel beside an archive's window (⌥⌘L), "Ask About This" for any item or
+// collection (⇧⌘L, the context menus, the card and the inspector), and confirming what the librarian suggests
 // through the sheets that already make those changes: a correction for refiling or a field,
 // a rename, a new collection.
 
@@ -25,6 +25,7 @@ private struct LibrarianPanelModifier: ViewModifier {
             ) {
                 if let librarian = model.librarian {
                     LibrarianPanel(librarian: librarian, window: model)
+                        .feedbackScreen(step: "librarian panel")
                         .inspectorColumnWidth(min: 300, ideal: 380, max: 560)
                 }
             }
@@ -80,6 +81,9 @@ struct LibrarianPanel: View {
             footer
         }
         .task(id: ObjectIdentifier(librarian)) { await librarian.refresh() }
+        .onChange(of: window.librarianSubject, initial: true) { _, subject in
+            librarian.follow(subject)
+        }
         .onChange(of: librarian.focusRequests, initial: true) { questionFocused = true }
         .toolbar {
             ToolbarItemGroup {
@@ -122,6 +126,7 @@ struct LibrarianPanel: View {
                 Label("Saved to \(saved)", systemImage: "checkmark.circle")
                     .font(.callout).foregroundStyle(.secondary)
             }
+            LibrarianAboutChip(librarian: librarian)
             HStack(alignment: .bottom) {
                 TextField("Ask about your archive", text: $librarian.draft, axis: .vertical)
                     .lineLimit(1...6)
@@ -172,7 +177,7 @@ private struct LibrarianNoModel: View {
                 if let instead = choice.instead {
                     Button("Use \(instead)") { Task { await librarian.useStrongest() } }
                 }
-                SettingsLink { Text("Models Settings…") }
+                OpenSettingsButton(title: "Models Settings…")
             }
             if librarian.archive.isWorking, let progress = librarian.archive.progress {
                 ProgressView(progress.title, value: progress.fraction)
@@ -246,6 +251,10 @@ private struct AnswerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             QuestionBubble(text: answer.question)
+            if let about = answer.about {
+                Text("About \(about)").font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
             Text(answer.text).textSelection(.enabled)
             if !answer.items.isEmpty {
                 Section {
@@ -256,7 +265,7 @@ private struct AnswerView: View {
                             Label(item.title, systemImage: "doc.text")
                                 .lineLimit(1)
                         }
-                        .buttonStyle(.link)
+                        .linkButtonStyle()
                         .help(item.card)
                     }
                 } header: {
@@ -269,7 +278,7 @@ private struct AnswerView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("“\(passage.text)”").italic().textSelection(.enabled)
                             Button(passage.item.title) { window.open(item: passage.item.id) }
-                                .buttonStyle(.link).font(.caption)
+                                .linkButtonStyle().font(.caption)
                         }
                         .padding(.leading, 8)
                         .overlay(alignment: .leading) {
@@ -411,7 +420,7 @@ extension LibrarianModel {
     }
 }
 
-/// Opens the librarian with the item in the question.
+/// Opens the librarian about the item.
 struct AskAboutButton: View {
     let model: ArchiveWindowModel
     let item: ItemSummary
@@ -432,10 +441,13 @@ struct LibrarianCommands: Commands {
                 .keyboardShortcut("l", modifiers: [.command, .option])
                 .disabled(window?.librarian == nil)
             Button("Ask About This") {
-                if let item = window?.selectedItem { window?.librarian?.ask(about: item) }
+                if let subject = window?.librarianSubject {
+                    window?.librarian?.about = subject
+                    window?.librarian?.show()
+                }
             }
             .keyboardShortcut("l", modifiers: [.command, .shift])
-            .disabled(window?.librarian == nil || window?.selectedItem == nil)
+            .disabled(window?.librarian == nil || window?.librarianSubject == nil)
             Divider()
         }
     }

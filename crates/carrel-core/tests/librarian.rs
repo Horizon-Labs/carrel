@@ -257,7 +257,8 @@ fn it_stops_at_its_limit_of_steps_and_must_answer_on_the_last() {
             .as_array()
             .unwrap()
             .len(),
-        7
+        carrel_core::librarian::prompts::TOOLS.len() + 1,
+        "every tool, and answering"
     );
     assert_eq!(
         asked[2].schema.as_ref().unwrap()["properties"]["action"]["enum"],
@@ -889,6 +890,7 @@ fn the_journal_escapes_titles_and_shortens_a_long_question_in_its_heading() {
     let conversation = Conversation {
         answers: vec![Answer {
             question: question.into(),
+            about: None,
             text: "Only one.".into(),
             items: vec![ItemLink {
                 id: Id::new_v7(),

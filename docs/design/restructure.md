@@ -1,10 +1,10 @@
-# Design: restructure proposals (v0.7)
+# Design: restructure proposals (planned for v0.7, shipped in v0.6.0)
 
 Status: accepted 2026-11-01, with the five recommendations below and the owner's amendments: a setting for how eager Carrel is to rearrange, scaled by how invasive each change is (decision 2), and crawlers that keep their pace at every eagerness level and refine cards too (decision 4). Issue #34, with #154 (crawlers); built in #322, #323, #324, #325, #154, #326, #327 and #328.
 
 ## What this adds
 
-Filing puts each item where it fits best today, but an archive's shape drifts: a collection fills up with forty loose receipts, a project grows a dozen notes filed in three places, Holding collects what didn't fit anywhere, and a tag turns up in five unrelated collections because there's a group the structure doesn't have. v0.7 lets Carrel notice that and propose a better shape: a **restructure proposal** for one section of the archive, as a list of changes you review, approved all, in part or not at all, and undone as one change. **Crawlers** keep reassessing placements in the background with the strongest model the device has, item by item, and feed what they find into both.
+Filing puts each item where it fits best today, but an archive's shape drifts: a collection fills up with forty loose receipts, a project grows a dozen notes filed in three places, Holding collects what didn't fit anywhere, and a tag turns up in five unrelated collections because there's a group the structure doesn't have. Restructuring lets Carrel notice that and propose a better shape: a **restructure proposal** for one section of the archive, as a list of changes you review, approved all, in part or not at all, and undone as one change. **Crawlers** keep reassessing placements in the background with the strongest model the device has, item by item, and feed what they find into both.
 
 **The gate:** the first whole-archive restructure is reviewed and approved (#34), its findability test shows the new shape is easier to navigate, and undoing it puts everything back.
 
@@ -68,6 +68,7 @@ People feel differently about an archive that moves. Some want Carrel to keep re
 ## How a proposal is built
 
 - **Grouping is numerical, in the core:** clustering the section's items by their card embeddings (the v0.4 index) and their tags' co-occurrence, with literary warrant: a group needs at least `min_collection_items` to become a collection.
+- **Rehoming, as well as grouping** (#435): a group that's mostly one collection, or that the crawler sends to one that's already there, moves into it rather than becoming a new collection, and a single item moves on its own when it's far more like another collection's items than its own, or when the crawler says where it belongs and the numbers don't say otherwise. Likeness is measured on each archive's own scale, from the baseline to how alike items' nearest neighbours are, since embedding models differ. The numbers alone can't tell a subtopic from items that don't belong, so subdividing a collection that isn't crowded needs most of the group to have another reason to leave: the crawler's verdict, Holding or an uncertain placement.
 - **The model writes the words:** it names each group, drafts the design documents, writes each change's reason and the rationale, and checks the plan against the existing design documents. Every model output is validated, as filing's is, so a dropped or invented item is caught.
 - **The strongest model the device has** does this: a 20–30B model on a 32 GB Mac, and on a smaller device a draft that says so, which a stronger device can redo (the spec's quality ladder).
 - **Tags restructure the same way, more cheaply:** merging synonyms, splitting overloaded tags and retiring rare ones, with no files moved. These can be proposed on their own (`restructure tags`).
@@ -75,10 +76,12 @@ People feel differently about an archive that moves. Some want Carrel to keep re
 ## Crawlers
 
 - **A background pass** in the worker when it's idle, and in the agent from v0.5, looks at items one at a time:
-  1. Holding first;
-  2. then low-confidence placements;
-  3. then crowded collections;
-  4. then a slow sweep of everything.
+  1. what you flagged as needing work first (#451), items and the items of flagged collections;
+  2. then Holding;
+  3. then low-confidence placements;
+  4. then crowded collections;
+  5. then **outdated drafts** (#452): cards drafted by a weaker model than the crawler's (by the catalog's memory and size, as the benchmark ranks them) or by an older drafting version (`generated.model` and `generated.drafting`, FORMAT.md §5.6), weakest and oldest first. Installing a stronger model, or a Carrel whose drafting improved, puts them back here at once; once judged by the crawler's model at the current version, a card waits as the sweep does. Status says how many could get a better draft, and `carrel crawl status` lists them;
+  6. then a slow sweep of everything.
 - **The strongest model judges whether each still fits** its collection's design document, and where it would go instead, and **reads its card again:** a summary a small model wrote, missing tags, a vague title, a date it can now find in the text.
 - **What it finds:**
   - a misplaced item becomes a move proposal in Review;
@@ -89,7 +92,7 @@ People feel differently about an archive that moves. Some want Carrel to keep re
 
 ## The tag and link graph
 
-v0.6 left the tag and link graph for now, since it needs the same data as restructuring. v0.7 builds it once, in the core: items and collections as nodes, tags, links and shared work sessions as edges. Restructuring uses it to find groups across branches; discovery shows it as a view (`discover graph`) where you can see which collections connect and why.
+v0.6 left the tag and link graph for now, since it needs the same data as restructuring. Restructuring builds it once, in the core: items and collections as nodes, tags, links and shared work sessions as edges. Restructuring uses it to find groups across branches; discovery shows it as a view (`discover graph`) where you can see which collections connect and why.
 
 ## In each interface
 

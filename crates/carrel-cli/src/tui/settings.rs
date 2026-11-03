@@ -579,7 +579,7 @@ mod tests {
     #[test]
     fn every_setting_has_a_row_saying_what_it_takes() {
         let (_dir, mut app) = sample(false);
-        app.key(key(KeyCode::Char('8')));
+        app.key(key(KeyCode::Char('9')));
         let row = |app: &super::App, wanted: Row| {
             app.settings.iter().position(|s| s.row == wanted).unwrap()
         };

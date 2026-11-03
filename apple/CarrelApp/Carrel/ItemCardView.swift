@@ -1,11 +1,12 @@
-// An item's card in the inspector: its fields, notes, history and related items.
+// An item's card in the inspector: its fields, notes, drawings, history and related items.
 
-import AppKit
 import CarrelKit
 import SwiftUI
 
 /// Fields shown in the header rather than the list.
-private let headerFields: Set<String> = ["carrel", "format", "id", "kind", "title", "summary"]
+private let headerFields: Set<String> = [
+    "carrel", "format", "id", "kind", "title", "summary", "drawings",
+]
 
 struct ItemCardView<Actions: View, Below: View>: View {
     let item: ItemSummary
@@ -67,6 +68,9 @@ struct ItemCardView<Actions: View, Below: View>: View {
                         .textSelection(.enabled)
                     }
                 }
+                if let archive {
+                    ItemDrawingsSection(archive: archive, item: item.id)
+                }
                 if !card.history.isEmpty {
                     Section("History") {
                         ForEach(card.history, id: \.self) { Text($0) }
@@ -81,15 +85,16 @@ struct ItemCardView<Actions: View, Below: View>: View {
                 ItemRelatedSection(archive: archive, item: item.id, open: open)
             }
             Section {
-                Button("Show in Finder", systemImage: "folder") {
+                Button("Show in \(fileBrowser)", systemImage: "folder") {
                     let path = item.item ?? item.card
-                    NSWorkspace.shared.activateFileViewerSelecting([root.appending(path: path)])
+                    revealInFiles([root.appending(path: path)])
                 }
                 actions
             }
             below
         }
         .formStyle(.grouped)
+        .modifier(WritesNotesFromLinks(archive: archive, item: item.id))
     }
 }
 

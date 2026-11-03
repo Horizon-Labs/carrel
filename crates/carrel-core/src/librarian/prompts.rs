@@ -11,10 +11,10 @@ use std::fmt::Write as _;
 use serde_json::{Value, json};
 
 /// The tools the model may ask for, with what each takes, as the instructions list them.
-pub const TOOLS: [(&str, &str); 6] = [
+pub const TOOLS: [(&str, &str); 7] = [
     (
         "search",
-        "input: words to find, with filters if useful: collection:NAME, tag:NAME, kind:file|folder|bundle, after:YYYY[-MM[-DD]], before:YYYY[-MM[-DD]]. Finds items by their cards, their text and their meaning, with collections and glossary facts.",
+        "input: words to find, with filters if useful: collection:NAME, tag:NAME, kind:file|folder|bundle, after:YYYY[-MM[-DD]], before:YYYY[-MM[-DD]], flagged. Finds items by their cards, their text and their meaning, with collections and glossary facts.",
     ),
     (
         "show",
@@ -35,6 +35,10 @@ pub const TOOLS: [(&str, &str); 6] = [
     (
         "collection",
         "input: a collection's path. Its design document (what belongs in it) and its items.",
+    ),
+    (
+        "flagged",
+        "input: a collection's path to look only there, or \"all\". What the owner flagged as needing work, collections and items, each with the owner's note. For \"what needs work?\"",
     ),
 ];
 
@@ -169,6 +173,12 @@ pub struct Setting {
     pub items: usize,
     /// Its collections, by path, with what each is for.
     pub collections: Vec<(String, String)>,
+    /// What the owner is looking at as they ask, in words, if the question says.
+    pub about: Option<String>,
+    /// What's loaded about it up front: its card, its collection, or what a search found.
+    pub loaded: String,
+    /// The owner's short note on it, such as a flag's.
+    pub note: Option<String>,
 }
 
 /// How many collections the prompt lists.
@@ -202,6 +212,19 @@ pub fn step(
             setting.collections.len() - COLLECTIONS_LISTED
         )
         .unwrap();
+    }
+    if let Some(about) = &setting.about {
+        writeln!(
+            text,
+            "\nThe owner is looking at {about} as they ask, so \"this\" and \"here\" mean it."
+        )
+        .unwrap();
+        if let Some(note) = &setting.note {
+            writeln!(text, "The owner's note on it: “{note}”.").unwrap();
+        }
+        if !setting.loaded.is_empty() {
+            writeln!(text, "Already loaded for you:\n{}", setting.loaded).unwrap();
+        }
     }
     if !earlier.is_empty() {
         text.push_str("\nThe conversation so far:\n");

@@ -125,6 +125,10 @@ public final class ArchiveModel {
             return try await Task.detached(priority: .userInitiated) { try work(handle) }.value
         } catch let error as CarrelError {
             lastError = error
+            if error.isSentToInbox {
+                // Status counts what waits in this device's inbox.
+                Task { try? await self.refreshStatus() }
+            }
             throw error
         }
     }
@@ -582,6 +586,16 @@ public final class ArchiveModel {
         }
     }
 
+    /// Downloads the catalog model `name`'s MLX build through `fetcher`, where the core can't
+    /// start its network helper, as on iPad and iPhone. Only once the owner has confirmed,
+    /// having seen its size.
+    @discardableResult
+    public func download(mlx name: String, through fetcher: FileFetcher) async throws -> String {
+        try await call(reporting: "Downloading \(name)") { handle, relay in
+            try handle.downloadMlxModel(name: name, fetcher: fetcher, progress: relay)
+        }
+    }
+
     /// Deletes the downloaded model `name` in `format`, leaving the other. Only once the
     /// owner has confirmed.
     @discardableResult
@@ -637,6 +651,46 @@ public final class ArchiveModel {
         return added
     }
 
+    /// Adds the files and folders at `urls` to the intake queue with the owner's `note` for
+    /// their drafts and cards, or to this device's inbox while another device is the writer.
+    @discardableResult
+    public func share(
+        _ urls: [URL], each: Bool = false, whole: Bool = false, note: String? = nil
+    ) async throws -> Shared {
+        let paths = urls.map { $0.path(percentEncoded: false) }
+        let shared = try await call {
+            try $0.sharePaths(paths: paths, each: each, whole: whole, note: note)
+        }
+        try await refreshIntake()
+        return shared
+    }
+
+    /// Adds the web address `address` as a `url` item, drafted from it, its `title` and the
+    /// owner's `note`, with nothing fetched; or to this device's inbox while another device is
+    /// the writer.
+    @discardableResult
+    public func shareWebAddress(
+        _ address: String, title: String? = nil, note: String? = nil
+    ) async throws -> Shared {
+        let shared = try await call { try $0.shareUrl(url: address, title: title, note: note) }
+        try await refreshIntake()
+        return shared
+    }
+
+    /// Adds `text` as a note item of its own, titled `title` or named by its first words, with
+    /// the owner's `note`; or to this device's inbox while another device is the writer. The
+    /// core keeps it as a Markdown file in this device's configuration folder.
+    @discardableResult
+    public func shareNote(
+        _ text: String, title: String? = nil, note: String? = nil
+    ) async throws -> Shared {
+        let shared = try await call {
+            try $0.shareNote(text: text, title: title, note: note, folder: nil)
+        }
+        try await refreshIntake()
+        return shared
+    }
+
     /// Takes the entry `id` out of the intake queue.
     public func unqueue(_ id: String) async throws {
         try await call { try $0.unqueue(id: id) }
@@ -656,14 +710,15 @@ public final class ArchiveModel {
     }
 
     /// Drafts what's queued here, when the agent isn't running to do it: with it running,
-    /// this does nothing and says so, and the agent drafts.
+    /// this does nothing and says so, and the agent drafts. `model` is the app's own, as the
+    /// iPad and iPhone give the models they run in-process.
     @discardableResult
-    public func draftQueued() async throws -> Drafted {
+    public func draftQueued(model: ModelProvider? = nil) async throws -> Drafted {
         if handle.agentRunning() {
             return Drafted(drafted: 0, embedded: 0, failures: [], alreadyRunning: true)
         }
         let drafted = try await call(reporting: "Drafting") { handle, relay in
-            try handle.draftQueued(progress: relay)
+            try handle.draftQueued(model: model, progress: relay)
         }
         try await refreshIntake()
         try await changed { try await $0.refreshReview() }

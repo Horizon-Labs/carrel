@@ -12,6 +12,7 @@ import SwiftUI
 @main
 struct CarrelAgentApp: App {
     @State private var agent = AgentHost()
+    @NSApplicationDelegateAdaptor private var spotlightResults: SpotlightResultOpener
 
     var body: some Scene {
         // Without the menu bar list, the agent is managed from the app's Settings.
@@ -26,8 +27,11 @@ struct CarrelAgentApp: App {
 /// The agent, the archives it follows, and whether it's paused, kept between launches.
 @Observable
 final class AgentHost {
-    /// The app's defaults, which hold its recent archives.
-    static let appDomain = "io.github.hannaharose.Carrel"
+    /// The app's defaults, which hold its recent archives: those of the app this agent was
+    /// built with, so a Debug agent follows the Debug app's archives.
+    static let appDomain =
+        Bundle.main.object(forInfoDictionaryKey: "CarrelAppIdentifier") as? String
+        ?? AgentService.releaseAppGroup
     /// Set to archive folders separated by `:` to follow those instead of the app's recent
     /// archives, as in manual checks against a temporary archive.
     static let archivesEnv = "CARREL_AGENT_ARCHIVES"
@@ -45,14 +49,20 @@ final class AgentHost {
     private var loop: Task<Void, Never>?
     private var service: AgentXPCListener?
     private var quickActions: AgentQuickActions?
+    /// The CloudKit writer lock, served to the app and the command line, when this build can
+    /// use CloudKit.
+    private var cloudLock: CloudLockService?
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        // iCloud Drive's evicted files are downloaded through file coordination.
+        CloudFiles.register()
         notifications = ReminderNotifications { link in
             Task { @MainActor in AgentHost.open(link) }
         }
         agent = Agent(
             options: .app(helpers: Self.helpers), badges: AgentService.badgeStateFile,
-            reminders: notifications)
+            reminders: notifications, quickLook: QuickLookStore.shared,
+            spotlight: CoreSpotlightIndex())
         let override = environment[Self.archivesEnv].map {
             $0.split(separator: ":").map { URL(filePath: String($0)) }
         }
@@ -65,6 +75,7 @@ final class AgentHost {
             service.resume()
             self.service = service
         }
+        cloudLock = Self.serveCloudLock()
         let quickActions = AgentQuickActions(handler: handler)
         self.quickActions = quickActions
         // NSApp exists once the app has finished starting.
@@ -83,6 +94,14 @@ final class AgentHost {
     func answer(_ request: AgentRequest) async -> AgentReply {
         if agent.archives.isEmpty { await agent.follow(override ?? Self.recentArchives()) }
         return await handler.handle(request)
+    }
+
+    /// Takes archives' writer locks in iCloud Drive through CloudKit, here and for the app and
+    /// the command line (docs/design/sync-and-mobile.md, "The writer lock"). Without CloudKit
+    /// (a build without the iCloud entitlement, or another agent serving), there's none.
+    static func serveCloudLock() -> CloudLockService? {
+        guard let store = CloudKitLockStore.forBundle() else { return nil }
+        return try? CarrelKit.serveCloudLock(store: store)
     }
 
     /// The archives the app has open or opened recently, newest first.

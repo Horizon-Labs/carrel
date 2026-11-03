@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use carrel_core::actions::{self, Kept};
 use carrel_core::compressed::plan::Choice;
+use carrel_core::inbox::{Answer as InboxAnswer, KeepAs, KeepLink, Request};
 use carrel_core::ingest::filing::{Outcome, Placement};
 use carrel_core::questions::answer::{self as core_answer, SenderAnswer};
 use carrel_core::questions::{QuestionEntry, QuestionKind, QuestionQueue};
@@ -127,6 +128,16 @@ pub struct Proposal {
     pub compressed: Option<CompressedChoice>,
     /// Whether "approve all with high confidence" approves it.
     pub high: bool,
+    /// Whether its card or collection couldn't be settled, as when no text model could be
+    /// reached, so Draft Again is offered first.
+    pub draft_again: bool,
+    /// When the drafting model wasn't sure what the item is, its readings to pick from.
+    pub readings: Vec<crate::readings::ProposalReading>,
+    /// Whether the item's name, folder or text doesn't fit one of the readings, so what it is
+    /// isn't settled.
+    pub readings_doubted: bool,
+    /// How a list notes its readings, such as `what is it?`, if it has any.
+    pub readings_flag: Option<String>,
 }
 
 impl From<&ReviewEntry> for Proposal {
@@ -167,6 +178,10 @@ impl From<&ReviewEntry> for Proposal {
                 files: plan.files,
             }),
             high: actions::is_high(entry),
+            draft_again: carrel_core::ingest::redraft::wants_redraft(entry),
+            readings: crate::readings::of(entry),
+            readings_doubted: carrel_core::ingest::readings::doubted(&entry.readings),
+            readings_flag: carrel_core::ingest::readings::flag(entry),
         }
     }
 }
@@ -343,9 +358,10 @@ impl From<&QuestionEntry> for Question {
         Self {
             id: entry.id.to_string(),
             topic: match entry.kind {
-                QuestionKind::Term | QuestionKind::Item | QuestionKind::Sender => {
-                    QuestionTopic::Term
-                }
+                QuestionKind::Term
+                | QuestionKind::Item
+                | QuestionKind::Sender
+                | QuestionKind::Flag => QuestionTopic::Term,
                 QuestionKind::Collection | QuestionKind::Group => QuestionTopic::Collection,
             },
             subject: entry.subject.clone(),
@@ -386,6 +402,43 @@ pub struct Answered {
     pub rule_for: Option<String>,
 }
 
+/// The answer `answer` to `question`, `picked` when it's a suggestion, as an inbox request
+/// says it: what [`ArchiveHandle::answer_question`] does with it here.
+fn inbox_answer(
+    question: &QuestionEntry,
+    answer: &str,
+    picked: Option<&carrel_core::questions::Suggestion>,
+) -> Result<InboxAnswer, CarrelError> {
+    if picked.is_some_and(|s| s.no_change) {
+        return Ok(InboxAnswer::Decline);
+    }
+    let answer = picked.map_or(answer, |s| s.answer.as_str());
+    match question.kind {
+        QuestionKind::Term => Ok(InboxAnswer::Teach {
+            fact: answer.to_owned(),
+        }),
+        QuestionKind::Item => Err(CarrelError::invalid(
+            "an item question is answered through a correction of its card",
+        )),
+        QuestionKind::Flag => Err(CarrelError::invalid(
+            "the librarian's questions about flags are answered on the device that keeps the archive",
+        )),
+        QuestionKind::Collection | QuestionKind::Group => Ok(InboxAnswer::Place {
+            collection: answer.to_owned(),
+            create: picked.is_some_and(|s| s.new_collection),
+        }),
+        QuestionKind::Sender => Ok(
+            match core_answer::sender_answer(question, answer, picked, false)? {
+                SenderAnswer::Decline => InboxAnswer::Decline,
+                SenderAnswer::Place { path, create } => InboxAnswer::Place {
+                    collection: path,
+                    create,
+                },
+            },
+        ),
+    }
+}
+
 impl ArchiveHandle {
     /// Points `question`'s proposals at the collection at `path`, refiling its filed items
     /// there, creating it if `create`.
@@ -417,13 +470,34 @@ impl ArchiveHandle {
     }
 
     /// Files `entries` where `placement` says, as this device, with a snapshot first when
-    /// backups are set up, as `carrel review approve` does.
+    /// backups are set up, as `carrel review approve` does; kept beside the items they
+    /// duplicate as `keep` says, when it's given. While another device is the writer, the
+    /// approval goes into this device's inbox instead.
     fn file(
         &self,
         archive: &carrel_core::archive::Archive,
-        entries: Vec<ReviewEntry>,
+        mut entries: Vec<ReviewEntry>,
         placement: Placement,
+        keep: Option<(Kept, Option<String>)>,
     ) -> Result<FilingOutcome, CarrelError> {
+        self.through_inbox(archive, || {
+            Ok(Request::Approve {
+                proposals: entries.iter().map(|e| e.id).collect(),
+                holding: placement == Placement::Holding,
+                keep: keep.clone().map(|(kept, target)| KeepAs {
+                    link: match kept {
+                        Kept::AsVersion => KeepLink::Version,
+                        Kept::Both => KeepLink::Both,
+                    },
+                    target,
+                }),
+            })
+        })?;
+        if let Some((kept, target)) = &keep {
+            for entry in &mut entries {
+                actions::keep(archive, entry, *kept, target.as_deref())?;
+            }
+        }
         let backups = crate::backups(archive);
         Ok(actions::decide(
             archive,
@@ -492,7 +566,7 @@ impl ArchiveHandle {
     pub fn approve(&self, ids: Vec<String>) -> Result<FilingOutcome, CarrelError> {
         let archive = self.fresh()?;
         let entries = actions::proposals(&archive, &ids)?;
-        self.file(&archive, entries, Placement::Destination)
+        self.file(&archive, entries, Placement::Destination, None)
     }
 
     /// Files every proposal approving with high confidence takes (see [`Proposal::high`]).
@@ -503,7 +577,7 @@ impl ArchiveHandle {
     pub fn approve_all_high(&self) -> Result<FilingOutcome, CarrelError> {
         let archive = self.fresh()?;
         let entries = actions::all_high(&archive)?;
-        self.file(&archive, entries, Placement::Destination)
+        self.file(&archive, entries, Placement::Destination, None)
     }
 
     /// Files the proposal `id`, which duplicates an archived item, linked to that item: as a
@@ -521,16 +595,18 @@ impl ArchiveHandle {
         target: Option<String>,
     ) -> Result<FilingOutcome, CarrelError> {
         let archive = self.fresh()?;
-        let mut entries = actions::proposals(&archive, &[id])?;
+        let entries = actions::proposals(&archive, &[id])?;
         let kept = if as_version {
             Kept::AsVersion
         } else {
             Kept::Both
         };
-        for entry in &mut entries {
-            actions::keep(&archive, entry, kept, target.as_deref())?;
-        }
-        self.file(&archive, entries, Placement::Destination)
+        self.file(
+            &archive,
+            entries,
+            Placement::Destination,
+            Some((kept, target)),
+        )
     }
 
     /// Files the proposals `ids` in Holding, for the owner to place later.
@@ -541,7 +617,7 @@ impl ArchiveHandle {
     pub fn hold(&self, ids: Vec<String>) -> Result<FilingOutcome, CarrelError> {
         let archive = self.fresh()?;
         let entries = actions::proposals(&archive, &ids)?;
-        self.file(&archive, entries, Placement::Holding)
+        self.file(&archive, entries, Placement::Holding, None)
     }
 
     /// Rejects the proposals `ids`: their items stay where they are. Returns how many.
@@ -553,6 +629,11 @@ impl ArchiveHandle {
     pub fn reject(&self, ids: Vec<String>) -> Result<u32, CarrelError> {
         let archive = self.fresh()?;
         let entries = actions::proposals(&archive, &ids)?;
+        self.through_inbox(&archive, || {
+            Ok(Request::Reject {
+                proposals: entries.iter().map(|e| e.id).collect(),
+            })
+        })?;
         let rejected = actions::reject(&archive, entries)?;
         Ok(u32::try_from(rejected.len()).unwrap_or(u32::MAX))
     }
@@ -569,6 +650,19 @@ impl ArchiveHandle {
         collection: String,
     ) -> Result<MovedProposal, CarrelError> {
         let archive = self.fresh()?;
+        self.through_inbox(&archive, || {
+            let [entry] = <[ReviewEntry; 1]>::try_from(actions::proposals(
+                &archive,
+                std::slice::from_ref(&id),
+            )?)
+            .map_err(|_| CarrelError::invalid(format!("no proposal {id}")))?;
+            let collections = archive.collections()?;
+            let target = actions::collection(&collections, &collection)?;
+            Ok(Request::MoveProposal {
+                proposal: entry.id,
+                collection: target.path.clone(),
+            })
+        })?;
         let moved = actions::move_to(&archive, &id, &collection)?;
         Ok(MovedProposal {
             proposal: moved.entry.id.to_string(),
@@ -586,6 +680,15 @@ impl ArchiveHandle {
     pub fn choose_compressed(&self, id: String, expand: bool) -> Result<Proposal, CarrelError> {
         let archive = self.fresh()?;
         let choice = if expand { Choice::Expand } else { Choice::Keep };
+        self.through_inbox(&archive, || {
+            Ok(Request::ChooseCompressed {
+                proposals: actions::proposals(&archive, std::slice::from_ref(&id))?
+                    .iter()
+                    .map(|e| e.id)
+                    .collect(),
+                choice,
+            })
+        })?;
         Ok((&actions::choose_compressed(&archive, &id, choice)?).into())
     }
 
@@ -663,6 +766,12 @@ impl ArchiveHandle {
             not_refiled: Vec::new(),
             rule_for: None,
         };
+        self.through_inbox(&archive, || {
+            Ok(Request::Answer {
+                question: question.id,
+                answer: inbox_answer(&question, answer, picked.as_ref())?,
+            })
+        })?;
         if picked.as_ref().is_some_and(|s| s.no_change) {
             core_answer::decline(&archive, &question)?;
             return Ok(Answered {
@@ -685,6 +794,12 @@ impl ArchiveHandle {
             QuestionKind::Item => Err(CarrelError::invalid(
                 "an item question is answered through a correction of its card",
             )),
+            // Recorded for the librarian to try again when the Mac is idle;
+            // `answer_flag_question` has it try again at once.
+            QuestionKind::Flag => {
+                carrel_core::flags::request::answer_question(&archive, &question, answer)?;
+                Ok(answered)
+            }
             QuestionKind::Collection | QuestionKind::Group => {
                 let create = picked.as_ref().is_some_and(|s| s.new_collection);
                 self.place_answer(&archive, &question, answer, create, answered)
@@ -719,6 +834,12 @@ impl ArchiveHandle {
     pub fn dismiss_question(&self, id: String) -> Result<(), CarrelError> {
         let archive = self.fresh()?;
         let question = QuestionQueue::of(&archive).find(&id)?;
+        self.through_inbox(&archive, || {
+            Ok(Request::Answer {
+                question: question.id,
+                answer: InboxAnswer::Dismiss,
+            })
+        })?;
         actions::dismiss(&archive, &question)?;
         Ok(())
     }

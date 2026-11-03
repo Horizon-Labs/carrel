@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use carrel_core::card::Id;
 use carrel_core::correct::prepare;
+use carrel_core::inbox::{Answer, Request};
 use carrel_core::questions::answer::{self as core_answer, Target};
 use carrel_core::questions::moments::{self, Daily};
 use carrel_core::questions::{QuestionKind, QuestionQueue, Suggestion};
@@ -30,6 +31,9 @@ pub enum QuestionAsks {
     Sender,
     /// Something about one item; the answer is a correction of its card.
     Item,
+    /// What the librarian needs to know to fix something flagged; the answer goes back to
+    /// the librarian ([`ArchiveHandle::answer_flag_question`]).
+    Flag,
 }
 
 impl From<QuestionKind> for QuestionAsks {
@@ -40,6 +44,7 @@ impl From<QuestionKind> for QuestionAsks {
             QuestionKind::Group => Self::Group,
             QuestionKind::Sender => Self::Sender,
             QuestionKind::Item => Self::Item,
+            QuestionKind::Flag => Self::Flag,
         }
     }
 }
@@ -100,6 +105,12 @@ impl ArchiveHandle {
     pub fn skip_question(&self, id: String) -> Result<Question, CarrelError> {
         let archive = self.fresh()?;
         let question = QuestionQueue::of(&archive).find(&id)?;
+        self.through_inbox(&archive, || {
+            Ok(Request::Answer {
+                question: question.id,
+                answer: Answer::Skip,
+            })
+        })?;
         Ok((&core_answer::skip(&archive, &question)?).into())
     }
 
@@ -119,6 +130,12 @@ impl ArchiveHandle {
         let archive = self.fresh()?;
         let collections = archive.collections()?;
         let target = carrel_core::actions::collection(&collections, &collection)?;
+        self.through_inbox(&archive, || {
+            Ok(Request::AddRule {
+                subject: subject.clone(),
+                collection: target.path.clone(),
+            })
+        })?;
         Ok(core_answer::add_rule(
             &archive,
             &subject,
@@ -168,6 +185,12 @@ impl ArchiveHandle {
     pub fn settle_question(&self, id: String) -> Result<(), CarrelError> {
         let archive = self.fresh()?;
         let question = QuestionQueue::of(&archive).find(&id)?;
+        self.through_inbox(&archive, || {
+            Ok(Request::Answer {
+                question: question.id,
+                answer: Answer::Settle,
+            })
+        })?;
         core_answer::settled(&archive, &question)?;
         Ok(())
     }
@@ -196,7 +219,8 @@ impl ArchiveHandle {
     /// # Errors
     ///
     /// [`CarrelError::Invalid`] if there's no such item or the question isn't open about it
-    /// any more, or [`CarrelError::Failed`].
+    /// any more, [`CarrelError::SentToInbox`] when another device is the writer, which puts
+    /// it in the queue, or [`CarrelError::Failed`].
     pub fn ask_about_item(&self, item: String, question: String) -> Result<Question, CarrelError> {
         let archive = self.fresh()?;
         let item = Self::item(&archive, &item)?;
@@ -205,6 +229,11 @@ impl ArchiveHandle {
             .iter()
             .find(|q| q.question == question)
             .ok_or_else(|| CarrelError::invalid("that question isn't open any more"))?;
+        self.through_inbox(&archive, || {
+            Ok(Request::Raise {
+                questions: vec![wanted.clone()],
+            })
+        })?;
         Ok((&moments::ask(&archive, wanted)?).into())
     }
 
@@ -381,6 +410,28 @@ mod tests {
             .find(|i| i.card == ASKED_ABOUT)
             .unwrap()
             .id
+    }
+
+    #[test]
+    fn a_question_asked_while_another_device_writes_goes_into_the_inbox() {
+        use crate::inbox::tests::{another_writer, sent};
+        let sample = Sample::new();
+        let item = asked_about(&sample);
+        let open = sample.handle.questions_about(item.clone()).unwrap();
+        let first = open.first().expect("the sample's project has a question");
+        let lease = another_writer(&sample);
+        sent(sample.handle.ask_about_item(item, first.question.clone()));
+        assert!(
+            sample
+                .handle
+                .questions()
+                .unwrap()
+                .iter()
+                .all(|q| q.question != first.question),
+            "the writer puts it in the queue"
+        );
+        assert_eq!(sample.handle.inbox_status().unwrap().waiting.len(), 1);
+        lease.release().unwrap();
     }
 
     #[test]

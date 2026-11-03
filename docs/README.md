@@ -20,6 +20,7 @@
 | [Interfaces](dev/interfaces.md) | Every capability in the command line, the interactive mode and the app, and the allowed deviations |
 | [What separating the parts costs](dev/overhead.md) | Measured time, memory and disk, and what the separation buys |
 | [The on-device runner](dev/on-device-runner.md) | The tests and weekly benchmark on the owner's Mac, and setting it up |
+| [Releasing](dev/releasing.md) | How a release reaches each device, and uploading the iPad and iPhone app to TestFlight |
 | [Providers](providers.md) | The protocol for provider programs |
 | [Design documents](design/) | The accepted design for each larger feature |
 | [The v0.2 gate](v0.2-gate.md) | The checklist for filing a real Downloads sample |
@@ -27,7 +28,7 @@
 | [The v0.4 gate](v0.4-gate.md) | The checklist for finding twenty remembered items by browsing and searching |
 | [The v0.5 gate](v0.5-gate.md) | The checklist for using the Mac app as the everyday interface for a week |
 | [The v0.6 gate](v0.6-gate.md) | The checklist for an hour with the librarian and the discovery views, in every interface |
-| [The v0.7 gate](v0.7-gate.md) | The checklist for the first whole-archive restructure, approved, tested for findability and undone, in every interface |
+| [The restructure gate](v0.6-restructure-gate.md) | The checklist for the first whole-archive restructure, approved, tested for findability and undone, in every interface |
 
 The archive format is specified in [FORMAT.md](../FORMAT.md), and how to contribute is in [CONTRIBUTING.md](../CONTRIBUTING.md).
 

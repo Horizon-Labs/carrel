@@ -159,15 +159,60 @@ final class LibrarianTests: XCTestCase {
         XCTAssertNotNil(librarian.modelChoice?.download, "and there's a model to download")
     }
 
-    func testAskAboutThisOpensThePanelWithTheItem() throws {
+    func testAskAboutThisOpensThePanelAboutTheItem() throws {
         let librarian = try XCTUnwrap(sample.model.librarian)
         let item = try XCTUnwrap(sample.model.items.first { $0.id == sampleNote })
         XCTAssertFalse(librarian.isShown)
         librarian.ask(about: item)
         XCTAssertTrue(librarian.isShown)
-        XCTAssertTrue(librarian.draft.contains(item.title))
-        XCTAssertTrue(librarian.draft.contains(sampleNoteCard))
+        XCTAssertEqual(librarian.about?.about, .item(id: sampleNote))
+        XCTAssertEqual(librarian.about?.title, item.title)
+        XCTAssertEqual(librarian.draft, "", "the question is the owner's to write")
         XCTAssertEqual(librarian.focusRequests, 1)
+    }
+
+    func testTheChipFollowsTheSelectionAndTheQuestionIsAboutIt() async throws {
+        let window = sample.model
+        let (librarian, model) = librarian([
+            ScriptedLibrarianModel.tool("show", sampleNote),
+            ScriptedLibrarianModel.answer("Yes, Reading is for notes like it."),
+            ScriptedLibrarianModel.answer("It's tidy."),
+            ScriptedLibrarianModel.answer("Anything at all."),
+        ])
+        window.screen = .collection("Reading")
+        librarian.follow(window.librarianSubject)
+        XCTAssertEqual(librarian.about?.about, .collection(path: "Reading"))
+        window.selectedItemID = sampleNote
+        librarian.follow(window.librarianSubject)
+        XCTAssertEqual(librarian.about?.about, .item(id: sampleNote), "the selected item")
+
+        librarian.draft = "Is this in the right place?"
+        await librarian.ask()
+        XCTAssertNil(librarian.problem)
+        let answer = try XCTUnwrap(librarian.answers.last)
+        XCTAssertEqual(
+            answer.about, "the item “A note on coupled oscillators” (\(sampleNoteCard))")
+        XCTAssertTrue(
+            model.asked[0].prompt.contains("The owner is looking at the item"),
+            "its card is loaded up front: \(model.asked[0].prompt)")
+        XCTAssertEqual(answer.steps, [], "so showing it again isn't a step")
+
+        // Ask About This on a collection; nothing in view leaves it.
+        let reading = try XCTUnwrap(window.collections.first { $0.path == "Reading" })
+        librarian.ask(about: reading)
+        window.screen = .status
+        librarian.follow(window.librarianSubject)
+        XCTAssertEqual(librarian.about?.title, reading.title)
+        librarian.draft = "Anything missing here?"
+        await librarian.ask()
+        XCTAssertTrue(model.asked[2].prompt.contains("looking at the collection"))
+
+        // ✕ asks about the whole archive.
+        librarian.about = nil
+        librarian.draft = "And now?"
+        await librarian.ask()
+        XCTAssertNil(librarian.answers.last?.about)
+        XCTAssertFalse(model.asked[3].prompt.contains("looking at"))
     }
 
     func testSavesTheConversationToTheJournal() async throws {
@@ -400,13 +445,14 @@ final class DiscoverTests: XCTestCase {
         XCTAssertTrue(weeks.columns.allSatisfy { $0.count == 7 })
         XCTAssertTrue(activity.days.allSatisfy { (0...4).contains($0.level) })
 
-        let october = try sample.archive.handle.activity(from: "2026-10-01", to: "2026-10-31")
+        let october = try sample.archive.handle.activity(
+            from: "2026-10-01", to: "2026-10-31", within: nil)
         XCTAssertTrue(october.days.contains { $0.date == "2026-10-20" && $0.filed > 0 })
         let busiest = try XCTUnwrap(
             october.days.max { $0.filed + $0.sessions < $1.filed + $1.sessions })
         XCTAssertEqual(busiest.level, 4)
         XCTAssertThrowsError(
-            try sample.archive.handle.activity(from: "2026-10-31", to: "2026-10-01"))
+            try sample.archive.handle.activity(from: "2026-10-31", to: "2026-10-01", within: nil))
     }
 
     func testChoosingAnItemRecordsItsCollectionAsOpened() async throws {

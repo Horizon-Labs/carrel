@@ -1,7 +1,8 @@
 // Reading 3D models (docs/design/models-3d.md): geometry through ModelIO, four views drawn
 // off-screen with SceneKit, and a description of them from Apple's on-device model, returned
-// as one text.
+// as one text. On a Mac only: it draws with AppKit, and iPad and iPhone read 3D models on a Mac.
 
+#if os(macOS)
 import AppKit
 import CoreGraphics
 import Foundation
@@ -275,3 +276,4 @@ struct Joined {
         }
     }
 }
+#endif

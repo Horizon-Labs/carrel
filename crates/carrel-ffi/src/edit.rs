@@ -4,6 +4,7 @@
 
 use carrel_core::actions::{self, Edited};
 use carrel_core::card::{Kind, LinkType};
+use carrel_core::inbox::Request;
 use carrel_core::review::ReviewQueue;
 
 use crate::records::{CardFields, EditOutcome, Sensitivity};
@@ -103,6 +104,13 @@ impl ArchiveHandle {
         let editing = carrel_core::edit::open(&archive, &self.registry(), &item)?;
         let was = editing.fields();
         let (base, fields) = (base.into_core(&was), fields.into_core(&was));
+        self.through_inbox(&archive, || {
+            Ok(Request::EditFields {
+                item: item.id,
+                base: Box::new(base.clone()),
+                fields: Box::new(fields.clone()),
+            })
+        })?;
         Ok(outcome(carrel_core::edit::save(
             &archive,
             editing,
@@ -143,6 +151,13 @@ impl ArchiveHandle {
         let archive = self.fresh()?;
         let item = Self::item(&archive, &item)?;
         let editing = carrel_core::edit::open(&archive, &self.registry(), &item)?;
+        self.through_inbox(&archive, || {
+            Ok(Request::EditBody {
+                item: item.id,
+                base: base.clone(),
+                body: body.clone(),
+            })
+        })?;
         Ok(outcome(carrel_core::edit::save_body(
             &archive,
             editing,
@@ -177,7 +192,9 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
-    /// [`CarrelError::Invalid`] for a decided proposal, or [`CarrelError::Failed`].
+    /// [`CarrelError::Invalid`] for a decided proposal, [`CarrelError::SentToInbox`] when the
+    /// edit, checked here, went into this device's inbox for the writer, or
+    /// [`CarrelError::Failed`].
     pub fn edit_proposal(
         &self,
         id: String,
@@ -189,11 +206,21 @@ impl ArchiveHandle {
             .ok_or_else(|| CarrelError::invalid("no such proposal"))?;
         let was = actions::draft_fields(&entry);
         let before = was.clone();
+        let before_entry = entry.clone();
         Ok(
             match actions::apply_draft_fields(&archive, &mut entry, fields.into_core(&was))? {
                 Edited::Unchanged => EditOutcome::Unchanged,
                 Edited::Problems(problems) => EditOutcome::Problems { problems },
                 Edited::Changed => {
+                    if let Some((holder, sending)) = self.sending(&archive)? {
+                        carrel_core::inbox::send_proposal_edit(
+                            &archive,
+                            holder,
+                            &before_entry,
+                            &entry,
+                        )?;
+                        return Err(CarrelError::sent(&sending));
+                    }
                     ReviewQueue::of(&archive).save(&entry)?;
                     let after = actions::draft_fields(&entry);
                     EditOutcome::Saved {

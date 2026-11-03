@@ -37,6 +37,8 @@ pub enum Purpose {
     Eagerness(String),
     /// Switching archives: these choices, by their words.
     Archive(Vec<(String, super::archives::Choice)>),
+    /// Setting this collection's `sync.keep_downloaded` to it.
+    KeepDownloaded(String),
 }
 
 impl Picker {
@@ -90,7 +92,20 @@ impl App {
             Some(entry) => {
                 match crate::review::detail(Some(self.archive.root()), &entry.id.to_string(), false)
                 {
-                    Ok(report) => report.text.lines().map(str::to_owned).collect(),
+                    // The command's hint names the command; here it's a key.
+                    Ok(report) => report
+                        .text
+                        .lines()
+                        .map(|l| {
+                            if l.contains("`carrel review redraft") {
+                                "Press d to draft it again with the models here now".to_owned()
+                            } else if let Some((start, _)) = l.split_once(" (pick one with `") {
+                                format!("{start} (press p and a number to pick one):")
+                            } else {
+                                l.to_owned()
+                            }
+                        })
+                        .collect(),
                     Err(crate::Failure(e)) => vec![e],
                 }
             }
@@ -139,6 +154,23 @@ impl App {
         None
     }
 
+    /// `p`: opens the correction line ready to pick one of the chosen proposal's readings of
+    /// what its item is; the number typed picks it, shown before it's saved.
+    fn start_pick(&mut self) -> Option<Effect> {
+        let entry = self.queue.get(self.chosen)?;
+        if entry.readings.is_empty() {
+            self.message = Some("The model gave only one reading of this item".into());
+            return None;
+        }
+        self.input = Some(super::screens::Input {
+            purpose: super::screens::InputPurpose::Correct(super::screens::Correcting::Proposal(
+                entry.id,
+            )),
+            text: carrel_core::ingest::readings::PICK.to_owned(),
+        });
+        None
+    }
+
     /// `z`: keeps the chosen compressed file compressed if it was to be expanded, or expands
     /// it otherwise, along with the other marked ones.
     fn compressed_choice(&mut self, targets: Vec<carrel_core::card::Id>) -> Option<Effect> {
@@ -177,7 +209,9 @@ impl App {
         }
         let decision = matches!(
             key.code,
-            KeyCode::Char('a' | 'h' | 'm' | 'x' | 'e' | 'c' | 'A' | ' ' | 'v' | 'b' | 's' | 'z')
+            KeyCode::Char(
+                'a' | 'h' | 'm' | 'x' | 'e' | 'c' | 'd' | 'p' | 'A' | ' ' | 'v' | 'b' | 's' | 'z'
+            )
         );
         if !decision {
             return Handled::No;
@@ -187,7 +221,7 @@ impl App {
             return Handled::Yes(None);
         }
         if self.queue.is_empty() && key.code != KeyCode::Char('A') {
-            self.message = Some("Nothing to review".into());
+            self.message = Some("Nothing to approve".into());
             return Handled::Yes(None);
         }
         let targets = self.targets();
@@ -240,8 +274,10 @@ impl App {
                 None
             }
             KeyCode::Char('z') => self.compressed_choice(targets),
+            KeyCode::Char('d') => Some(Effect::Redraft(targets)),
             KeyCode::Char('e') => self.queue.get(self.chosen).map(|e| Effect::Edit(e.id)),
             KeyCode::Char('c') => self.start_correction(),
+            KeyCode::Char('p') => self.start_pick(),
             KeyCode::Char('m') => {
                 match self.archive.collections() {
                     Ok(collections) => {
@@ -305,6 +341,9 @@ impl App {
                         },
                     )),
                     Purpose::Archive(choices) => self.archive_chosen(&choices, &to),
+                    Purpose::KeepDownloaded(collection) => {
+                        Some(super::sync::keep_chosen(collection, &to))
+                    }
                 };
             }
             _ => {}
@@ -315,5 +354,123 @@ impl App {
     /// What a decision applies to, for the help line: a count when several are marked.
     pub fn marked_note(&self) -> Option<String> {
         (!self.marked.is_empty()).then(|| format!("{} marked", self.marked.len()))
+    }
+}
+
+/// `d`: drafts `chosen` again with the models here now, in the background, as
+/// `carrel review redraft` does.
+pub(super) fn redraft_work(root: std::path::PathBuf, chosen: &[Id]) -> (String, super::Work) {
+    let ids: Vec<String> = chosen.iter().map(ToString::to_string).collect();
+    let busy = format!(
+        "Drafting {} again…",
+        if ids.len() == 1 {
+            "the proposal".to_owned()
+        } else {
+            format!("{} proposals", ids.len())
+        }
+    );
+    (
+        busy,
+        Box::new(move || crate::redraft::redraft_proposals(Some(&root), &ids, false, &mut |_| {})),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use carrel_core::card::Id;
+    use carrel_core::review::{Problem, ReviewQueue, State};
+    use ratatui::crossterm::event::KeyCode;
+
+    use super::super::app::{App, Effect};
+    use super::super::tests::{key, sample, screen};
+
+    #[test]
+    fn a_proposal_drafted_without_a_model_offers_d_to_draft_it_again() {
+        let (_dir, app) = sample(false);
+        let queue = ReviewQueue::of(&app.archive);
+        let (entries, _) = queue.list().unwrap();
+        let mut failed = entries[0].clone();
+        failed.id = Id::new_v7();
+        failed.card.title = "Unread scan".into();
+        failed.state = State::NeedsOwner;
+        failed.problems = vec![Problem {
+            stage: "card".into(),
+            message: "no text model on this device; write the card by hand".into(),
+        }];
+        queue.save(&failed).unwrap();
+        let mut app = App::new(app.archive.clone()).unwrap();
+        app.key(key(KeyCode::Char('4')));
+        app.chosen = app.queue.iter().position(|e| e.id == failed.id).unwrap();
+        app.load_detail();
+
+        assert_eq!(app.keys().first(), Some(&("d", "draft again")));
+        let text = screen(&app, 140, 40);
+        assert!(text.contains("draft again?"), "{text}");
+        assert!(
+            text.contains("Press d to draft it again"),
+            "the hint names the key, not the command: {text}"
+        );
+        assert_eq!(
+            app.key(key(KeyCode::Char('d'))),
+            Some(Effect::Redraft(vec![failed.id]))
+        );
+
+        // A proposal whose card is settled doesn't put it first, though d still works.
+        app.chosen = app.queue.iter().position(|e| e.id != failed.id).unwrap();
+        app.load_detail();
+        assert_ne!(app.keys().first(), Some(&("d", "draft again")));
+    }
+
+    #[test]
+    fn p_picks_one_of_a_proposals_readings_through_the_correction_pop_up() {
+        use carrel_core::ingest::readings::Reading;
+        let (_dir, app) = sample(false);
+        let queue = ReviewQueue::of(&app.archive);
+        let (entries, _) = queue.list().unwrap();
+        let mut unsure = entries[0].clone();
+        unsure.id = Id::new_v7();
+        let reading = |title: &str, against: &[&str]| Reading {
+            title: title.into(),
+            summary: format!("{title}, as a print file."),
+            tags: Vec::new(),
+            reason: "the shape".into(),
+            against: against.iter().map(|a| (*a).to_owned()).collect(),
+        };
+        unsure.card.summary = Some("Keychain plate, as a print file.".into());
+        unsure.card.title = "Keychain plate".into();
+        unsure.readings = vec![
+            reading("Keychain plate", &[]),
+            reading("Fish model", &["the file name (“keychain plate”)"]),
+        ];
+        queue.save(&unsure).unwrap();
+        let mut app = App::new(app.archive.clone()).unwrap();
+        app.key(key(KeyCode::Char('4')));
+        app.chosen = app.queue.iter().position(|e| e.id == unsure.id).unwrap();
+        app.load_detail();
+
+        assert!(app.keys().contains(&("p", "pick a reading")));
+        let text = screen(&app, 140, 50);
+        assert!(
+            text.contains("Readings (press p and a number to pick one):"),
+            "the hint names the key, not the command: {text}"
+        );
+        assert!(text.contains("2. Fish model"), "{text}");
+        assert_eq!(app.key(key(KeyCode::Char('p'))), None);
+        app.key(key(KeyCode::Char('2')));
+        assert_eq!(
+            app.key(key(KeyCode::Enter)),
+            Some(Effect::Correction(super::super::app::Step::Work {
+                target: super::super::screens::Correcting::Proposal(unsure.id),
+                words: "reading: 2".into(),
+                answering: None,
+            }))
+        );
+
+        // One with a single reading says so.
+        app.chosen = app.queue.iter().position(|e| e.id != unsure.id).unwrap();
+        app.load_detail();
+        assert!(!app.keys().contains(&("p", "pick a reading")));
+        assert_eq!(app.key(key(KeyCode::Char('p'))), None);
+        assert!(app.input.is_none());
     }
 }

@@ -43,6 +43,8 @@ pub enum RestructureAction {
     CrawlNow,
     /// Undo the crawler's changes this week, as `carrel crawl undo 7d` does.
     UndoCrawler,
+    /// Re-check cards weaker devices drafted, as `carrel devices recheck` does.
+    RecheckNow,
     /// Set this collection's own eagerness, or clear it with `default`.
     Eagerness {
         /// The collection, by path.
@@ -153,7 +155,7 @@ impl App {
     fn decide_restructure(&mut self, code: KeyCode) -> Handled {
         let review = &mut self.restructure;
         let Some(proposal) = review.shown().cloned() else {
-            self.message = Some("No restructure proposals are waiting; t or p proposes one".into());
+            self.message = Some("No suggestions are waiting; t or p proposes one".into());
             return Handled::Yes(None);
         };
         match code {
@@ -279,6 +281,7 @@ pub(super) fn restructure_work(
     match action {
         RestructureAction::CrawlNow => super::review_crawler::crawler_work(root, false),
         RestructureAction::UndoCrawler => super::review_crawler::crawler_work(root, true),
+        RestructureAction::RecheckNow => super::devices::recheck_work(root),
         RestructureAction::Approve { id, only } => (
             "Restructuring…".into(),
             Box::new(move || {
@@ -450,7 +453,7 @@ mod tests {
         ];
         carrel_core::restructure::queue(&app.archive, &proposal).unwrap();
         app.reload().unwrap();
-        app.key(key(KeyCode::Char('2')));
+        app.key(key(KeyCode::Char('4')));
         assert_eq!(app.tab, Tab::Review);
         app.key(key(KeyCode::Char('f')));
         app.key(key(KeyCode::Char('f')));

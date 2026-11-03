@@ -15,77 +15,107 @@ pub use super::review::Picker;
 pub use super::screens::Input;
 use crate::Failure;
 
-/// The screens, in the order of their number keys.
+/// The screens, in the order of the row of tabs, then adding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
-    /// What `carrel status` shows.
-    Status,
-    /// The review queue.
-    Review,
+    /// What the archive opens on: what's waiting, the collections, what's new and On This Day
+    /// (`docs/design/library-home.md`).
+    Library,
     /// What's checked out and on the desk, and their pending history entries.
     Active,
-    /// The question queue.
+    /// The librarian's questions for the owner.
     Questions,
+    /// To Approve: the review queue, the crawler's findings and, as Suggestions, restructure
+    /// proposals.
+    Review,
     /// Collections and their items.
     Browse,
+    /// What `carrel status` shows.
+    Status,
     /// Recorded changes.
     History,
-    /// Items waiting to be drafted, and adding more.
-    Ingest,
-    /// This device's and the archive's settings.
-    Settings,
     /// Backups: snapshots, and taking, checking and restoring from them.
     Backups,
+    /// This device's and the archive's settings.
+    Settings,
     /// A conversation with the librarian, and the item it's discussing.
     Librarian,
-    /// Discovery: on this day, wander, the timeline, the map and activity.
+    /// Items waiting to be drafted, and adding more: a mode `+` shows, not one of the tabs.
+    Ingest,
+    /// A view of the Library or a collection other than its own (`docs/design/library-home.md`):
+    /// the timeline, the map, connections, activity, on this day or a wander. A mode `v` shows
+    /// from the Library or Browse, not one of the tabs.
     Discover,
 }
 
 impl Tab {
-    /// Every tab, in order.
-    pub const ALL: [Self; 11] = [
-        Self::Status,
-        Self::Review,
+    /// Every tab in the row, in order: the Library, then what's checked out and what the
+    /// librarian is asking, the collections, then looking after the archive, as the apps'
+    /// sidebar has them.
+    pub const ALL: [Self; 10] = [
+        Self::Library,
         Self::Active,
         Self::Questions,
+        Self::Review,
         Self::Browse,
+        Self::Status,
         Self::History,
-        Self::Ingest,
-        Self::Settings,
         Self::Backups,
+        Self::Settings,
         Self::Librarian,
-        Self::Discover,
     ];
+
+    /// How many screens there are, adding and the views included.
+    pub const COUNT: usize = Self::ALL.len() + 2;
 
     /// The tab's name.
     pub fn title(self) -> &'static str {
         match self {
-            Self::Status => "Status",
-            Self::Review => "Review",
-            Self::Active => "Active",
+            Self::Library => "Library",
+            Self::Active => "Checked Out",
+            Self::Review => "To Approve",
             Self::Questions => "Questions",
             Self::Browse => "Browse",
+            Self::Discover => "Views",
+            Self::Status => "Status",
             Self::History => "History",
-            Self::Ingest => "Ingest",
-            Self::Settings => "Settings",
             Self::Backups => "Backups",
+            Self::Settings => "Settings",
             Self::Librarian => "Librarian",
-            Self::Discover => "Discover",
+            Self::Ingest => "Add",
         }
     }
 
-    /// The key that shows it: its number, or for the librarian and discovery, `L` and `D`.
+    /// The key that shows it: a number, `L` for the librarian, `+` for adding and `v` for the
+    /// views, which only the Library and Browse take.
     pub fn key(self) -> char {
         match self {
+            Self::Library => '1',
+            Self::Active => '2',
+            Self::Questions => '3',
+            Self::Review => '4',
+            Self::Browse => '5',
+            Self::Discover => 'v',
+            Self::Status => '6',
+            Self::History => '7',
+            Self::Backups => '8',
+            Self::Settings => '9',
             Self::Librarian => 'L',
-            Self::Discover => 'D',
-            tab => char::from(b'1' + u8::try_from(tab.index()).unwrap_or(0)),
+            Self::Ingest => '+',
         }
     }
 
+    /// Where its state is kept, such as how far it's scrolled.
     pub(super) fn index(self) -> usize {
-        Self::ALL.iter().position(|t| *t == self).unwrap_or(0)
+        self as usize
+    }
+
+    /// The tab whose key is `c`.
+    pub fn of_key(c: char) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .chain([Self::Ingest])
+            .find(|t| t.key() == c)
     }
 }
 
@@ -97,6 +127,17 @@ pub enum Preferences {
     Saved,
     /// For this session only.
     InMemory,
+}
+
+impl Preferences {
+    /// Saved, except in tests, which never write the real preferences.
+    fn here() -> Self {
+        if cfg!(test) {
+            Self::InMemory
+        } else {
+            Self::Saved
+        }
+    }
 }
 
 /// What the file picker is choosing for.
@@ -241,6 +282,17 @@ pub enum Confirm {
     },
     /// Undoing all of the librarian's changes this week, this many.
     UndoLibrarian(usize),
+    /// Clearing an item's or a collection's flag.
+    Unflag {
+        /// The item's card or the collection's folder.
+        target: String,
+        /// Its title.
+        title: String,
+        /// The flag's note.
+        note: Option<String>,
+    },
+    /// Settling a conflicted copy, or moving the archive into iCloud Drive.
+    Sync(super::sync::SyncConfirm),
 }
 
 /// A step of a correction, which the run loop does itself.
@@ -293,6 +345,8 @@ pub enum Effect {
     },
     /// Reject these proposals.
     Reject(Vec<Id>),
+    /// Draft these proposals again with the models here now.
+    Redraft(Vec<Id>),
     /// Expand these compressed files when they're approved, or keep them compressed.
     Compressed {
         /// The proposals.
@@ -343,6 +397,12 @@ pub enum Effect {
         paths: Vec<std::path::PathBuf>,
         /// How folders among them are read.
         options: carrel_core::ingest::IntakeOptions,
+        /// A web address to add instead, as a `url` item.
+        url: Option<String>,
+        /// The owner's note, for the drafts and the cards.
+        note: Option<String>,
+        /// A note the owner wrote, to add instead as an item of its own.
+        written: Option<String>,
     },
     /// Take this item off the intake queue.
     Unqueue(Id),
@@ -419,6 +479,9 @@ pub enum Effect {
         /// Whether to expand it even though there's a reason to keep it compressed.
         anyway: bool,
     },
+    /// Flag an item or a collection, or clear its flag, as `carrel flag` and `carrel unflag`
+    /// do.
+    Flag(super::flagging::Flagging),
     /// Take a backup snapshot now.
     BackupNow,
     /// Check the backups, reading back this percentage of the files.
@@ -432,6 +495,9 @@ pub enum Effect {
         /// The folder to restore into, as `--to` says; beside the archive when none.
         to: Option<std::path::PathBuf>,
     },
+    /// Restore this version from the holding folder beside the archive, as
+    /// `carrel backup restore ITEM --held ID` does.
+    RestoreHeld(Id),
     /// Create or connect to a backup repository.
     BackupSetup {
         /// Where it is or will be.
@@ -457,6 +523,9 @@ pub enum Effect {
     SaveConversation,
     /// Undo the librarian's changes this week, as `carrel undo --librarian 7d` does.
     UndoLibrarian,
+    /// Download, keep downloaded, settle a conflicted copy or move the archive, as
+    /// `carrel sync` does.
+    Sync(super::sync::SyncWork),
 }
 
 /// The interactive mode's state.
@@ -468,7 +537,7 @@ pub struct App {
     /// What `carrel status` shows.
     pub status: Vec<String>,
     /// How far each report screen is scrolled.
-    pub scroll: [u16; Tab::ALL.len()],
+    pub scroll: [u16; Tab::COUNT],
     /// The history, newest first.
     pub history: Vec<Entry>,
     /// The selected change.
@@ -481,6 +550,12 @@ pub struct App {
     pub review_list: super::review_crawler::ReviewList,
     /// The crawler's findings waiting in Review.
     pub crawler: super::review_crawler::CrawlerReview,
+    /// The Gaps view on Status: what Carrel couldn't do on this device.
+    pub gaps: super::gaps::GapsView,
+    /// The Flags view on Status.
+    pub flags: super::flag_requests::FlagsView,
+    /// The Sync view on Status: the archive shared between devices.
+    pub sync: super::sync::SyncView,
     /// Restructure proposals waiting in Review.
     pub restructure: super::review_restructure::RestructureReview,
     /// The chosen proposal.
@@ -501,6 +576,8 @@ pub struct App {
     pub active: Vec<super::active::ActiveItem>,
     /// The reminders due, which Status lists.
     pub reminders: Vec<carrel_core::reminders::Reminder>,
+    /// How many cards weaker devices drafted this device can re-check now.
+    pub rechecks_here: usize,
     /// The working copy of the checkout being returned, to ask about once it's back, when
     /// `checkout.after_return` says to ask.
     pub returning_working_copy: Option<std::path::PathBuf>,
@@ -516,12 +593,18 @@ pub struct App {
     pub resting: usize,
     /// The chosen question.
     pub asked_chosen: usize,
+    /// The suggested answer `[` and `]` highlighted, which Enter picks.
+    pub asked_suggestion: Option<usize>,
+    /// What the chosen question is about.
+    pub question_subjects: Vec<carrel_core::questions::subjects::QuestionSubject>,
     /// The collections, for Browse.
     pub collections: Vec<Collection>,
     /// Browse's chosen collection.
     pub browse_collection: usize,
     /// The chosen collection's cards, or what a search found, as card paths and titles.
     pub browse_items: Vec<(String, String)>,
+    /// Which of them are flagged as needing work, by card path.
+    pub browse_flagged: BTreeSet<String>,
     /// Browse's chosen item.
     pub browse_item: usize,
     /// Where Browse's arrows move: collections, items, or the chosen item's view.
@@ -567,6 +650,8 @@ pub struct App {
     pub known_archives: Vec<std::path::PathBuf>,
     /// The chosen snapshot on the Backups screen.
     pub backup_chosen: usize,
+    /// The versions in the holding folder, under the Backups screen's snapshots.
+    pub held: super::held::HeldVersions,
     /// The built-in file browser, while it's open.
     pub browser: Option<super::browser::Browser>,
     /// The `picker` preference.
@@ -603,6 +688,10 @@ pub struct App {
     pub librarian_changes: Vec<Entry>,
     /// The Discover screen.
     pub stacks: super::discover::Stacks,
+    /// The Library, where the interactive mode opens.
+    pub library: super::library::LibraryView,
+    /// Where adding and the views were opened from, and the views last shown.
+    pub modes: super::views::Modes,
     /// Whether every key is shown.
     pub help: bool,
     /// Whether to leave.
@@ -611,6 +700,14 @@ pub struct App {
 
 fn lines(text: &str) -> Vec<String> {
     text.lines().map(str::to_owned).collect()
+}
+
+/// This device's identifier, from its identity, if it has one.
+fn this_device() -> Option<Id> {
+    crate::config::Identity::load()
+        .ok()
+        .flatten()
+        .map(|i| i.device)
 }
 
 /// Where the interactive mode records what it asks about: in memory under test, so tests
@@ -643,15 +740,18 @@ impl App {
         let archive_for_records = archive.clone();
         let mut app = Self {
             archive,
-            tab: Tab::Status,
+            tab: Tab::Library,
             status: Vec::new(),
-            scroll: [0; Tab::ALL.len()],
+            scroll: [0; Tab::COUNT],
             history: Vec::new(),
             selected: 0,
             waiting: (0, 0),
             queue: Vec::new(),
             review_list: super::review_crawler::ReviewList::default(),
             crawler: super::review_crawler::CrawlerReview::default(),
+            gaps: super::gaps::GapsView::default(),
+            flags: super::flag_requests::FlagsView::default(),
+            sync: super::sync::SyncView::default(),
             restructure: super::review_restructure::RestructureReview::default(),
             chosen: 0,
             marked: BTreeSet::new(),
@@ -665,14 +765,18 @@ impl App {
             returning_working_copy: None,
             active_chosen: 0,
             reminders: Vec::new(),
+            rechecks_here: 0,
             active_marked: BTreeSet::new(),
             asked: Vec::new(),
             asked_settles: Vec::new(),
             resting: 0,
             asked_chosen: 0,
+            asked_suggestion: None,
+            question_subjects: Vec::new(),
             collections: Vec::new(),
             browse_collection: 0,
             browse_items: Vec::new(),
+            browse_flagged: BTreeSet::new(),
             browse_item: 0,
             browse_pane: super::item::Pane::Collections,
             search: None,
@@ -682,10 +786,7 @@ impl App {
             input: None,
             message: None,
             confirm: None,
-            device: crate::config::Identity::load()
-                .ok()
-                .flatten()
-                .map(|i| i.device),
+            device: this_device(),
             intake: Vec::new(),
             intake_chosen: 0,
             planned: None,
@@ -697,16 +798,13 @@ impl App {
             progress: super::embedding::Shared::default(),
             known_archives: Vec::new(),
             backup_chosen: 0,
+            held: super::held::HeldVersions::default(),
             browser: None,
             picker_preference: None,
             start_folder: std::path::PathBuf::from("."),
             picking: Picking::Ingest,
             checking_out: None,
-            preferences: if cfg!(test) {
-                Preferences::InMemory
-            } else {
-                Preferences::Saved
-            },
+            preferences: Preferences::here(),
             service: if cfg!(test) {
                 super::agent::Service::default()
             } else {
@@ -721,6 +819,8 @@ impl App {
             asking: super::librarian::Asking::default(),
             librarian_changes: Vec::new(),
             stacks: super::discover::Stacks::default(),
+            library: super::library::LibraryView::default(),
+            modes: super::views::Modes::default(),
             help: false,
             quit: false,
         };
@@ -754,6 +854,12 @@ impl App {
         self.status.extend(self.index_status());
         self.status
             .extend(crate::usage_report::status_lines(&self.archive));
+        self.load_gaps();
+        self.status.extend(self.gaps_status_lines());
+        if self.flags.shown {
+            self.load_flags();
+        }
+        self.load_sync_if_shown();
         self.history = match History::open(&self.archive) {
             Ok(history) => history.log()?,
             Err(HistoryError::NotInitialized) => Vec::new(),
@@ -770,12 +876,15 @@ impl App {
         self.load_queue(entries);
         self.load_crawler_findings();
         self.load_restructures();
+        self.load_held();
         self.load_questions(ranked);
         self.load_browse()?;
         self.load_intake();
         self.load_settings();
         self.load_active();
+        self.load_library();
         self.load_reminders();
+        self.load_rechecks();
         if !self.stacks.lines.is_empty() {
             self.load_discover();
         }
@@ -816,7 +925,22 @@ impl App {
             return keys;
         }
         // The decisions need the room; the screen keys are in ? help.
-        let mut keys = vec![
+        let mut keys = Vec::new();
+        if self
+            .queue
+            .get(self.chosen)
+            .is_some_and(carrel_core::ingest::redraft::wants_redraft)
+        {
+            keys.push(("d", "draft again"));
+        }
+        if self
+            .queue
+            .get(self.chosen)
+            .is_some_and(|e| !e.readings.is_empty())
+        {
+            keys.push(("p", "pick a reading"));
+        }
+        keys.extend([
             ("a", "approve"),
             ("h", "hold"),
             ("m", "move"),
@@ -827,7 +951,7 @@ impl App {
             ("A", "all high"),
             ("?", "help"),
             ("q", "quit"),
-        ];
+        ]);
         if let Some(plan) = self
             .queue
             .get(self.chosen)
@@ -839,6 +963,29 @@ impl App {
                 "expand"
             };
             keys.insert(3, ("z", label));
+        }
+        keys
+    }
+
+    /// Status's keys: those of the view shown on it, else its own and the views it opens.
+    fn status_keys(&self) -> Vec<(&'static str, &'static str)> {
+        if self.flags.shown {
+            return self.flags_keys();
+        }
+        if self.sync.shown {
+            return self.sync_keys();
+        }
+        if self.gaps.shown {
+            return self.gaps_keys();
+        }
+        let mut keys = if self.reminder_has_item() {
+            vec![("↑↓", "scroll"), ("Enter", "reminder's item")]
+        } else {
+            vec![("↑↓", "scroll")]
+        };
+        keys.extend([("f", "flags"), ("g", "gaps"), ("s", "sync")]);
+        if self.rechecks_here > 0 {
+            keys.push(("c", "re-check cards"));
         }
         keys
     }
@@ -914,26 +1061,28 @@ impl App {
             }
             Tab::Ingest => keys.extend([
                 ("i", "add"),
+                ("a", "write a note"),
                 ("↑↓", "choose"),
                 ("x", "remove"),
                 ("t", "to front"),
                 ("r", "retry"),
+                ("Esc", "back"),
             ]),
             Tab::History => keys.extend([("↑↓", "choose"), ("u", "undo")]),
-            Tab::Backups => keys.extend([
-                ("↑↓", "choose"),
-                ("n", "snapshot now"),
-                ("v", "verify"),
-                ("r", "restore"),
-                ("s", "set up"),
-            ]),
-            Tab::Questions => {
-                keys.extend([("↑↓", "choose"), ("Enter", "answer"), ("d", "dismiss")]);
+            Tab::Backups => {
+                keys.extend([
+                    ("↑↓", "choose"),
+                    ("n", "snapshot now"),
+                    ("v", "verify"),
+                    ("r", "restore"),
+                    ("s", "set up"),
+                ]);
+                keys.extend(self.held_keys());
             }
+            Tab::Questions => keys.extend(self.questions_keys()),
             Tab::Browse => return self.browse_keys(),
-            Tab::Status if self.reminder_has_item() => {
-                keys.extend([("↑↓", "scroll"), ("Enter", "reminder's item")]);
-            }
+            Tab::Status => keys.extend(self.status_keys()),
+            Tab::Library => keys.extend([("↑↓", "choose"), ("Enter", "open"), ("+", "adding")]),
             _ => keys.push(("↑↓", "scroll")),
         }
         keys.extend([("^R", "refresh"), ("?", "help"), ("q", "quit")]);
@@ -941,12 +1090,16 @@ impl App {
     }
 
     pub(super) fn move_by(&mut self, delta: i32) {
-        if self.tab == Tab::Review {
+        if self.tab == Tab::Library {
+            self.library_move(delta);
+        } else if self.tab == Tab::Review {
             self.choose(delta);
         } else if self.tab == Tab::Active {
             self.active_move(delta);
         } else if self.tab == Tab::Questions {
             self.asked_chosen = step(self.asked_chosen, delta, self.asked.len());
+            self.asked_suggestion = None;
+            self.question_shown();
         } else if self.tab == Tab::Browse {
             self.browse_move(delta);
         } else if self.tab == Tab::Ingest {
@@ -1023,7 +1176,11 @@ impl App {
             self.archive_picker();
             return None;
         }
+        if let Handled::Yes(effect) = self.mode_key(key) {
+            return effect;
+        }
         let handled = match self.tab {
+            Tab::Library => self.library_key(key),
             Tab::Review => self.review_key(key),
             Tab::Active => self.active_key(key),
             Tab::Questions => self.questions_key(key),
@@ -1033,7 +1190,9 @@ impl App {
             Tab::Backups => self.backups_key(key),
             Tab::Librarian => self.talk_key(key),
             Tab::Discover => self.discover_key(key),
-            Tab::Status => self.status_key(key),
+            Tab::Status => self
+                .flags_key(key)
+                .unwrap_or_else(|| self.status_or_sync_key(key)),
             Tab::History => Handled::No,
         };
         if let Handled::Yes(effect) = handled {
@@ -1042,6 +1201,7 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
             KeyCode::Char('?') => self.help = true,
+            KeyCode::Char('!') => self.ask_feedback(),
             KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 // Providers may have come or gone too.
                 if self.here.is_some() {
@@ -1054,17 +1214,11 @@ impl App {
                 });
             }
             KeyCode::Char('i') => return self.start_ingest(),
-            KeyCode::Char(c) if Tab::ALL.iter().any(|t| t.key() == c) => {
-                if let Some(tab) = Tab::ALL.iter().find(|t| t.key() == c) {
-                    self.tab = *tab;
-                }
+            KeyCode::Char(c) if Tab::of_key(c).is_some() => {
+                self.switch_tab_carrying_view(c);
             }
-            KeyCode::Tab | KeyCode::Right => {
-                self.tab = Tab::ALL[(self.tab.index() + 1) % Tab::ALL.len()];
-            }
-            KeyCode::BackTab | KeyCode::Left => {
-                self.tab = Tab::ALL[(self.tab.index() + Tab::ALL.len() - 1) % Tab::ALL.len()];
-            }
+            KeyCode::Tab | KeyCode::Right => self.next_tab(1),
+            KeyCode::BackTab | KeyCode::Left => self.next_tab(-1),
             KeyCode::Down | KeyCode::Char('j') => self.move_by(1),
             KeyCode::Up | KeyCode::Char('k') => self.move_by(-1),
             KeyCode::PageDown => self.move_by(10),
@@ -1126,8 +1280,10 @@ impl App {
             MouseEventKind::ScrollDown => self.move_by(3),
             MouseEventKind::ScrollUp => self.move_by(-3),
             MouseEventKind::Down(_) if event.row == 0 && self.confirm.is_none() => {
-                if let Some(i) = tab_starts.iter().rposition(|start| event.column >= *start) {
-                    self.tab = Tab::ALL[i];
+                if let Some(i) = tab_starts.iter().rposition(|start| event.column >= *start)
+                    && let Some(tab) = self.shown_tabs().get(i)
+                {
+                    self.tab = *tab;
                 }
             }
             _ => {}
@@ -1141,6 +1297,7 @@ impl App {
     pub(super) fn screen_shown(&mut self) {
         match self.tab {
             Tab::Browse => self.previews.want(&self.archive, &self.item),
+            Tab::Questions => self.question_shown(),
             Tab::Discover => {
                 if self.stacks.view == super::discover::View::Wander {
                     self.previews.want(&self.archive, &self.stacks.item);
@@ -1235,6 +1392,8 @@ fn confirmed(confirm: Confirm, key: KeyCode) -> Option<Effect> {
             anyway: anyway.is_some(),
         },
         Confirm::UndoLibrarian(_) => Effect::UndoLibrarian,
+        Confirm::Unflag { target, .. } => Effect::Flag(super::flagging::Flagging::Clear { target }),
+        Confirm::Sync(sync) => Effect::Sync(sync.work()),
     })
 }
 

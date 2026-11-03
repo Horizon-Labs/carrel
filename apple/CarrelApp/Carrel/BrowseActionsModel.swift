@@ -66,7 +66,7 @@ struct ExpandRequest: Identifiable {
 final class BrowseActionsModel {
     let archive: ArchiveModel
     /// Called after a change, so the window's lists follow it.
-    private let didChange: () async -> Void
+    let didChange: () async -> Void
     /// Called with a new collection's path once it's created, to show it.
     var created: (String) -> Void = { _ in }
 
@@ -76,6 +76,10 @@ final class BrowseActionsModel {
     var renaming: RenameDraft?
     /// The expansion being confirmed.
     var expanding: ExpandRequest?
+    /// The flag being set, with its note (Flagging.swift).
+    var flagging: FlagDraft?
+    /// The flag being cleared, asked for or offered after an edit.
+    var unflagging: UnflagRequest?
     /// What went wrong, or what to know about the last action, for an alert.
     var problem: String?
 
@@ -103,6 +107,8 @@ final class BrowseActionsModel {
             creating = nil
             await didChange()
             created(new.path)
+        } catch let error where wentToInbox(error) {
+            creating = nil
         } catch {
             var draft = draft
             draft.problem = take(error)
@@ -132,6 +138,8 @@ final class BrowseActionsModel {
                 draft.item, to: draft.name.trimmingCharacters(in: .whitespaces))
             renaming = nil
             await didChange()
+        } catch let error where wentToInbox(error) {
+            renaming = nil
         } catch {
             var draft = draft
             draft.problem = take(error)

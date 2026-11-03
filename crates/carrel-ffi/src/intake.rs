@@ -147,6 +147,10 @@ impl ArchiveHandle {
         let archive = self.fresh()?;
         let device = self.identity()?.device;
         let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+        if let Some((holder, sending)) = self.sending(&archive)? {
+            carrel_core::inbox::send_paths(&archive, holder, &paths, each, None)?;
+            return Err(CarrelError::sent(&sending));
+        }
         let queued =
             carrel_core::intake::add(&archive, &paths, IntakeOptions { each, whole }, device)?;
         Ok(Added {
@@ -228,14 +232,17 @@ impl ArchiveHandle {
 
     /// Runs the worker here, as `carrel worker` does: drafts every item waiting in the
     /// intake queue on this device, then embeds what changed for search, reporting to
-    /// `progress`. Does nothing when another worker, such as the agent's, is running. It
-    /// takes as long as the models do, so call it off the main thread.
+    /// `progress`. Drafts with the device's providers, and with `model` when the app gives
+    /// one, as the iPad and iPhone do with the models they run in-process. Does nothing when
+    /// another worker, such as the agent's, is running. It takes as long as the models do, so
+    /// call it off the main thread.
     ///
     /// # Errors
     ///
     /// [`CarrelError::Failed`] if the queues can't be read or written.
     pub fn draft_queued(
         &self,
+        model: Option<Arc<dyn crate::correct::ModelProvider>>,
         progress: Option<Arc<dyn ProgressListener>>,
     ) -> Result<Drafted, CarrelError> {
         let archive = self.fresh()?;
@@ -249,7 +256,7 @@ impl ArchiveHandle {
                 already_running: true,
             });
         };
-        let registry = self.registry();
+        let registry = self.drafting_registry(model);
         let backups = crate::backups(&archive);
         let worker = Worker {
             archive: &archive,
@@ -257,6 +264,10 @@ impl ArchiveHandle {
             holder: self.holder()?,
             backups: backups.as_deref(),
             status: Some(file_in(&folder, &archive, "json")),
+            received: self
+                .config_dir()
+                .ok()
+                .map(|dir| dir.join("received").join(archive.info().id.to_string())),
         };
         let mut reporting = Reporting {
             progress,

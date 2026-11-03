@@ -7,7 +7,7 @@ use carrel_core::Access;
 use carrel_core::archive::{Archive, ArchiveError, InitOptions, ItemRef};
 use carrel_core::card::{Card, Id};
 use carrel_core::card_file::CardFile;
-use carrel_core::coordinator::{Coordinator, DEFAULT_LEASE, DiskLock, Holder, LockInfo};
+use carrel_core::coordinator::{self, Coordinator, DEFAULT_LEASE, DiskLock, Holder, LockInfo};
 use carrel_core::history::{Entry, History, HistoryError, Operation};
 use carrel_core::status::{Happened, Looking, Recent};
 use serde_json::{Value, json};
@@ -15,8 +15,22 @@ use serde_json::{Value, json};
 use crate::config::{Identity, Prefs};
 use crate::{Failure, Report};
 
-const SYNCED_WARNING: &str = "this archive is in a synced folder; until iCloud support \
-     arrives, use it from one device at a time";
+const SYNCED_WARNING: &str = "this archive is in a synced folder, where a lock file can't keep \
+     two devices from writing at once; use it from one device at a time";
+const ICLOUD_WARNING: &str = "this archive is in iCloud Drive, but its writer isn't being chosen \
+     through iCloud here (on a Mac, Carrel Agent does that once iCloud is set up); until then, \
+     use it from one device at a time";
+
+/// What to warn about an archive in a synced folder, if anything: nothing once devices take
+/// turns through `CloudKit`.
+fn synced_warning(archive: &Archive) -> Option<&'static str> {
+    let root = archive.root();
+    if coordinator::is_in_icloud_drive(root) {
+        (!DiskLock::for_archive(archive).uses_cloud()).then_some(ICLOUD_WARNING)
+    } else {
+        DiskLock::is_synced_folder(root).then_some(SYNCED_WARNING)
+    }
+}
 
 /// Finds the archive to work on: `--archive`, else the one containing the current folder,
 /// else the one chosen with `carrel open`.
@@ -136,9 +150,7 @@ pub fn init(
     }
 
     let mut warnings = Vec::new();
-    if DiskLock::is_synced_folder(archive.root()) {
-        warnings.push(SYNCED_WARNING);
-    }
+    warnings.extend(synced_warning(&archive));
     let mut text = if existing {
         format!(
             "Started history for archive “{}” in {}\n",
@@ -381,27 +393,22 @@ pub fn status_on(
     text.push_str(&history_line(history));
     text.push_str(&crate::backup::status_line(&archive, history));
     text.push_str(&writer_line(summary.writer.as_ref(), this_device));
+    text.push_str(&crate::sync::status_lines(&archive, summary.synced));
     text.push_str(&recent_section(&summary.recent));
     let (librarian_text, librarian) = crate::ask::status_section(history);
     text.push_str(&librarian_text);
-    let (crawler_text, crawler) = crate::crawl::status_section(history);
+    let (crawler_text, crawler) = crate::crawl::status_section(&archive, this_device, history);
     text.push_str(&crawler_text);
-    if !summary.problems.is_empty() {
-        writeln!(
-            text,
-            "\n{} with problems:",
-            plural(summary.problems.len(), "card")
-        )
-        .unwrap();
-        for found in &summary.problems {
-            writeln!(text, "  {}", found.card).unwrap();
-            for problem in &found.problems {
-                writeln!(text, "    {problem}").unwrap();
-            }
-        }
-    }
+    let (devices_text, devices) = crate::devices::status_section(&archive, this_device);
+    text.push_str(&devices_text);
+    text.push_str(&problems_section(&summary.problems));
     text.push_str(&names_section(&summary.names));
     text.push_str(&signals_section(&summary.signals));
+    text.push_str(&crate::flag_librarian::status_section(&archive));
+    let (feedback_text, feedback_unsent) = crate::feedback::status_line(&archive);
+    text.push_str(&feedback_text);
+    let (sync_text, sync) = crate::sync_status::section(&archive, this_device);
+    text.push_str(&sync_text);
     let (desk_text, desk) = crate::desk::suggestions_section(&summary.desk);
     text.push_str(&desk_text);
     let (resurfaced_text, resurfaced) = crate::discover::resurfaced(&archive, records);
@@ -409,9 +416,9 @@ pub fn status_on(
     let (daily_text, daily) = crate::asking::daily_section(&archive, records);
     text.push_str(&daily_text);
     let mut warnings = Vec::new();
-    if summary.synced {
-        warnings.push(SYNCED_WARNING);
-        writeln!(text, "\nwarning: {SYNCED_WARNING}").unwrap();
+    if let Some(warning) = synced_warning(&archive).filter(|_| summary.synced) {
+        warnings.push(warning);
+        writeln!(text, "\nwarning: {warning}").unwrap();
     }
 
     let json = json!({
@@ -429,8 +436,12 @@ pub fn status_on(
         "writer": writer_json(summary.writer.as_ref()),
         "recent": summary.recent.iter().map(|r| recent_line(r).1).collect::<Vec<_>>(),
         "signals": summary.signals,
+        "flagged": summary.flagged,
+        "inbox": sync["inbox"],
+        "holding": sync["holding"],
         "librarian": librarian,
         "crawler": crawler,
+        "devices": devices,
         "reminders": reminders,
         "desk": desk,
         "resurfaced": resurfaced,
@@ -441,12 +452,27 @@ pub fn status_on(
             "suggestion": f.suggestion,
         })).collect::<Vec<_>>(),
         "warnings": warnings,
+        "feedback_unsent": feedback_unsent,
     });
     Ok(Report::new(text, json))
 }
 
 /// The part of `carrel status` about the structure: where it shows signs of needing a
 /// restructure (`docs/design/signals.md`).
+fn problems_section(problems: &[carrel_core::status::CardProblems]) -> String {
+    let mut text = String::new();
+    if !problems.is_empty() {
+        writeln!(text, "\n{} with problems:", plural(problems.len(), "card")).unwrap();
+        for found in problems {
+            writeln!(text, "  {}", found.card).unwrap();
+            for problem in &found.problems {
+                writeln!(text, "    {problem}").unwrap();
+            }
+        }
+    }
+    text
+}
+
 fn signals_section(signals: &[carrel_core::signals::Signal]) -> String {
     let mut text = String::new();
     if signals.is_empty() {
@@ -498,7 +524,7 @@ fn history_line(history: Option<&[Entry]>) -> String {
     }
 }
 
-fn writer_line(lock: Option<&LockInfo>, this_device: Option<Id>) -> String {
+pub(crate) fn writer_line(lock: Option<&LockInfo>, this_device: Option<Id>) -> String {
     let Some(info) = lock else {
         return "Nobody is writing\n".to_owned();
     };
@@ -646,6 +672,9 @@ pub(crate) fn describe(archive: &Archive, query: &str) -> Result<Shown, Failure>
             &format!("to {} since {}", checkout.to, checkout.since.0),
         );
     }
+    if let Some(flag) = &card.needs_work {
+        row("flagged", &carrel_core::flags::describe(flag));
+    }
     if let Some(summary) = &card.summary {
         writeln!(text, "\n{}", summary.trim_end()).unwrap();
     }
@@ -655,6 +684,8 @@ pub(crate) fn describe(archive: &Archive, query: &str) -> Result<Shown, Failure>
             writeln!(text, "  {problem}").unwrap();
         }
     }
+    let (drawings_text, drawings) = crate::drawings::listing(archive, &item)?;
+    text.push_str(&drawings_text);
     let links = card
         .links
         .iter()
@@ -681,6 +712,7 @@ pub(crate) fn describe(archive: &Archive, query: &str) -> Result<Shown, Failure>
         "collection": collection,
         "fields": card,
         "problems": problems.iter().map(|p| json!({ "field": p.field, "message": p.message })).collect::<Vec<_>>(),
+        "drawings": drawings,
     });
     Ok(Shown {
         id: card.id,
@@ -863,6 +895,18 @@ pub fn undo(archive: Option<&Path>, change: &str) -> Result<Report, Failure> {
             )));
         }
     };
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = carrel_core::inbox::Request::Undo {
+            change: entry.id.clone(),
+        };
+        let mut report = through.send(&archive, request)?;
+        report
+            .text
+            .insert_str(0, &format!("Undoing “{}”\n", entry.summary));
+        report.json["undone"] = json!(null);
+        report.json["change"] = json!(entry.id);
+        return Ok(report);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "undo", DEFAULT_LEASE)?;
@@ -900,6 +944,14 @@ pub fn collection_new(
                 .ok_or_else(|| Failure::new(format!("give a tag as name=meaning, not “{t}”")))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let request = carrel_core::inbox::Request::CreateCollection {
+            path: path.trim().trim_matches('/').to_owned(),
+            description,
+            tags,
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "collection", DEFAULT_LEASE)?;
@@ -946,6 +998,18 @@ pub fn rename(
         }
         suggestion
     };
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        // The writer checks it again, but a name that can't work is said here, at once.
+        let problems = carrel_core::names::problems(&new_name);
+        if !problems.is_empty() {
+            return Err(carrel_core::rename::RenameError::NotPortable(problems).into());
+        }
+        let request = carrel_core::inbox::Request::Rename {
+            item: item.id,
+            name: new_name,
+        };
+        return through.send(&archive, request);
+    }
     let identity = Identity::load_or_create()?;
     let lease =
         DiskLock::for_archive(&archive).acquire(holder(&identity), "rename", DEFAULT_LEASE)?;

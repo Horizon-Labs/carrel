@@ -179,6 +179,8 @@ fn worker<'a>(
         holder: holder(&identity),
         backups,
         status: file_for(archive, "json").ok(),
+        received: carrel_core::local::config_dir()
+            .map(|dir| dir.join("received").join(archive.info().id.to_string())),
     })
 }
 
@@ -291,7 +293,14 @@ pub fn run(archive: Option<&Path>) -> Result<Report, Failure> {
         eprintln!("The crawler didn't run: {e}");
         None
     });
+    let looked = crate::flag_librarian::when_idle(&archive).unwrap_or_else(|Failure(e)| {
+        eprintln!("The librarian didn't look at the flags: {e}");
+        None
+    });
     let mut text = format!("Drafted {done} queued items.\n");
+    if let Some(looked) = looked {
+        writeln!(text, "{}.", crate::flag_librarian::capitalized(&looked)).unwrap();
+    }
     if let Some(summary) = crawled
         .as_ref()
         .and_then(carrel_core::crawl::Crawled::summary)

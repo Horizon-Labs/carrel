@@ -1,5 +1,6 @@
 // A proposal in the inspector: its card, editable in place, where it would go and why, what
-// needs settling, and the decisions on it.
+// needs settling, and the decisions on it in a bar along the bottom that stays put however far
+// the card scrolls.
 
 import CarrelKit
 import SwiftUI
@@ -8,6 +9,8 @@ struct ProposalInspector: View {
     let proposal: Proposal
     let review: ReviewModel
     let correct: () -> Void
+    /// Opens the correction sheet with one of its readings picked.
+    let pick: (ProposalReading) -> Void
 
     @State private var edit: CardEditModel?
 
@@ -25,7 +28,12 @@ struct ProposalInspector: View {
                 }
                 .textSelection(.enabled)
             }
-            if !proposal.problems.isEmpty {
+            if !proposal.readings.isEmpty {
+                ReadingsSection(proposal: proposal, pick: pick)
+            }
+            if proposal.draftAgain {
+                DraftAgainSection(proposal: proposal, review: review)
+            } else if !proposal.problems.isEmpty {
                 Section("Needs Settling") {
                     ForEach(proposal.problems, id: \.self) { problem in
                         Label(problem, systemImage: "exclamationmark.circle")
@@ -55,20 +63,48 @@ struct ProposalInspector: View {
             if let edit, edit.target == .proposal(proposal.id) {
                 CardEditor(edit: edit)
             }
-            Section {
-                HStack {
-                    Button("Correct…", action: correct)
-                    Spacer()
-                    ReviewActions(review: review, ids: [proposal.id])
-                }
-            }
         }
         .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            DecisionBar(proposal: proposal, review: review, correct: correct)
+        }
         .task(id: proposal.id) {
             let edit = CardEditModel(archive: review.archive, target: .proposal(proposal.id))
             self.edit = edit
             await edit.load()
         }
+    }
+}
+
+/// The decisions on a proposal, pinned below its card: Approve first and prominent, Hold and
+/// Reject beside it, and the rest under More.
+private struct DecisionBar: View {
+    let proposal: Proposal
+    let review: ReviewModel
+    let correct: () -> Void
+
+    private var ids: [Proposal.ID] { [proposal.id] }
+
+    var body: some View {
+        HStack {
+            Menu("More") {
+                Button("Correct…", action: correct)
+                Button("Move To…") { review.moving = ids }
+                Button("Approve Batch") { Task { await review.approveBatch(of: proposal.id) } }
+                Button("Draft Again") { Task { await review.redraft(ids) } }
+            }
+            .menuStyle(.button)
+            .fixedSize()
+            Spacer()
+            Button("Reject") { Task { await review.reject(ids) } }
+            Button("Hold") { Task { await review.hold(ids) } }
+            Button("Approve") { Task { await review.approve(ids) } }
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
     }
 }
 
@@ -149,5 +185,32 @@ private struct CompressedSection: View {
     private func choose(expand: Bool) {
         let id = proposal.id
         Task { await review.chooseCompressed([id], expand: expand) }
+    }
+}
+
+/// A proposal whose card or collection couldn't be settled, as when no text model could be
+/// reached: what went wrong, with Draft Again first, before writing the card by hand.
+private struct DraftAgainSection: View {
+    let proposal: Proposal
+    let review: ReviewModel
+
+    var body: some View {
+        Section("Needs Settling") {
+            ForEach(proposal.problems, id: \.self) { problem in
+                Label(problem, systemImage: "exclamationmark.circle")
+                    .foregroundStyle(.orange)
+            }
+            HStack {
+                Text("Carrel can draft it again with the models \(thisDevice) has now.")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Draft Again") {
+                    let id = proposal.id
+                    Task { await review.redraft([id]) }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(review.archive.progress != nil)
+            }
+        }
     }
 }

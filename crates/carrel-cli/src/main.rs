@@ -19,27 +19,41 @@ mod config;
 mod correct;
 mod crawl;
 mod desk;
+mod devices;
 mod discover;
+mod drawings;
 mod edit;
 mod expand;
+mod feedback;
 mod findability;
+mod flag;
+mod flag_librarian;
 mod formats;
+mod gui;
+mod held;
 mod index;
 mod ingest;
+mod library;
 mod models;
 mod paths;
 mod picker;
 mod progress;
 mod providers;
 mod questions;
+mod redraft;
 mod related;
 mod reminders;
+mod report_gaps;
 mod restructure;
 mod restructure_sections;
 mod review;
 mod search;
 mod sessions;
 mod settings;
+mod start_screen;
+mod sync;
+mod sync_status;
+mod through_inbox;
 mod tui;
 mod usage_report;
 mod worker;
@@ -89,6 +103,9 @@ enum Command {
         /// The archive, or any folder inside it.
         path: Option<PathBuf>,
     },
+    /// What the archive opens on: what's waiting, the collections with their counts, the items
+    /// filed most recently and On This Day.
+    Library,
     /// Summarize the archive: contents, problems, history and who is writing.
     Status,
     /// Show an item's card.
@@ -98,8 +115,8 @@ enum Command {
     },
     /// Find items by what's in their cards and text: words, exact names and numbers, and
     /// filters such as collection:Finances, tag:receipts, kind:folder, after:2025-01,
-    /// before:2026, sensitivity:sensitive and checked-out. Collection documents and glossary
-    /// facts are found too. Restricted items are found by their card only.
+    /// before:2026, sensitivity:sensitive, checked-out and flagged. Collection documents and
+    /// glossary facts are found too. Restricted items are found by their card only.
     Search {
         /// The words and filters.
         #[arg(required = true, value_name = "QUERY")]
@@ -132,6 +149,10 @@ enum Command {
         /// The question; without one, a conversation, a question per line.
         #[arg(value_name = "QUESTION")]
         question: Vec<String>,
+        /// What the questions are about, so "this" and "here" mean it: an item (its
+        /// identifier, card, path or title) or a collection (its path or title).
+        #[arg(long, value_name = "ITEM|COLLECTION")]
+        about: Option<String>,
         /// Save the conversation to this month's Journal.
         #[arg(long)]
         save: bool,
@@ -141,15 +162,13 @@ enum Command {
     /// List the file types this device reads, and those it couldn't read so far.
     Formats,
     /// How well Carrel is doing on this device and what to tweak, from its decision log: no
-    /// titles, text, names or searches, so it can be shared.
-    Report {
-        /// The period: a span such as 14d or 2w, `today`, or a date such as 2026-10-01.
-        #[arg(long, value_name = "WHEN", default_value = usage_report::DEFAULT_SINCE)]
-        since: String,
-        /// Show collections by path rather than identifier, for your eyes only.
-        #[arg(long)]
-        names: bool,
-    },
+    /// titles, text, names or searches, so it can be shared. `carrel report gaps` lists what
+    /// Carrel couldn't do, to report to development.
+    Report(report_gaps::ReportArgs),
+    /// Send feedback for development, about the command line or another screen: `carrel
+    /// feedback "text" [--about ITEM|COLLECTION] [--kind bug|idea|confusing]`. `list`,
+    /// `export` and `issue` show what every device sent, and draft issues from it.
+    Feedback(feedback::FeedbackArgs),
     /// Add files and folders to the intake queue. A worker drafts each one's card and
     /// destination in the background, saving proposals for `carrel review` as they're ready.
     /// Nothing is moved until a proposal is approved.
@@ -177,7 +196,19 @@ enum Command {
     },
     /// Open the interactive mode: status, review, questions, browsing and history in one
     /// screen. `carrel` with no command opens it too, when run in a terminal.
-    Tui,
+    Tui {
+        /// The screen to start on, rather than Status.
+        screen: Option<start_screen::StartScreen>,
+    },
+    /// Open the Mac app on the archive, at a screen and with an item chosen if asked; with
+    /// no archive found, on its Welcome window. On other systems, use `carrel tui`.
+    Gui {
+        /// The screen to show.
+        screen: Option<start_screen::StartScreen>,
+        /// The item to choose: its identifier, or its card's or contents' path.
+        #[arg(long)]
+        item: Option<String>,
+    },
     /// Undo a recorded change with a new change that reverses it; see `carrel log`.
     Undo {
         /// The change's identifier, or its start.
@@ -230,6 +261,37 @@ enum Command {
         item: String,
         /// The new name; without one, the portable name `carrel status` suggests.
         new_name: Option<String>,
+    },
+    /// Flag an item or a collection as needing work, with a note saying what; see `carrel
+    /// flagged`. The crawler looks at it first, and undo can reverse it.
+    Flag {
+        /// The item (its identifier, or its card's or contents' path) or the collection (its
+        /// folder).
+        target: String,
+        /// What needs doing, in a few words, such as "wrong title" or "split this folder".
+        #[arg(long, value_name = "TEXT")]
+        note: Option<String>,
+        /// Hand it to the librarian now, rather than when the device is idle: it suggests a
+        /// fix, asks what it needs to know, or says why it can't help.
+        #[arg(long)]
+        ask: bool,
+    },
+    /// Clear an item's or a collection's flag.
+    Unflag {
+        /// The item or the collection, as for `carrel flag`.
+        target: String,
+    },
+    /// List what's flagged as needing work, by where the librarian is with each; with an
+    /// item or collection, what it suggested or asked, and what to do about it.
+    Flagged(flag_librarian::FlaggedArgs),
+    /// List the handwritten notes on an item's card, drawn with Apple Pencil on iPad or in
+    /// the Mac app: the words recognised in each and the path to its picture.
+    Drawings {
+        /// The item: its identifier, or its card's or contents' path.
+        item: String,
+        /// Remove this drawing (its identifier); undo can bring it back.
+        #[arg(long, value_name = "ID")]
+        remove: Option<String>,
     },
     /// Check an item out to work on: a copy goes to a working folder, and the archive copy is
     /// read-only until it's returned.
@@ -321,6 +383,21 @@ enum Command {
     Crawl {
         #[command(subcommand)]
         action: Option<crawl::CrawlAction>,
+    },
+    /// Each device's capability profile (`list`, the default), measuring this one again
+    /// (`update`), and the cards waiting for a stronger device to re-check them (`rechecks`,
+    /// and `recheck` to take some now).
+    Devices {
+        #[command(subcommand)]
+        action: Option<devices::DevicesAction>,
+    },
+    /// An archive shared between devices through iCloud Drive: the writer lock, inboxes,
+    /// holding folder, re-checks, files not downloaded and conflicted copies (`status`, the
+    /// default); `download`, `keep` a collection downloaded, `resolve` a conflicted copy, or
+    /// `move` the archive into iCloud Drive.
+    Sync {
+        #[command(subcommand)]
+        action: Option<sync::SyncAction>,
     },
     /// Measure text models on the benchmark's test set, for choosing defaults
     /// (`docs/design/benchmark.md`).
@@ -536,10 +613,25 @@ enum ModelsAction {
 }
 
 #[derive(Debug, clap::Args)]
+#[command(group(clap::ArgGroup::new("url_or_text").args(["url", "text"])))]
 #[allow(clippy::struct_excessive_bools)] // each is a command-line flag
 struct IngestArgs {
     /// The files and folders. Each is one item.
     paths: Vec<PathBuf>,
+    /// A web address to file as a `url` item, drafted from the address and --title alone:
+    /// nothing is fetched.
+    #[arg(long, value_name = "URL", conflicts_with_all = ["paths", "each", "whole", "dry_run"])]
+    url: Option<String>,
+    /// A note to file as an item of its own, kept as a Markdown file; `-` reads it from
+    /// standard input.
+    #[arg(long, value_name = "TEXT", conflicts_with_all = ["paths", "url", "each", "whole", "dry_run"])]
+    text: Option<String>,
+    /// The web address's or the note's title, such as the page's.
+    #[arg(long, value_name = "TEXT", requires = "url_or_text")]
+    title: Option<String>,
+    /// A note about what's added, given to the model drafting each card and kept in the card.
+    #[arg(long, value_name = "TEXT")]
+    note: Option<String>,
     /// Ingest each entry inside a folder as its own item.
     #[arg(long, conflicts_with = "whole")]
     each: bool,
@@ -575,7 +667,10 @@ impl IngestArgs {
             .or(self.retry.map(|id| (ingest::Change::Retry, id)));
         ingest::Request {
             paths: self.paths,
+            url: self.url.map(|url| (url, self.title.clone())),
+            text: self.text.map(|text| (text, self.title)),
             options: ingest::Options {
+                note: self.note,
                 intake: carrel_core::ingest::IntakeOptions {
                     each: self.each,
                     whole: self.whole,
@@ -687,6 +782,10 @@ enum BackupAction {
         /// Where to restore it; it must not exist yet.
         #[arg(long)]
         to: Option<PathBuf>,
+        /// Restore the version kept in the holding folder (its identifier, or the newest of
+        /// the item's) instead of a backup; without backups, that's where it comes from.
+        #[arg(long, value_name = "ID", num_args = 0..=1, default_missing_value = "")]
+        held: Option<String>,
     },
 }
 
@@ -713,6 +812,9 @@ enum DiscoverAction {
         /// Go on with the last walk.
         #[arg(long, conflicts_with_all = ["item", "seed"])]
         next: bool,
+        /// Start from a random item in this collection or those inside it.
+        #[arg(long = "in", value_name = "COLLECTION", conflicts_with_all = ["item", "next"])]
+        within: Option<String>,
     },
     /// Items by date, by year, month or day, narrowed by words and search's filters such as
     /// collection:Finances, tag:receipts, after:2025-01 and before:2026.
@@ -736,6 +838,10 @@ enum DiscoverAction {
         /// Show only this many levels of collections.
         #[arg(long, value_name = "LEVELS")]
         depth: Option<usize>,
+        /// Look only at this collection and those inside it, as the apps' views of a
+        /// collection do.
+        #[arg(long = "in", value_name = "COLLECTION")]
+        within: Option<String>,
     },
     /// When items were filed and worked on, by day, as a heatmap. Defaults to the last year.
     Activity {
@@ -745,6 +851,10 @@ enum DiscoverAction {
         /// The last day.
         #[arg(long, value_name = "DATE")]
         to: Option<String>,
+        /// Look only at this collection and those inside it, as the apps' views of a
+        /// collection do.
+        #[arg(long = "in", value_name = "COLLECTION")]
+        within: Option<String>,
     },
     /// The tag and link graph: which collections connect and why, through the tags their
     /// items share, the links between them and the days they were worked on together,
@@ -756,6 +866,10 @@ enum DiscoverAction {
         /// List at most this many connections.
         #[arg(short = 'n', long, value_name = "COUNT", default_value_t = 10)]
         limit: usize,
+        /// Look only at this collection and those inside it, as the apps' views of a
+        /// collection do.
+        #[arg(long = "in", value_name = "COLLECTION")]
+        within: Option<String>,
     },
 }
 
@@ -867,6 +981,18 @@ enum ReviewAction {
         #[arg(long)]
         learn: bool,
     },
+    /// Pick another reading of what the item is, when the model offered several (`carrel
+    /// review show` lists them): its title, summary and tags replace the card's, as one
+    /// correction, shown before it's saved.
+    Pick {
+        /// The proposal's identifier, or its start or end.
+        id: String,
+        /// The reading's number, as `carrel review show` lists it.
+        n: usize,
+        /// Save without asking.
+        #[arg(long)]
+        yes: bool,
+    },
     /// Propose another collection for an item. It's filed there when approved.
     MoveTo {
         /// The proposal's identifier, or its start or end.
@@ -892,6 +1018,16 @@ enum ReviewAction {
         /// The proposals' identifiers, or their starts or ends.
         #[arg(required = true)]
         ids: Vec<String>,
+    },
+    /// Draft proposals again with the models here now, as when no text model could be reached.
+    /// Each keeps its identifier and what you edited, corrected or chose.
+    Redraft {
+        /// The proposals' identifiers, or their starts or ends.
+        #[arg(required_unless_present = "all_failed", conflicts_with = "all_failed")]
+        ids: Vec<String>,
+        /// Draft again every waiting proposal whose card or collection couldn't be settled.
+        #[arg(long)]
+        all_failed: bool,
     },
 }
 
@@ -948,9 +1084,13 @@ fn backup_command(archive: Option<&Path>, action: BackupAction) -> Result<Report
         BackupAction::Now => backup::now(archive),
         BackupAction::List => backup::list(archive),
         BackupAction::Verify { percent } => backup::verify(archive, percent),
-        BackupAction::Restore { item, at, to } => {
-            backup::restore(archive, &item, at.as_deref(), to.as_deref())
-        }
+        BackupAction::Restore { item, at, to, held } => backup::restore(
+            archive,
+            &item,
+            at.as_deref(),
+            to.as_deref(),
+            held.as_deref(),
+        ),
     }
 }
 
@@ -985,6 +1125,7 @@ fn review_command(
         ReviewAction::List { all } => review::list(archive, all),
         ReviewAction::Show { id } => review::show(archive, &id),
         ReviewAction::Reject { ids } => review::reject(archive, &ids),
+        ReviewAction::Redraft { ids, all_failed } => redraft::command(archive, &ids, all_failed),
         ReviewAction::Approve {
             ids,
             all_high,
@@ -1005,6 +1146,7 @@ fn review_command(
             yes,
             learn,
         } => correct::review(archive, &id, &words, yes, learn),
+        ReviewAction::Pick { id, n, yes } => review::pick(archive, &id, n, yes),
         ReviewAction::MoveTo { id, collection } => review::move_to(archive, &id, &collection),
         ReviewAction::Expand { ids } => review::choose_compressed(archive, &ids, Choice::Expand),
         ReviewAction::KeepCompressed { ids } => {
@@ -1013,10 +1155,11 @@ fn review_command(
     }
 }
 
-/// The version line, including the archive format this build writes.
+/// The version line, including the commit it was built from and the archive format it writes.
 static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    let build = carrel_core::feedback::GIT_COMMIT.map_or(String::new(), |c| format!("build {c}, "));
     format!(
-        "{} (archive format {})",
+        "{} ({build}archive format {})",
         carrel_core::CARREL_VERSION,
         carrel_core::FORMAT_VERSION
     )
@@ -1062,7 +1205,7 @@ impl<E: std::error::Error> From<E> for Failure {
 fn without_command(archive: Option<&std::path::Path>, json: bool) -> ExitCode {
     use std::io::IsTerminal as _;
     if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() && !json {
-        return finish(tui::run(archive), false);
+        return finish(tui::run(archive, None), false);
     }
     <Cli as clap::CommandFactory>::command()
         .error(
@@ -1072,11 +1215,16 @@ fn without_command(archive: Option<&std::path::Path>, json: bool) -> ExitCode {
         .exit();
 }
 
-fn main() -> ExitCode {
-    let cli = Cli::parse();
-    if !matches!(cli.command, Some(Command::Bench(_))) {
+/// Starts the decision log for every command but `bench`, which times the models alone.
+fn start_decision_log(command: Option<&Command>) {
+    if !matches!(command, Some(Command::Bench(_))) {
         carrel_core::decisions::start();
     }
+}
+
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    start_decision_log(cli.command.as_ref());
     let Some(command) = cli.command else {
         return without_command(cli.archive.as_deref(), cli.json);
     };
@@ -1085,13 +1233,18 @@ fn main() -> ExitCode {
         sessions::record_before_command(cli.archive.as_deref(), cli.json);
     }
     let result = match command {
-        Command::Tui => tui::run(cli.archive.as_deref()),
+        Command::Tui { screen } => tui::run(cli.archive.as_deref(), screen),
+        Command::Gui { screen, item } => {
+            gui::open_app(cli.archive.as_deref(), screen, item.as_deref())
+        }
         Command::Undo { change, librarian } => {
             undo_command(cli.archive.as_deref(), change, librarian)
         }
-        Command::Ask { question, save } => {
-            ask::ask(cli.archive.as_deref(), &question.join(" "), save, cli.json)
-        }
+        Command::Ask {
+            question,
+            about,
+            save,
+        } => ask::ask(cli.archive.as_deref(), &question, about, save, cli.json),
         Command::Init {
             path,
             name,
@@ -1104,6 +1257,7 @@ fn main() -> ExitCode {
             &embedding_model,
         ),
         Command::Open { path } => commands::open(path.as_deref().or(cli.archive.as_deref())),
+        Command::Library => library::library_command(cli.archive.as_deref()),
         Command::Status => commands::status(cli.archive.as_deref()),
         Command::Show { item } => commands::show(cli.archive.as_deref(), &item),
         Command::Search { query, limit } => {
@@ -1116,9 +1270,8 @@ fn main() -> ExitCode {
         } => commands::log(cli.archive.as_deref(), max_count, librarian),
         Command::Providers => Ok(providers::list()),
         Command::Formats => Ok(formats::list()),
-        Command::Report { since, names } => {
-            usage_report::report(cli.archive.as_deref(), &since, names)
-        }
+        Command::Report(args) => report_gaps::command(cli.archive.as_deref(), args),
+        Command::Feedback(args) => feedback::command(cli.archive.as_deref(), args),
         Command::Ingest(args) => {
             ingest::command(cli.archive.as_deref(), &args.into_request(), cli.json)
         }
@@ -1126,8 +1279,7 @@ fn main() -> ExitCode {
         Command::Agent(args) => agent_command(cli.archive.as_deref(), args, cli.json),
         Command::Settings { action } => settings_command(cli.archive.as_deref(), action),
         Command::Review { all, action } => review_command(cli.archive.as_deref(), all, action),
-        Command::Edit { item, body: false } => edit::edit(cli.archive.as_deref(), &item),
-        Command::Edit { item, body: true } => edit::edit_body(cli.archive.as_deref(), &item),
+        Command::Edit { item, body } => edit::edit_command(cli.archive.as_deref(), &item, body),
         Command::Expand { item, anyway } => expand::expand(cli.archive.as_deref(), &item, anyway),
         Command::Correct {
             item,
@@ -1135,36 +1287,26 @@ fn main() -> ExitCode {
             yes,
             learn,
         } => correct::filed(cli.archive.as_deref(), &item, &words, yes, learn),
-        Command::Rename { item, new_name } => {
-            commands::rename(cli.archive.as_deref(), &item, new_name.as_deref())
-        }
+        command @ (Command::Rename { .. }
+        | Command::Flag { .. }
+        | Command::Unflag { .. }
+        | Command::Flagged(_)
+        | Command::Drawings { .. }) => rename_or_flag_command(cli.archive.as_deref(), command),
         Command::Checkout { item, to, due } => {
             checkout::checkout(cli.archive.as_deref(), &item, to.as_deref(), due.as_deref())
         }
         Command::Checkouts => checkout::list(cli.archive.as_deref()),
         Command::Desk { action } => desk_command(cli.archive.as_deref(), action),
         Command::Sessions { action } => sessions_command(cli.archive.as_deref(), action),
-        Command::Return {
-            item,
-            from,
-            yes,
-            discard,
-            trim_snapshots,
-            working_copy,
-        } => checkout::return_item(
-            cli.archive.as_deref(),
-            &item,
-            from.as_deref(),
-            (yes, discard),
-            trim_snapshots,
-            working_copy,
-        ),
+        command @ Command::Return { .. } => return_command(cli.archive.as_deref(), command),
         Command::Collection { action } => collection_command(cli.archive.as_deref(), action),
         Command::Backup { action } => backup_command(cli.archive.as_deref(), action),
         Command::Questions { action } => questions_command(cli.archive.as_deref(), action),
         Command::Discover { action } => discover_command(cli.archive.as_deref(), action, cli.json),
         Command::Restructure { action } => restructure_command(cli.archive.as_deref(), action),
         Command::Crawl { action } => crawl::command(cli.archive.as_deref(), action),
+        Command::Devices { action } => devices::command(cli.archive.as_deref(), action),
+        Command::Sync { action } => sync::command(cli.archive.as_deref(), action),
         Command::Reminders => reminders::list(cli.archive.as_deref()),
         Command::Bench(args) => bench::bench(&args, cli.json),
         Command::Models { action } => models_command(action, cli.archive.as_deref(), cli.json),
@@ -1272,6 +1414,7 @@ fn discover_command(
             seed,
             steps,
             next,
+            within,
         } => discover::wander(
             archive,
             &discover::WanderArgs {
@@ -1279,6 +1422,7 @@ fn discover_command(
                 seed,
                 steps,
                 next,
+                within,
             },
             json,
         ),
@@ -1296,11 +1440,15 @@ fn discover_command(
                 items,
             },
         ),
-        DiscoverAction::Map { depth } => discover::map(archive, depth),
-        DiscoverAction::Activity { from, to } => {
-            discover::activity(archive, from.as_deref(), to.as_deref())
+        DiscoverAction::Map { depth, within } => discover::map(archive, depth, within.as_deref()),
+        DiscoverAction::Activity { from, to, within } => {
+            discover::activity(archive, from.as_deref(), to.as_deref(), within.as_deref())
         }
-        DiscoverAction::Graph { items, limit } => discover::graph(archive, items, limit),
+        DiscoverAction::Graph {
+            items,
+            limit,
+            within,
+        } => discover::graph(archive, items, limit, within.as_deref()),
     }
 }
 
@@ -1357,6 +1505,43 @@ fn models_command(
     }
 }
 
+/// `carrel rename`, the flag commands (`flag`, `unflag` and `flagged`) and `carrel drawings`.
+fn rename_or_flag_command(archive: Option<&Path>, command: Command) -> Result<Report, Failure> {
+    match command {
+        Command::Rename { item, new_name } => commands::rename(archive, &item, new_name.as_deref()),
+        Command::Flag { target, note, ask } => flag::flag(archive, &target, note.as_deref(), ask),
+        Command::Unflag { target } => flag::unflag(archive, &target),
+        Command::Flagged(args) => flag_librarian::flagged(archive, &args),
+        Command::Drawings { item, remove } => {
+            drawings::drawings_command(archive, &item, remove.as_deref())
+        }
+        _ => unreachable!("only rename and the flag commands come here"),
+    }
+}
+
+/// `carrel return`.
+fn return_command(archive: Option<&Path>, command: Command) -> Result<Report, Failure> {
+    let Command::Return {
+        item,
+        from,
+        yes,
+        discard,
+        trim_snapshots,
+        working_copy,
+    } = command
+    else {
+        unreachable!("only `carrel return` comes here")
+    };
+    checkout::return_item(
+        archive,
+        &item,
+        from.as_deref(),
+        (yes, discard),
+        trim_snapshots,
+        working_copy,
+    )
+}
+
 /// Whether `command` takes the writer lease to change the archive, so finished work sessions
 /// are recorded first (`carrel sessions` records them itself).
 fn changes_archive(command: &Command) -> bool {
@@ -1367,9 +1552,12 @@ fn changes_archive(command: &Command) -> bool {
         | Command::Edit { .. }
         | Command::Expand { .. }
         | Command::Rename { .. }
+        | Command::Flag { .. }
+        | Command::Unflag { .. }
         | Command::Checkout { .. }
         | Command::Return { .. }
         | Command::Collection { .. } => true,
+        Command::Drawings { remove, .. } => remove.is_some(),
         Command::Settings { action } => matches!(action, Some(SettingsAction::Set { .. })),
         Command::Restructure { action } => matches!(
             action,
@@ -1385,6 +1573,14 @@ fn changes_archive(command: &Command) -> bool {
         ),
         Command::Desk { action } => !matches!(action, None | Some(DeskAction::List)),
         Command::Crawl { action } => !matches!(action, None | Some(crawl::CrawlAction::Status)),
+        Command::Devices { action } => matches!(
+            action,
+            Some(devices::DevicesAction::Update | devices::DevicesAction::Recheck { .. })
+        ),
+        Command::Sync { action } => !matches!(
+            action,
+            None | Some(sync::SyncAction::Status | sync::SyncAction::Download { .. })
+        ),
         Command::Backup { action } => {
             matches!(action, BackupAction::Setup { .. } | BackupAction::Now)
         }

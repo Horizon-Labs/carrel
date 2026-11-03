@@ -9,6 +9,8 @@ pub mod card;
 pub mod filing;
 pub mod likely;
 pub mod questions;
+pub mod readings;
+pub mod redraft;
 pub mod route;
 pub mod run;
 pub mod sensitivity;
@@ -219,6 +221,9 @@ pub struct Candidate {
     pub same_as: Option<usize>,
     /// For a compressed file, what's inside (`docs/design/compressed.md`).
     pub inside: Option<crate::compressed::Inside>,
+    /// What the owner said about it when adding it, such as a share sheet's note, for the
+    /// model drafting its card.
+    pub context: Option<String>,
 }
 
 /// The archived item a candidate duplicates.
@@ -250,6 +255,7 @@ pub fn examine(archive: &Archive, path: &Path) -> Result<Candidate, IngestError>
         (manifest.checksum(), manifest.total_size())
     };
     Ok(Candidate {
+        context: None,
         path: path.to_owned(),
         kind: detected.kind,
         sealed: detected.sealed,
@@ -612,7 +618,7 @@ impl Batch<'_> {
         } else {
             State::NeedsOwner
         };
-        Some(ReviewEntry {
+        let mut entry = ReviewEntry {
             carrel: ReviewMarker::Review,
             format: crate::FORMAT_VERSION,
             id: Id::new_v7(),
@@ -660,8 +666,12 @@ impl Batch<'_> {
             problems,
             attempts,
             sensitivity_reasons: sensitivity.reasons.clone(),
+            owner_fields: Vec::new(),
+            readings: draft.readings.clone(),
             compressed,
             extra: crate::card::Extra::new(),
-        })
+        };
+        readings::lower_confidence(&mut entry);
+        Some(entry)
     }
 }

@@ -1,7 +1,6 @@
 // The sheets and confirmations of Active and History, on the archive's window, and the
 // window for their menus.
 
-import AppKit
 import CarrelKit
 import SwiftUI
 
@@ -109,12 +108,17 @@ private struct ActiveDialogs: ViewModifier {
                 )
             }
             .alert(
-                "Couldn’t Do That",
+                problemTitle("Couldn’t Do That", model.archive, showing: model.problem),
                 isPresented: present($model.problem)
             ) {
                 Button("OK") { model.problem = nil }
             } message: {
                 Text(model.problem ?? "")
+            }
+            .alert("Checked Out Here", isPresented: present($model.notice)) {
+                Button("OK") { model.notice = nil }
+            } message: {
+                Text(model.notice ?? "")
             }
     }
 }
@@ -130,7 +134,7 @@ private struct HistoryDialogs: ViewModifier {
                 }
             }
             .alert(
-                "Couldn’t Undo",
+                problemTitle("Couldn’t Undo", model.archive, showing: model.problem),
                 isPresented: present($model.problem)
             ) {
                 Button("OK") { model.problem = nil }
@@ -246,13 +250,7 @@ private struct CheckoutSheet: View {
     }
 
     private func chooseFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Choose"
-        panel.directoryURL = draft.folder
-        if panel.runModal() == .OK, let url = panel.url { draft.folder = url }
+        pickFolder(start: draft.folder) { draft.folder = $0 }
     }
 }
 

@@ -54,8 +54,8 @@ final class ArchiveWindowModelTests: XCTestCase {
     func testBrowseListsACollectionsOwnItems() async throws {
         let model = ArchiveWindowModel(url: sampleArchive, options: isolated)
         await model.load()
-        XCTAssertEqual(model.listedItems, [], "Status lists no items")
-        XCTAssertEqual(model.screenTitle, "Status")
+        XCTAssertEqual(model.listedItems, [], "the Library lists no items")
+        XCTAssertEqual(model.screenTitle, "Library")
         model.screen = .collection("Projects/Hardware")
         XCTAssertEqual(model.screenTitle, "Hardware")
         model.screen = .collection("Reading")
@@ -210,5 +210,21 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(settings.archive?.name, "Sample archive")
         XCTAssertEqual(settings.archive?.embeddingModel, "sample/embedding-model-v1")
         XCTAssertEqual(settings.archive?.backupsSetUp, false)
+    }
+}
+
+@MainActor
+final class ReportingErrorsTests: XCTestCase {
+    func testReportingAnErrorStartsABugWithWhatCarrelSaid() async throws {
+        let config = FileManager.default.temporaryDirectory
+            .appending(path: "CarrelTests.\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: config) }
+        let model = ArchiveWindowModel(url: sampleArchive, options: .isolated(config: config))
+        await model.load()
+        model.startFeedback(reporting: "history.git: 71be00 is still downloading")
+        let feedback = try XCTUnwrap(model.feedback)
+        XCTAssertEqual(feedback.kind, "bug")
+        XCTAssertTrue(feedback.words.contains("“history.git: 71be00 is still downloading”"))
+        XCTAssertTrue(feedback.canSend)
     }
 }

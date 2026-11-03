@@ -17,7 +17,8 @@ struct ReviewCommands: Commands {
                 .keyboardShortcut("e")
                 .disabled(window?.canEditSelectedItem != true)
         }
-        CommandMenu("Review") {
+        // To Approve is Review, named as the sidebar's Librarian section names it.
+        CommandMenu("To Approve") {
             if let review = window?.screen == .review ? window?.review : nil {
                 ReviewActions(review: review, ids: review.selected.map(\.id))
                 Divider()
@@ -81,7 +82,10 @@ extension ArchiveWindowModel {
     func editSelectedItem() {
         guard let archive, let item = selectedItem else { return }
         let edit = CardEditModel(archive: archive, target: .item(item.id))
-        edit.saved = { [weak self] in await self?.refreshItems() }
+        edit.saved = { [weak self] in
+            await self?.refreshItems()
+            await self?.browse?.offerToUnflag(item: item.id, title: item.title)
+        }
         editing = edit
     }
 }
@@ -89,18 +93,24 @@ extension ArchiveWindowModel {
 extension CorrectionModel: Identifiable {}
 
 extension View {
-    /// Shows the core's error from the last call that failed.
-    func archiveErrorAlert(_ archive: ArchiveModel?) -> some View {
-        alert(
-            "Something Went Wrong",
+    /// Shows the core's error from the last call that failed, with Report… to send it to
+    /// development as a bug, through Send Feedback.
+    func archiveErrorAlert(_ window: ArchiveWindowModel) -> some View {
+        let archive = window.archive
+        return alert(
+            problemTitle("Something Went Wrong", archive),
             isPresented: Binding {
                 archive?.lastError != nil
             } set: {
                 if !$0 { archive?.lastError = nil }
             },
             presenting: archive?.lastError
-        ) { _ in
-            Button("OK") { archive?.lastError = nil }
+        ) { error in
+            Button("Report…") {
+                archive?.lastError = nil
+                window.startFeedback(reporting: error.message)
+            }
+            Button("OK", role: .cancel) { archive?.lastError = nil }
         } message: { error in
             Text(error.message)
         }

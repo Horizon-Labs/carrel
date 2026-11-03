@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crate::actions::{self, ActionError};
 use crate::archive::{Archive, ArchiveError, Collection, ItemRef};
-use crate::card::{Checksum, DateOrTime, Kind, Sensitivity};
+use crate::card::{Checksum, DateOrTime, Id, Kind, Sensitivity};
 use crate::card_file::{CardFile, CardFileError};
 use crate::coordinator::{
     Coordinator as _, CoordinatorError, DEFAULT_LEASE, DiskLock, Holder, WriterLease,
@@ -41,6 +41,8 @@ pub struct Prepared {
     pub kept_sensitive: bool,
     /// Tags left off because they don't apply in the collection it moves to.
     pub dropped: Vec<String>,
+    /// The reading it picks, counting from 1, when it picks one of a proposal's readings.
+    pub picked: Option<usize>,
     /// Who said it, as the change's summary names them: the owner, unless
     /// [`Prepared::said_by`] says otherwise.
     by: String,
@@ -110,6 +112,21 @@ impl Prepared {
         );
     }
 
+    /// Who said the words, as the change's summary names them ([`Prepared::said_by`]).
+    #[must_use]
+    pub fn by(&self) -> &str {
+        &self.by
+    }
+
+    /// What's corrected: the proposal's identifier, or the filed item's.
+    #[must_use]
+    pub fn corrects(&self) -> Corrects {
+        match &self.pending {
+            Pending::Proposal(entry) => Corrects::Proposal(entry.id),
+            Pending::Filed { item, .. } => Corrects::Filed(item.id),
+        }
+    }
+
     /// The corrected proposal, when it's a proposal that's corrected.
     #[must_use]
     pub fn proposal(&self) -> Option<&ReviewEntry> {
@@ -118,6 +135,16 @@ impl Prepared {
             Pending::Filed { .. } => None,
         }
     }
+}
+
+/// What a correction corrects ([`Prepared::corrects`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "id", rename_all = "kebab-case")]
+pub enum Corrects {
+    /// The proposal with this identifier.
+    Proposal(Id),
+    /// The filed item with this identifier.
+    Filed(Id),
 }
 
 /// What saving a correction did.
@@ -257,6 +284,37 @@ pub fn prepare_review(
     id: &str,
     words: &str,
 ) -> Result<Prepared, PrepareError> {
+    review(archive, registry, id, words, |subject, earlier| {
+        crate::correct::work_out(registry, subject, words, earlier)
+    })
+}
+
+/// Prepares the correction `worked`, already worked out from `words` on another device, for
+/// the proposal `id`, without a model and without saving anything: how the writer applies a
+/// correction sent through an inbox ([`crate::inbox`]).
+///
+/// # Errors
+///
+/// [`PrepareError`] if the proposal isn't found, or the correction doesn't apply to it.
+pub fn prepare_review_worked(
+    archive: &Archive,
+    registry: &Registry,
+    id: &str,
+    words: &str,
+    worked: Worked,
+) -> Result<Prepared, PrepareError> {
+    review(archive, registry, id, words, |_, _| Ok(worked))
+}
+
+/// Prepares a correction to the proposal `id`, with its changes from `work`, given the card as
+/// the model sees it and the owner's earlier corrections.
+fn review(
+    archive: &Archive,
+    registry: &Registry,
+    id: &str,
+    words: &str,
+    work: impl FnOnce(&Subject<'_>, &[String]) -> Result<Worked, CorrectionError>,
+) -> Result<Prepared, PrepareError> {
     let entry = actions::proposals(archive, &[id.to_owned()])?
         .pop()
         .ok_or_else(|| PrepareError::NoProposal(id.to_owned()))?;
@@ -266,16 +324,29 @@ pub fn prepare_review(
         .into_iter()
         .map(|n| n.said)
         .collect();
-    let text = item_text(archive, registry, &entry.source.path, entry.kind);
-    let subject = Subject {
-        card: &before,
-        collection: &entry.destination.path,
-        text: &text,
-        collections: &context.described,
-        vocabulary: &context.vocabulary,
+    // Picking one of its readings needs no model.
+    let picked = crate::ingest::readings::picked(words);
+    let (worked, words) = if let Some(n) = picked {
+        crate::ingest::readings::pick(&entry, n)
+            .map_err(|why| PrepareError::Correction(CorrectionError::BadLine(why)))?
+    } else {
+        let text = item_text(archive, registry, &entry.source.path, entry.kind);
+        let subject = Subject {
+            card: &before,
+            collection: &entry.destination.path,
+            text: &text,
+            collections: &context.described,
+            vocabulary: &context.vocabulary,
+        };
+        (work(&subject, &earlier)?, words.to_owned())
     };
-    let worked = crate::correct::work_out(registry, &subject, words, &earlier)?;
-    let corrected = actions::correct_proposal(archive, registry, &entry, &worked, words)?;
+    let mut corrected = actions::correct_proposal(archive, registry, &entry, &worked, &words)?;
+    if picked.is_some() {
+        // The owner has settled what it is.
+        for reading in &mut corrected.entry.readings {
+            reading.against.clear();
+        }
+    }
     let after = corrected.entry.card.fields();
     Ok(Prepared {
         title: entry.card.title.clone(),
@@ -283,10 +354,11 @@ pub fn prepare_review(
         after,
         moved: corrected.to.map(|to| (entry.destination.path.clone(), to)),
         worked,
-        words: words.to_owned(),
+        words,
         changed: corrected.changed,
         kept_sensitive: corrected.kept_sensitive,
         dropped: corrected.dropped,
+        picked,
         by: OWNER.into(),
         pending: Pending::Proposal(Box::new(corrected.entry)),
     })
@@ -307,6 +379,23 @@ pub fn prepare_filed(
     filed(archive, registry, item, words, |subject, earlier| {
         crate::correct::work_out(registry, subject, words, earlier)
     })
+}
+
+/// Prepares the correction `worked`, already worked out from `words` on another device, for
+/// the filed item `item`, without a model and without saving anything: how the writer applies
+/// a correction sent through an inbox ([`crate::inbox`]).
+///
+/// # Errors
+///
+/// [`PrepareError`] if its card can't be read.
+pub fn prepare_filed_worked(
+    archive: &Archive,
+    registry: &Registry,
+    item: ItemRef,
+    words: &str,
+    worked: Worked,
+) -> Result<Prepared, PrepareError> {
+    filed(archive, registry, item, words, |_, _| Ok(worked))
 }
 
 /// Prepares `lines` of `field: value`, worked out by `model` rather than said by the owner,
@@ -391,6 +480,7 @@ fn filed(
         changed,
         kept_sensitive,
         dropped: Vec::new(),
+        picked: None,
         by: OWNER.into(),
         pending: Pending::Filed {
             item,
@@ -400,8 +490,9 @@ fn filed(
     })
 }
 
-/// Who a correction's words are from, unless [`Prepared::said_by`] says otherwise.
-const OWNER: &str = "Owner";
+/// Who a correction's words are from, unless [`Prepared::said_by`] says otherwise, as
+/// [`Prepared::by`] names them.
+pub const OWNER: &str = "Owner";
 
 /// Saves a prepared correction: a proposal back to the queue, or a filed item's card as one
 /// change, refiled when its collection changed, made as the writer `holder` gives. `holder` is
@@ -423,6 +514,10 @@ pub fn save<E: From<PrepareError>>(
             ReviewQueue::of(archive)
                 .save(&entry)
                 .map_err(PrepareError::from)?;
+            if prepared.picked.is_some() {
+                crate::ingest::readings::settle_questions(archive, entry.id)
+                    .map_err(PrepareError::from)?;
+            }
             Ok(Saved {
                 title: entry.card.title.clone(),
                 filed: false,
@@ -505,6 +600,7 @@ pub fn item_text(archive: &Archive, registry: &Registry, path: &Path, kind: Kind
 /// A candidate for the item at `path`, enough to read or route it again.
 fn candidate(path: PathBuf, kind: Kind) -> Candidate {
     Candidate {
+        context: None,
         path,
         kind,
         sealed: None,
@@ -652,6 +748,7 @@ fn reroute(
         generated: None,
         attempts: Vec::new(),
         problems: Vec::new(),
+        readings: Vec::new(),
     };
     let source = path.parent().unwrap_or(&path).to_owned();
     let route = router.route(registry, &candidate, &source, &draft);

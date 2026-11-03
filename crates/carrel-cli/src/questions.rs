@@ -9,8 +9,10 @@ use std::path::Path;
 
 use carrel_core::actions;
 use carrel_core::archive::Archive;
+use carrel_core::inbox::{Answer, Request};
 use carrel_core::questions::answer::{self as core_answer, SenderAnswer, Target};
 use carrel_core::questions::rank::Weighed;
+use carrel_core::questions::subjects::{QuestionSubject, subjects};
 use carrel_core::questions::{QuestionEntry, QuestionKind, QuestionQueue, Suggestion};
 use carrel_core::review::short_id;
 use serde_json::{Value, json};
@@ -55,8 +57,47 @@ pub(crate) fn suggestion_line(n: usize, suggestion: &Suggestion) -> String {
     line
 }
 
-/// A question as the list shows it: its words, what an answer settles, and the suggestions.
-fn describe(text: &mut String, weighed: &Weighed) {
+/// The most items a question lists under it; the rest are counted.
+const SUBJECTS_SHOWN: usize = 5;
+
+/// What `question` is about, as the list and JSON show it: each item's title and where its
+/// file is, so it can be opened (#446).
+fn subjects_of(archive: &Archive, question: &QuestionEntry) -> Vec<QuestionSubject> {
+    subjects(archive, question).unwrap_or_default()
+}
+
+/// The lines naming what a question is about.
+fn write_subjects(text: &mut String, found: &[QuestionSubject]) {
+    for subject in found.iter().take(SUBJECTS_SHOWN) {
+        let place = subject.path.as_deref().map_or_else(
+            || "no file on this device".to_owned(),
+            |p| p.display().to_string(),
+        );
+        let restricted = if subject.restricted {
+            ", restricted"
+        } else {
+            ""
+        };
+        writeln!(
+            text,
+            "          about {}: {place}{restricted}",
+            subject.title
+        )
+        .unwrap();
+    }
+    if found.len() > SUBJECTS_SHOWN {
+        writeln!(
+            text,
+            "          and {} more",
+            items(found.len() - SUBJECTS_SHOWN)
+        )
+        .unwrap();
+    }
+}
+
+/// A question as the list shows it: its words, what an answer settles, what it's about, and
+/// the suggestions.
+fn describe(text: &mut String, archive: &Archive, weighed: &Weighed) {
     let question = &weighed.question;
     writeln!(text, "{}  {}", short_id(question.id), question.question).unwrap();
     let mut about = format!(
@@ -74,14 +115,28 @@ fn describe(text: &mut String, weighed: &Weighed) {
         .unwrap();
     }
     writeln!(text, "{about}").unwrap();
+    write_subjects(text, &subjects_of(archive, question));
     for (i, suggestion) in question.suggestions.iter().enumerate() {
         writeln!(text, "          {}", suggestion_line(i + 1, suggestion)).unwrap();
     }
 }
 
-/// A question, weighed, as JSON.
-fn weighed_json(weighed: &Weighed) -> Value {
+/// A question, weighed, as JSON, with what it's about.
+fn weighed_json(archive: &Archive, weighed: &Weighed) -> Value {
     let mut value = serde_json::to_value(&weighed.question).unwrap_or(Value::Null);
+    value["subjects"] = subjects_of(archive, &weighed.question)
+        .iter()
+        .map(|s| {
+            json!({
+                "id": s.id,
+                "proposal": s.proposal,
+                "title": s.title,
+                "card": s.card,
+                "path": s.path,
+                "restricted": s.restricted,
+            })
+        })
+        .collect();
     value["settles"] = json!(weighed.settles);
     value["value"] = json!(weighed.value);
     value
@@ -102,14 +157,14 @@ pub fn list(archive: Option<&Path>, all: bool) -> Result<Report, Failure> {
         text.push_str("No questions\n");
     }
     for weighed in &ranked.open {
-        describe(&mut text, weighed);
+        describe(&mut text, &archive, weighed);
     }
     if !ranked.resting.is_empty() {
         if all {
             let days = archive.settings().questions.skip_days;
             writeln!(text, "\nResting after a skip:").unwrap();
             for weighed in &ranked.resting {
-                describe(&mut text, weighed);
+                describe(&mut text, &archive, weighed);
                 if let Some(until) = weighed.question.rests_until(days) {
                     writeln!(text, "          back on {}", until.strftime("%Y-%m-%d")).unwrap();
                 }
@@ -149,8 +204,8 @@ pub fn list(archive: Option<&Path>, all: bool) -> Result<Report, Failure> {
     Ok(Report::new(
         text,
         json!({
-            "questions": ranked.open.iter().map(weighed_json).collect::<Vec<_>>(),
-            "resting": ranked.resting.iter().map(weighed_json).collect::<Vec<_>>(),
+            "questions": ranked.open.iter().map(|w| weighed_json(&archive, w)).collect::<Vec<_>>(),
+            "resting": ranked.resting.iter().map(|w| weighed_json(&archive, w)).collect::<Vec<_>>(),
             "dropped": ranked.answered.iter().map(|(q, why)| json!({"id": q.id, "question": q.question, "why": why})).collect::<Vec<_>>(),
             "merged": ranked.merged.iter().map(|(k, f)| json!({"into": k.id, "merged": f.iter().map(|q| q.id).collect::<Vec<_>>()})).collect::<Vec<_>>(),
         }),
@@ -220,6 +275,9 @@ pub fn answer(
     }
     let picked = question.picked(&given).cloned();
     if picked.as_ref().is_some_and(|s| s.no_change) {
+        if let Some(sent) = answer_through_inbox(&archive, &question, Answer::Decline)? {
+            return Ok(sent);
+        }
         core_answer::decline(&archive, &question)?;
         return Ok(Report::new(
             format!(
@@ -240,6 +298,7 @@ pub fn answer(
         }
         QuestionKind::Sender => sender(&archive, &question, &answer, picked.as_ref(), options),
         QuestionKind::Item => item(&archive, &question, &answer, options),
+        QuestionKind::Flag => crate::flag_librarian::answer_question(&archive, &question, &answer),
     }
 }
 
@@ -255,6 +314,9 @@ fn sender(
     let (path, create) = match core_answer::sender_answer(question, answer, picked, options.create)?
     {
         SenderAnswer::Decline => {
+            if let Some(sent) = answer_through_inbox(archive, question, Answer::Decline)? {
+                return Ok(sent);
+            }
             core_answer::decline(archive, question)?;
             return Ok(Report::new(
                 format!(
@@ -278,6 +340,19 @@ fn place(
     create: bool,
     rule: Option<Options>,
 ) -> Result<Report, Failure> {
+    let answer = Answer::Place {
+        collection: path.trim().to_owned(),
+        create,
+    };
+    if let Some(mut sent) = answer_through_inbox(archive, question, answer)? {
+        if let Some(options) = rule {
+            let (said, added) = offer_rule(archive, &question.subject, path.trim(), options)?;
+            sent.text.push_str(&said);
+            sent.json["rule"] =
+                json!({"subject": question.subject, "collection": path.trim(), "added": added});
+        }
+        return Ok(sent);
+    }
     let identity = Identity::load_or_create()?;
     let placed = core_answer::place(archive, question, path, create, holder(&identity))?;
     let mut text = String::new();
@@ -343,6 +418,14 @@ fn offer_rule(
     if !agreed {
         return Ok((String::new(), false));
     }
+    if let Some(through) = crate::through_inbox::check(archive)? {
+        let request = Request::AddRule {
+            subject: subject.to_owned(),
+            collection: path.to_owned(),
+        };
+        let sent = through.send(archive, request)?;
+        return Ok((sent.text, true));
+    }
     add_rule(archive, subject, path)?;
     Ok((
         format!("Added a routing rule: items named for “{subject}” go to {path}.\n"),
@@ -399,8 +482,14 @@ fn item(
     )?;
     // An answer that changes nothing still answers the question.
     if report.json["saved"] == json!(false) && report.text.contains("It changes nothing") {
-        core_answer::settled(archive, question)?;
-        report.text.push_str("The question is answered.\n");
+        if let Some(sent) = answer_through_inbox(archive, question, Answer::Settle)? {
+            report.text.push_str(&sent.text);
+            report.json["inbox"] = sent.json["inbox"].clone();
+            report.json["applied"] = json!(false);
+        } else {
+            core_answer::settled(archive, question)?;
+            report.text.push_str("The question is answered.\n");
+        }
     }
     Ok(report)
 }
@@ -417,6 +506,9 @@ pub fn skip(archive: Option<&Path>, id: &str) -> Result<Report, Failure> {
 }
 
 fn skip_question(archive: &Archive, question: &QuestionEntry) -> Result<Report, Failure> {
+    if let Some(sent) = answer_through_inbox(archive, question, Answer::Skip)? {
+        return Ok(sent);
+    }
     let skipped = core_answer::skip(archive, question)?;
     let days = archive.settings().questions.skip_days;
     Ok(Report::new(
@@ -437,6 +529,9 @@ fn skip_question(archive: &Archive, question: &QuestionEntry) -> Result<Report, 
 pub fn dismiss(archive: Option<&Path>, id: &str) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let question = QuestionQueue::of(&archive).find(id)?;
+    if let Some(sent) = answer_through_inbox(&archive, &question, Answer::Dismiss)? {
+        return Ok(sent);
+    }
     actions::dismiss(&archive, &question)?;
     Ok(Report::new(
         format!(
@@ -483,6 +578,11 @@ pub fn about(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
                 carrel_core::questions::suggest::with_model(&registry, question, &context);
         }
     }
+    if !asked.is_empty()
+        && let Some(through) = crate::through_inbox::check(&archive)?
+    {
+        return raise_through_inbox(&archive, &through, item.id, asked);
+    }
     let raised = core_answer::raise(&archive, asked)?;
     let (all, _) = QuestionQueue::of(&archive).list()?;
     let about: Vec<&QuestionEntry> = all
@@ -512,8 +612,37 @@ pub fn about(archive: Option<&Path>, query: &str) -> Result<Report, Failure> {
     ))
 }
 
+/// Sends the questions `asked` about the item `item` to the writer through this device's
+/// inbox, for it to add to the queue, and says which they are.
+fn raise_through_inbox(
+    archive: &Archive,
+    through: &crate::through_inbox::ThroughInbox,
+    item: carrel_core::card::Id,
+    asked: Vec<QuestionEntry>,
+) -> Result<Report, Failure> {
+    let mut listed = String::new();
+    for question in &asked {
+        writeln!(listed, "  {}", question.question).unwrap();
+        for (i, suggestion) in question.suggestions.iter().enumerate() {
+            writeln!(listed, "      {}", suggestion_line(i + 1, suggestion)).unwrap();
+        }
+    }
+    let ids: Vec<_> = asked.iter().map(|q| q.id).collect();
+    let mut report = through.send(archive, Request::Raise { questions: asked })?;
+    report.text.push_str(&listed);
+    report.json["item"] = json!(item);
+    report.json["raised"] = json!(ids);
+    Ok(report)
+}
+
 /// Adds the answer to the glossary, then drafts the items waiting on it again.
 fn teach(archive: &Archive, question: &QuestionEntry, fact: &str) -> Result<Report, Failure> {
+    let answer = Answer::Teach {
+        fact: fact.trim().to_owned(),
+    };
+    if let Some(sent) = answer_through_inbox(archive, question, answer)? {
+        return Ok(sent);
+    }
     let identity = Identity::load_or_create()?;
     let commit = actions::teach(archive, question, fact, holder(&identity))?;
     let mut text = format!("Added “{}” to the glossary\n", question.subject);
@@ -541,4 +670,22 @@ fn teach(archive: &Archive, question: &QuestionEntry, fact: &str) -> Result<Repo
             "requeued": queued.iter().map(|e| e.id).collect::<Vec<_>>(),
         }),
     ))
+}
+
+/// Sends `answer` to `question` to this device's inbox, when this device acts through it.
+fn answer_through_inbox(
+    archive: &Archive,
+    question: &QuestionEntry,
+    answer: Answer,
+) -> Result<Option<Report>, Failure> {
+    let Some(through) = crate::through_inbox::check(archive)? else {
+        return Ok(None);
+    };
+    let request = Request::Answer {
+        question: question.id,
+        answer,
+    };
+    let mut sent = through.send(archive, request)?;
+    sent.json["question"] = json!(question.id);
+    Ok(Some(sent))
 }

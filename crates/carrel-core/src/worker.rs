@@ -327,6 +327,9 @@ pub struct Worker<'a> {
     pub backups: Option<&'a dyn Backups>,
     /// Where to write the status, or `None` to write none.
     pub status: Option<PathBuf>,
+    /// Where files other devices sent through their inboxes wait to be drafted on this one,
+    /// outside the archive (FORMAT.md §7.8); `None` leaves the inboxes for another worker.
+    pub received: Option<PathBuf>,
 }
 
 impl Worker<'_> {
@@ -351,6 +354,8 @@ impl Worker<'_> {
         let device = self.holder.device;
         let mut held = Some(held);
         let mut done = 0;
+        self.apply_inbox();
+        self.clear_holding();
         loop {
             let mut queue = waiting(self.archive, device, false)?;
             if queue.is_empty() {
@@ -381,6 +386,9 @@ impl Worker<'_> {
                 updated: now(),
             };
             self.write(&status);
+            // Drafting reads the item: download it first if iCloud evicted it. One that can't
+            // be is drafted from what can be read, as an unreadable file is.
+            let _ = crate::cloud_files::ensure_downloaded(&entry.path);
             let processed = process(
                 self.archive,
                 self.registry,
@@ -396,6 +404,42 @@ impl Worker<'_> {
             progress.drafted(processed);
             done += 1;
         }
+    }
+
+    /// Applies other devices' inboxes, as the writer: each entry as its sender's, what they
+    /// sent to add joining this device's queue. Nothing happens while another device is the
+    /// writer, or this one acts through its inbox.
+    fn apply_inbox(&self) {
+        let Some(received) = &self.received else {
+            return;
+        };
+        if crate::inbox::waiting(self.archive).is_empty()
+            || crate::inbox::sending(self.archive, self.holder.device).is_some()
+        {
+            return;
+        }
+        let applying = crate::inbox::Applying {
+            writer: self.holder,
+            received,
+            registry: self.registry,
+            backups: self.backups,
+        };
+        let _ = crate::inbox::apply(self.archive, &applying);
+    }
+
+    /// Snapshots the archive and clears its holding folder, when this device has backups and
+    /// another device without them left versions there ([`crate::holding`]). Nothing happens
+    /// while this device acts through its inbox.
+    fn clear_holding(&self) {
+        let Some(backups) = self.backups else {
+            return;
+        };
+        if crate::holding::list(self.archive).is_empty()
+            || crate::inbox::sending(self.archive, self.holder.device).is_some()
+        {
+            return;
+        }
+        let _ = crate::holding::snapshot_and_clear(self.archive, backups);
     }
 
     /// Embeds what's behind in the archive's index with its embedding model, if a provider
@@ -664,6 +708,7 @@ mod tests {
             holder,
             backups: None,
             status: Some(status.clone()),
+            received: None,
         };
         let mut progress = Recorded::default();
         let lock = Free::default();
@@ -703,6 +748,7 @@ mod tests {
             holder,
             backups: None,
             status: None,
+            received: None,
         };
         let mut progress = Recorded::default();
         let ran = worker.run(&Taken, (), &mut progress).unwrap();
@@ -720,6 +766,7 @@ mod tests {
             holder: holder(),
             backups: None,
             status: None,
+            received: None,
         };
         let lock = Free::default();
         assert_eq!(worker.draft(&lock, (), &mut Quiet).unwrap(), 0);

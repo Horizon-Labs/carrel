@@ -197,6 +197,23 @@ The same run on DeskBook with `dev` after #361, which lets the librarian finish 
 
 No model has the `librarian` flag yet, so the default is unchanged.
 
+### Librarian: after #448
+
+The same run on DeskBook with `dev` after #448, which includes #417's finishing of answers the librarian would cut off. [Full report](2026-11-02-after-448/librarian/report.md) · [results.json](2026-11-02-after-448/librarian/results.json)
+
+| Model | Recall | Precision | Facts | Restricted shown | Unanswered | Steps | s/question | Meets the bar |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Apple Foundation Model | 84% | 82% | 63% | 0 | 0 | 3.3 | 109.9 | no: facts, too slow |
+| Granite 4.2 3B (llama.cpp) | 70% (was 60%) | 92% | 76% | 0 | 0 | 2.8 | 65.7 | no: recall, facts, too slow |
+| Qwen3.5 4B (llama.cpp) | 84% (was 70%) | 86% | 100% | 0 | 0 | 2.2 | 71.3 | no: 71.3 s a question |
+
+- **Every question is answered now,** by every model: #417 finishes the answers that used to be cut off.
+- **Qwen3.5 4B meets every part of the bar but speed:** 84% recall, 86% precision and every fact stated, at 71 seconds a question against the bar's 60 (it was 51 before, as finished answers are longer). It uses the fewest tokens (7,200 a question).
+- **Apple's model** finds as much but states the fewest facts, and at 110 seconds a question it's the slowest.
+- **No model showed restricted text.**
+
+No model has the `librarian` flag yet, so the default is unchanged. DeskBook is slower than the reference machine (an M4 Max), where Qwen would likely be under 60 seconds; a run there decides whether it gets the flag.
+
 ## Question value
 
 Whether the question queue asks the questions that help most (`docs/design/librarian.md`, "Measuring it"). `carrel bench --questions` ingests the test set with each text model in one batch, as ingest would, and ranks the questions the batch raises as the queue does (`questions::rank`). It then answers each question alone with the answer the test set implies, and re-routes:
@@ -277,9 +294,19 @@ A model is recommended for the crawler when it finds at least 70% of the misplac
 
 The catalog's `crawler` flag records the recommendation. Once a model has it, the crawler judges with the largest recommended model installed that fits the device's memory, and otherwise, as now, with the librarian's choice: the strongest installed model that fits, then Apple's model. No model has the flag yet.
 
-### Crawler: not run yet
+### Crawler: 2026-11-01
 
-No real model has been measured. The runs happen on the reference machine and set the `crawler` flags from what they show.
+On DeskBook, an M2 Max with 32 GB, with `dev` after #431, one model at a time, on the muddled copy of the test set. [Report](2026-11-01-v0.7/crawl/report.md) · [results.json](2026-11-01-v0.7/crawl/results.json)
+
+| Model | Found | Recall | Precision | Placed right | Unusable | s/item | Meets the bar |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **Qwen3.5 4B** (llama.cpp) | 17 of 18 | 94% | 68% | 86% | 0 | 5.9 | **yes** |
+| Apple Foundation Model | 18 of 18 | 100% | 41% | 79% | 1 | 3.0 | no: precision |
+| Granite 4.2 3B (llama.cpp) | 7 of 18 | 39% | 100% | 36% | 0 | 4.2 | no: recall, placement |
+
+- **Qwen3.5 4B has the catalog's `crawler` flag,** so the crawler uses it by default wherever it fits.
+- **The earlier runs** asked whether an item fits, and the models answered whether it fits *some* collection. They now say where it belongs instead, and say it briefly, so nothing is cut off (#405, #428).
+- **Apple's model** finds every misplaced item but flags many that are fine. Granite rarely flags anything.
 
 ## Restructure
 
@@ -296,9 +323,31 @@ carrel bench --restructure --out bench-results
 
 It writes `bench-results/restructure/results.json` and `report.md`. Each proposal's score is saved to `restructure/runs/` as it's made, so a stopped run carries on; `--fresh` starts over, and `--model NAME` measures one text model beside numbers alone. Proposals are never applied: where each item would end up is worked out from the changes. The report lists each group a proposal held back, and why.
 
-### Restructure: not run yet
+### Restructure: 2026-11-01
 
-No real model has been measured. The first run on the reference machine proposed nothing at all, since every card vector shares a direction, as an embedding model's do, so every item was grouped with every other (#404). Grouping now measures likeness from the archive's average cosine. On stub card vectors built that way, numbers alone at Eager gather the missing Recipes' items and the items dumped from Manuals into new collections of their own. On the stub card vectors in the tests that know the intended shape exactly, numbers alone at Balanced subdivide collections without breaking anything and bring the archive closer to the intended shape, but hold back the new top-level collections that would recover Recipes; each eagerness recovers at least as much as the one below it.
+On DeskBook, as above, after #431. [Report](2026-11-01-v0.7/restructure/report.md) · [results.json](2026-11-01-v0.7/restructure/results.json)
+
+**Nothing is proposed, for every wording at every eagerness, so the muddled archive's shape stays at 77%.** The grouping, on the cards' embeddinggemma-300m vectors and the tag and link graph, finds two candidates:
+
+- a new collection of 4 items in Projects (gain -0.02);
+- a new top-level collection of 4 items (gain -0.40).
+
+Neither clears the margin, so both are held back. That's safe: an earlier run, before #431's findability check, proposed changes that lowered the shape to 68%. But it isn't useful yet. The real vectors don't show the groups the stub vectors in the tests do, which is #435.
+
+### Restructure: after #448
+
+On DeskBook, as above, after #448, which moves items into existing collections and asks the crawler where items belong. [Report](2026-11-02-after-448/restructure/report.md) · [results.json](2026-11-02-after-448/restructure/results.json)
+
+| Wording | Settled | Balanced | Eager | Fixed | Broken |
+| --- | --- | --- | --- | --- | --- |
+| Numbers alone | 77% → 79% | 77% → 79% | 77% → 79% | 2 of 18 | 0 |
+| Apple Foundation Model | 77% | 77% | 77% → 79% | 0–2 of 18 | 0 |
+| Granite 4.2 3B (llama.cpp) | 77% | 77% | 77% | 0 of 18 | 0 |
+| Qwen3.5 4B (llama.cpp) | 77% → 79% | 77% → 79% | 77% → 79% | 2 of 18 | 0 |
+
+- **Proposals are safe and now do something:** two misplaced items move to where they belong (a desk chair receipt to Receipts, a car insurance renewal to Insurance), breaking nothing. Qwen's findability test confirms them (+2 points).
+- **But they recover little of the shape:** 2 of the 18 misplaced items. Every new collection is still held back, since the findability test scores each candidate's gain below zero (-0.05 to -0.38), short of the 0.07 to 0.45 margins.
+- **The crawler's verdicts weren't used:** this run had no crawler results for Qwen to read, so the next run should run `--crawl` first.
 
 ## Running it again
 

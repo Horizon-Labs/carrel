@@ -262,10 +262,19 @@ pub fn fill(
     for (done, item) in wanted.into_iter().enumerate() {
         progress(done, total, Some(&item.item));
         let path = archive.root().join(&item.item);
-        if !path.exists() {
+        // An item iCloud evicted isn't downloaded just to index it: the index syncs, and the
+        // device that has it reads it.
+        if !path.exists()
+            || !crate::cloud_files::not_downloaded_in(
+                &path,
+                crate::cloud_files::provider().as_ref(),
+            )
+            .is_empty()
+        {
             continue;
         }
         let candidate = Candidate {
+            context: None,
             inside: (item.kind == Kind::File)
                 .then(|| crate::compressed::inspect(&path))
                 .flatten(),

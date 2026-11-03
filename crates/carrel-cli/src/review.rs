@@ -10,6 +10,7 @@ use carrel_core::backup::Backups;
 use carrel_core::compressed::plan::Choice;
 use carrel_core::coordinator::{Coordinator as _, DEFAULT_LEASE, DiskLock};
 use carrel_core::crawl::findings::CrawlEntry;
+use carrel_core::inbox::{KeepAs, KeepLink, Request};
 use carrel_core::ingest::filing::{Filed, Placement};
 use carrel_core::review::{ReviewEntry, ReviewQueue, State, short_id};
 use serde_json::{Value, json};
@@ -60,6 +61,10 @@ pub fn list(archive: Option<&Path>, all: bool) -> Result<Report, Failure> {
                 Some(Choice::Ask) => flags.push("expand?".into()),
                 None => {}
             }
+            if carrel_core::ingest::redraft::wants_redraft(entry) {
+                flags.push("draft again?".into());
+            }
+            flags.extend(carrel_core::ingest::readings::flag(entry));
             if entry.duplicate_of.is_some() {
                 flags.push("duplicate".into());
             } else if !entry.likely_duplicates.is_empty() {
@@ -122,6 +127,39 @@ fn crawler_findings(archive: &Archive, ids: &[String]) -> (Vec<CrawlEntry>, Vec<
         }
     }
     (found, rest)
+}
+
+/// Sends the crawler's findings `found` to the writer through this device's inbox, approved
+/// or rejected as `approve` says: `None` when there are none.
+fn send_findings(
+    archive: &Archive,
+    through: &crate::through_inbox::ThroughInbox,
+    found: &[CrawlEntry],
+    approve: bool,
+) -> Result<Option<Report>, Failure> {
+    if found.is_empty() {
+        return Ok(None);
+    }
+    let findings = found.iter().map(|e| e.id).collect();
+    let request = if approve {
+        Request::ApproveFindings { findings }
+    } else {
+        Request::RejectFindings { findings }
+    };
+    through.send(archive, request).map(Some)
+}
+
+/// Adds what `findings` says was sent to `report`, which says what else was.
+fn with_findings(mut report: Report, findings: Option<Report>) -> Report {
+    if let Some(findings) = findings {
+        let sent = findings.text.lines().filter(|l| l.starts_with("Sent: "));
+        for line in sent {
+            report.text.push_str(line);
+            report.text.push('\n');
+        }
+        report.json["findings"] = findings.json["inbox"].clone();
+    }
+    report
 }
 
 /// Approves the crawler's findings `found`, making each change as the owner's.
@@ -217,6 +255,7 @@ pub(crate) fn detail(archive: Option<&Path>, id: &str, compare: bool) -> Result<
     if let Some(summary) = &entry.card.summary {
         writeln!(text, "\n{}", summary.trim_end()).unwrap();
     }
+    write_readings(&mut text, &entry);
     let comparisons = actions::compare(&archive, &entry)?;
     if compare {
         write_comparisons(&mut text, &entry, &comparisons);
@@ -240,11 +279,65 @@ pub(crate) fn detail(archive: Option<&Path>, id: &str, compare: bool) -> Result<
             writeln!(text, "  {}: {}", problem.stage, problem.message).unwrap();
         }
     }
+    if carrel_core::ingest::redraft::wants_redraft(&entry) {
+        writeln!(
+            text,
+            "\nDraft it again with the models here now: `carrel review redraft {}`",
+            short_id(entry.id)
+        )
+        .unwrap();
+    }
     let mut json = serde_json::to_value(&entry).unwrap_or(Value::Null);
     if let Value::Object(map) = &mut json {
         map.insert("comparisons".into(), json!(comparisons));
     }
     Ok(Report::new(text, json))
+}
+
+/// What else the item might be, when the drafting model wasn't sure, and how to pick one.
+fn write_readings(text: &mut String, entry: &ReviewEntry) {
+    use carrel_core::ingest::readings;
+    if entry.readings.is_empty() {
+        return;
+    }
+    let shown = readings::on_card(entry);
+    writeln!(
+        text,
+        "\n{} (pick one with `carrel review pick {} N`):",
+        if readings::doubted(&entry.readings) {
+            "What it is isn't clear. Readings"
+        } else {
+            "Readings"
+        },
+        short_id(entry.id)
+    )
+    .unwrap();
+    for (i, reading) in entry.readings.iter().enumerate() {
+        let current = if shown == Some(i) { "  (the card)" } else { "" };
+        writeln!(text, "  {}. {}{current}", i + 1, reading.title).unwrap();
+        writeln!(text, "     {}", reading.summary).unwrap();
+        if !reading.tags.is_empty() {
+            let tags: Vec<&str> = reading.tags.iter().map(|t| t.0.as_str()).collect();
+            writeln!(text, "     tags: {}", tags.join(", ")).unwrap();
+        }
+        if !reading.reason.is_empty() {
+            writeln!(text, "     why: {}", reading.reason).unwrap();
+        }
+        if !reading.against.is_empty() {
+            writeln!(text, "     doesn't fit: {}", reading.against.join("; ")).unwrap();
+        }
+    }
+}
+
+/// `carrel review pick ID N`: rewrites the proposal's title, summary and tags from its reading
+/// `n`, as one correction, shown before it's saved.
+///
+/// # Errors
+///
+/// [`Failure`] if the proposal or the reading isn't found, or it can't be saved.
+pub fn pick(archive: Option<&Path>, id: &str, n: usize, yes: bool) -> Result<Report, Failure> {
+    let words = carrel_core::ingest::readings::pick_words(n);
+    crate::correct::review(archive, id, &[words], yes, false)
 }
 
 /// The models that declined the proposal, a safety refusal, and whether another stepped in.
@@ -346,8 +439,18 @@ fn write_comparison(text: &mut String, comparison: &actions::Comparison) {
 pub fn reject(archive: Option<&Path>, ids: &[String]) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let (found, ids) = crawler_findings(&archive, ids);
+    let through = crate::through_inbox::check(&archive)?;
     let mut text = String::new();
-    if !found.is_empty() {
+    let sent = match &through {
+        Some(through) => send_findings(&archive, through, &found, false)?,
+        None => None,
+    };
+    if ids.is_empty()
+        && let Some(sent) = sent
+    {
+        return Ok(sent);
+    }
+    if !found.is_empty() && through.is_none() {
         let identity = Identity::load_or_create()?;
         for entry in &found {
             carrel_core::crawl::findings::reject(&archive, entry, identity.device)?;
@@ -373,6 +476,11 @@ pub fn reject(archive: Option<&Path>, ids: &[String]) -> Result<Report, Failure>
             entry.state.as_str()
         )));
     }
+    if let Some(through) = through {
+        let proposals = entries.iter().map(|e| e.id).collect();
+        let report = through.send(&archive, Request::Reject { proposals })?;
+        return Ok(with_findings(report, sent));
+    }
     for entry in actions::reject(&archive, entries)? {
         writeln!(
             text,
@@ -397,8 +505,18 @@ pub fn approve(
 ) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let (found, ids) = crawler_findings(&archive, ids);
-    let approved = approve_findings(&archive, &found)?;
+    let through = crate::through_inbox::check(&archive)?;
+    let (approved, sent) = match &through {
+        Some(through) => (
+            String::new(),
+            send_findings(&archive, through, &found, true)?,
+        ),
+        None => (approve_findings(&archive, &found)?, None),
+    };
     if !all_high && ids.is_empty() && !found.is_empty() {
+        if let Some(sent) = sent {
+            return Ok(sent);
+        }
         let ids: Vec<String> = found.iter().map(|e| e.id.to_string()).collect();
         return Ok(Report::new(approved, json!({ "approved": ids })));
     }
@@ -407,6 +525,24 @@ pub fn approve(
     } else {
         actions::proposals(&archive, &ids)?
     };
+    if let Some(through) = through.filter(|_| !entries.is_empty()) {
+        let keep = as_version_of
+            .map(|t| (KeepLink::Version, t))
+            .or(related_to.map(|t| (KeepLink::Both, t)))
+            .map(|(link, target)| KeepAs {
+                link,
+                target: Some(target.to_owned()).filter(|t| !t.is_empty()),
+            });
+        let request = Request::Approve {
+            proposals: entries.iter().map(|e| e.id).collect(),
+            holding: false,
+            keep,
+        };
+        return Ok(with_findings(through.send(&archive, request)?, sent));
+    }
+    if let Some(sent) = sent {
+        return Ok(sent);
+    }
     let kept = as_version_of
         .map(|t| (actions::Kept::AsVersion, t))
         .or(related_to.map(|t| (actions::Kept::Both, t)));
@@ -425,6 +561,14 @@ pub fn approve(
 pub fn hold(archive: Option<&Path>, ids: &[String]) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let entries = actions::proposals(&archive, ids)?;
+    if let Some(through) = crate::through_inbox::check(&archive)?.filter(|_| !entries.is_empty()) {
+        let request = Request::Approve {
+            proposals: entries.iter().map(|e| e.id).collect(),
+            holding: true,
+            keep: None,
+        };
+        return through.send(&archive, request);
+    }
     decide(&archive, entries, Placement::Holding)
 }
 
@@ -432,6 +576,14 @@ pub fn hold(archive: Option<&Path>, ids: &[String]) -> Result<Report, Failure> {
 /// until the proposal is approved.
 pub fn move_to(archive: Option<&Path>, id: &str, collection: &str) -> Result<Report, Failure> {
     let archive = locate(archive)?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let proposal = ReviewQueue::of(&archive).find(id)?.id;
+        let request = Request::MoveProposal {
+            proposal,
+            collection: collection.trim().to_owned(),
+        };
+        return through.send(&archive, request);
+    }
     let moved = actions::move_to(&archive, id, collection)?;
     let mut text = format!(
         "{} will go to {} when approved\n",
@@ -462,6 +614,10 @@ pub fn choose_compressed(
 ) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let entries = actions::proposals(&archive, ids)?;
+    if let Some(through) = crate::through_inbox::check(&archive)? {
+        let proposals = entries.iter().map(|e| e.id).collect();
+        return through.send(&archive, Request::ChooseCompressed { proposals, choice });
+    }
     let mut text = String::new();
     let mut saved = Vec::new();
     for entry in entries {
@@ -602,6 +758,7 @@ pub fn edit(archive: Option<&Path>, id: &str) -> Result<Report, Failure> {
     let mut entry = actions::proposals(&archive, &[id.to_owned()])?
         .pop()
         .ok_or_else(|| Failure::new(format!("no proposal {id}")))?;
+    let before = entry.clone();
     let file = std::env::temp_dir().join(format!("carrel-{}.yaml", entry.id));
     let mut text = actions::draft_text(&archive, &entry, &[])?;
     let result = loop {
@@ -614,6 +771,16 @@ pub fn edit(archive: Option<&Path>, id: &str) -> Result<Report, Failure> {
         match actions::apply_draft(&archive, &mut entry, &edited)? {
             Edited::Unchanged => break "Nothing changed\n".to_owned(),
             Edited::Changed => {
+                if let Some(through) = crate::through_inbox::check(&archive)? {
+                    let _ = std::fs::remove_file(&file);
+                    let sent = carrel_core::inbox::send_proposal_edit(
+                        &archive,
+                        through.holder,
+                        &before,
+                        &entry,
+                    )?;
+                    return Ok(through.report(&sent, "edit a proposal"));
+                }
                 ReviewQueue::of(&archive).save(&entry)?;
                 break format!(
                     "Saved the card for {} ({})\n",

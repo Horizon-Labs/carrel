@@ -145,7 +145,7 @@ final class SettingsModel {
             device = try await $0.setDevice(key, to: value.isEmpty ? nil : value)
             note =
                 value.isEmpty
-                ? "Cleared \(key); Carrel chooses for itself." : "Set \(key) on this Mac."
+                ? "Cleared \(key); Carrel chooses for itself." : "Set \(key) on \(thisDevice)."
         }
     }
 
@@ -165,7 +165,12 @@ final class SettingsModel {
         confirmingDownload = nil
         let format = confirmingFormat
         await perform {
+            #if os(iOS)
+            // No network helper here: the core fetches through the app (#481).
+            try await $0.download(mlx: model.name, through: URLSessionFileFetcher())
+            #else
             try await $0.download(model: model.name, in: format)
+            #endif
             note = "Downloaded \(model.name) (\(format.title))."
         }
         await refreshDevice()

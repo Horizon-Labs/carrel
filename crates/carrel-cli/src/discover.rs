@@ -132,6 +132,27 @@ pub struct WanderArgs {
     pub steps: usize,
     /// Go on with the last walk.
     pub next: bool,
+    /// Start from a random item in this collection or those inside it.
+    pub within: Option<String>,
+}
+
+/// The catalog of `archive`, or of the collection `within` and those inside it.
+///
+/// # Errors
+///
+/// [`Failure`] if the archive can't be read, or there's no collection `within`.
+pub fn catalog_in(archive: &Archive, within: Option<&str>) -> Result<Catalog, Failure> {
+    let catalog = Catalog::read(archive)?;
+    match within {
+        None => Ok(catalog),
+        Some(path) => {
+            let path = path.trim_matches('/');
+            if catalog.collection(path).is_none() {
+                return Err(Failure::new(format!("there's no collection “{path}”")));
+            }
+            Ok(catalog.within(path))
+        }
+    }
 }
 
 fn new_seed() -> u64 {
@@ -155,7 +176,15 @@ fn start_walk(archive: &Archive, args: &WanderArgs, visits: &Visits) -> Result<W
         }
         None => None,
     };
-    Ok(Walk::new(args.seed.unwrap_or_else(new_seed), start).remembering(visits))
+    let seed = args.seed.unwrap_or_else(new_seed);
+    let start =
+        match &args.within {
+            Some(within) => Some(catalog_in(archive, Some(within))?.pick(seed).ok_or_else(
+                || Failure::new(format!("“{within}” holds no items to wander from")),
+            )?),
+            None => start,
+        };
+    Ok(Walk::new(seed, start).remembering(visits))
 }
 
 /// `carrel discover wander`: one step at a time in a terminal, else `--steps` of them.
@@ -424,9 +453,13 @@ fn bar_width(n: usize, most: usize, width: usize) -> usize {
 }
 
 /// `carrel discover map`.
-pub fn map(archive: Option<&Path>, depth: Option<usize>) -> Result<Report, Failure> {
+pub fn map(
+    archive: Option<&Path>,
+    depth: Option<usize>,
+    within: Option<&str>,
+) -> Result<Report, Failure> {
     let archive = locate(archive)?;
-    let found = map::map(&Catalog::read(&archive)?);
+    let found = map::map(&catalog_in(&archive, within)?);
     Ok(Report::new(
         map_text(&found, depth),
         serde_json::to_value(&found)?,
@@ -521,6 +554,7 @@ pub fn activity(
     archive: Option<&Path>,
     from: Option<&str>,
     to: Option<&str>,
+    within: Option<&str>,
 ) -> Result<Report, Failure> {
     let archive = locate(archive)?;
     let (default_from, default_to) = activity::last_year(today());
@@ -538,7 +572,7 @@ pub fn activity(
     if from > to {
         return Err(Failure::new("--from must come before --to"));
     }
-    let found = activity::activity(&Catalog::read(&archive)?, from, to);
+    let found = activity::activity(&catalog_in(&archive, within)?, from, to);
     Ok(Report::new(
         activity_text(&found),
         serde_json::to_value(&found)?,
@@ -547,9 +581,14 @@ pub fn activity(
 
 /// `carrel discover graph`: the strongest connections between collections, or with `items`
 /// between items in different collections, at most `limit` of each. `--json` gives both.
-pub fn graph(archive: Option<&Path>, items: bool, limit: usize) -> Result<Report, Failure> {
+pub fn graph(
+    archive: Option<&Path>,
+    items: bool,
+    limit: usize,
+    within: Option<&str>,
+) -> Result<Report, Failure> {
     let archive = locate(archive)?;
-    let found = Graph::build(&Catalog::read(&archive)?);
+    let found = Graph::build(&catalog_in(&archive, within)?);
     let connections: Vec<Connection> = found.connections().into_iter().take(limit).collect();
     let edges: Vec<&Edge> = found
         .strongest_item_edges()

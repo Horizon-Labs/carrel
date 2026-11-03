@@ -102,13 +102,13 @@ impl Crawler<'_> {
         let now = jiff::Timestamp::now();
         let judged = verdicts::all(archive);
         let open = findings::open_items(archive)?;
-        let entries = order::entries(archive)?;
+        let entries = order::entries(archive, Some(&self.model_name()))?;
         let crowded = order::crowded(archive)?;
         let due = order_of(&entries, &crowded, &judged, &open, now);
         let by_id: HashMap<Id, ItemRef> = archive.items()?.into_iter().map(|i| (i.id, i)).collect();
         let places = places(archive)?;
         let mut crawled = Crawled::default();
-        for (id, _) in due.into_iter().take(items) {
+        for (id, stage) in due.into_iter().take(items) {
             if stop() {
                 crawled.stopped = true;
                 break;
@@ -123,7 +123,9 @@ impl Crawler<'_> {
                 continue;
             };
             let collection = folder(&item.card);
-            let Some(judgment) = self.judge(&card, collection, &places)? else {
+            let judged = self.judge(&card, collection, &places, stage == order::Stage::Outdated);
+            self.note_gap(item, &judged);
+            let Some(judgment) = judged? else {
                 crawled
                     .failed
                     .push(format!("{}: the model's answer wasn't usable", card.title));
@@ -157,6 +159,7 @@ impl Crawler<'_> {
                     model: self.model_name(),
                     judged: jiff::Timestamp::now().to_string(),
                     declined,
+                    drafting: Some(crate::ingest::card::DRAFTING),
                     extra: Extra::new(),
                 },
             )?;
@@ -165,6 +168,19 @@ impl Crawler<'_> {
         mine.last_pass = Some(now.to_string());
         mine.save(archive, device)?;
         Ok(crawled)
+    }
+
+    /// Records in the gap log ([`crate::gaps`]) that `item` couldn't be judged, when it
+    /// couldn't: its type and the model, never its name.
+    fn note_gap(&self, item: &ItemRef, judged: &Result<Option<Judgment>, CrawlError>) {
+        let why = match judged {
+            Ok(None) => crate::gaps::CrawlerGap::Unusable,
+            Err(CrawlError::Model(_)) => crate::gaps::CrawlerGap::ModelFailed,
+            Err(CrawlError::NoModel(_)) => crate::gaps::CrawlerGap::NoModel,
+            Ok(Some(_)) | Err(_) => return,
+        };
+        let path = item.item.as_ref().map(|p| self.archive.root().join(p));
+        crate::gaps::crawler_failed(path.as_deref(), &self.model_name(), why);
     }
 
     fn model_name(&self) -> String {
@@ -184,15 +200,79 @@ impl Crawler<'_> {
             return Ok(None);
         };
         let places = places(self.archive)?;
-        self.judge(&card, folder(&item.card), &places)
+        self.judge(&card, folder(&item.card), &places, false)
     }
 
-    /// The model's judgment of `item`, or `None` when its answer wasn't usable.
+    /// Redrafts `item`'s card, as for an outdated draft, for the re-check queue
+    /// ([`crate::recheck`]): its verdict is kept, and what could be better is proposed in
+    /// Review for the owner to approve, never made, whatever `crawler.changes` says. Returns
+    /// how many findings were proposed, or `None` when its card can't be read or the model's
+    /// answer wasn't usable.
+    ///
+    /// # Errors
+    ///
+    /// [`CrawlError::Model`] when the model fails, or what the crawler keeps can't be written.
+    pub fn propose_redraft(&self, item: &ItemRef) -> Result<Option<usize>, CrawlError> {
+        let archive = self.archive;
+        let Some(card) = read_card(archive, item) else {
+            return Ok(None);
+        };
+        let collection = folder(&item.card);
+        let places = places(archive)?;
+        let judged = self.judge(&card, collection, &places, true);
+        self.note_gap(item, &judged);
+        let Some(judgment) = judged? else {
+            return Ok(None);
+        };
+        let declined = verdicts::all(archive)
+            .get(&item.id)
+            .map(|v| v.declined.clone())
+            .unwrap_or_default();
+        let mut proposed = 0;
+        for finding in findings_of(archive, &judgment, &card, collection, &places) {
+            if declined.iter().any(|d| declines(d, &finding)) {
+                continue;
+            }
+            let entry = CrawlEntry::new(
+                item,
+                &card.title,
+                finding,
+                &judgment.reason,
+                judgment.confidence,
+                &self.model_name(),
+            );
+            if findings::propose(archive, &entry)? {
+                proposed += 1;
+            }
+        }
+        record(
+            archive,
+            self.holder.device,
+            item.id,
+            Verdict {
+                collection: collection.to_owned(),
+                fits: judgment.fits,
+                better: judgment.better.clone(),
+                confidence: judgment.confidence,
+                reason: judgment.reason.clone(),
+                model: self.model_name(),
+                judged: jiff::Timestamp::now().to_string(),
+                declined,
+                drafting: Some(crate::ingest::card::DRAFTING),
+                extra: Extra::new(),
+            },
+        )?;
+        Ok(Some(proposed))
+    }
+
+    /// The model's judgment of `item`, or `None` when its answer wasn't usable; `redraft`
+    /// when its card is an outdated draft.
     fn judge(
         &self,
         card: &Card,
         collection: &str,
         places: &[Place],
+        redraft: bool,
     ) -> Result<Option<Judgment>, CrawlError> {
         let design = design_document(self.archive, collection);
         let text = card
@@ -204,6 +284,7 @@ impl Crawler<'_> {
             collection,
             design: &design,
             text: text.as_deref(),
+            redraft,
         };
         let paths: Vec<String> = places.iter().map(|p| p.path.clone()).collect();
         let mut request = CompletionRequest {

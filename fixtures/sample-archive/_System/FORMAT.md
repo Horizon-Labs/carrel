@@ -188,6 +188,8 @@ Fields are owned by programs unless marked as owner fields. Optional fields are 
 | `placement` | map | no | How sure filing was of the item's collection, when it wasn't (§5.8) |
 | `removed` | map | for `tombstone` | §10 |
 | `expanded_from` | map | no | The compressed file the item was expanded from when it was filed or with `carrel expand`: its `name`, `size` and `checksum` (§2.6) |
+| `needs_work` | `true`, string or map | no | The owner's mark that the item or its card needs work (§5.9) (owner field) |
+| `drawings` | list | no | Handwritten notes drawn on the card, with the text recognised in them (§5.10) |
 
 Programs **must** preserve fields they don't recognize when rewriting a card.
 
@@ -205,7 +207,7 @@ The body is the owner's. Programs may only write inside **managed sections**, de
 - A marker counts only when it is alone on its line (surrounding spaces allowed) and outside fenced code blocks, so documentation can show markers without creating sections. Section names use lowercase letters, digits and `-`. A section appears at most once per document, and sections never nest.
 - A program **must not** change anything outside managed sections, including whitespace.
 - If a managed section's markers are missing or unbalanced, a program **must not** guess; it leaves the body alone and reports the problem.
-- Version 1.0 defines one managed section, `history` (§5.5). New cards place it at the end of the body.
+- Version 1.0 defines two managed sections: `history` (§5.5), which new cards place at the end of the body, and `drawings` (§5.10), placed before `history` when a card's first drawing is added and removed with its last.
 - Markdown editors such as Obsidian realign tables by padding cells with spaces. Programs **must** treat differences in table cell padding and delimiter-row dash counts as insignificant, both inside managed sections and when detecting outside edits.
 
 ### 5.4 Links
@@ -253,12 +255,13 @@ generated:
   device: 01928f3a-0000-7000-8000-00000000d001
   at: "2026-10-29T15:42:07-07:00"
   level: preferred        # or below-preferred, if a stronger device should re-check it
+  drafting: 1             # optional: the drafting version; with model, what drafted the card
   corrections:            # optional: what the owner said to correct the card
     - said: "This is a picture of Lake Annecy, not Geneva"
       at: "2026-10-31T09:12:40-07:00"
 ```
 
-A field the owner set outright is left out of `fields`, so programs never overwrite it. `corrections` keeps the owner's corrections, oldest first; a program that rewrites a field in `fields` must give them to any model it uses and must not contradict them.
+A field the owner set outright is left out of `fields`, so programs never overwrite it. `model` and `drafting` say what drafted the card: `drafting` is a number a program raises whenever its drafting improves, and a card without it was drafted by an unknown older version. Programs **may** redraft the fields in `fields` when a stronger model or a newer drafting version is available, updating `model` and `drafting`. `corrections` keeps the owner's corrections, oldest first; a program that rewrites a field in `fields` must give them to any model it uses and must not contradict them.
 
 ### 5.7 Example
 
@@ -305,6 +308,44 @@ placement:
 ```
 
 Programs write `placement` when filing a proposal whose destination confidence (§7.9) was `low` or `medium`, and never for items filed to Holding, where being there says the same. They remove it when the owner places the item themselves, such as by moving or renaming it, since the owner's choice settles where it belongs.
+
+### 5.9 Needs work
+
+The owner may flag an item, or a collection (§6.3), as needing work, such as while browsing, with a few words saying what:
+
+```yaml
+needs_work:
+  id: 019a3f00-1c2d-7e3f-8a4b-5c6d7e8f9a0b   # the flag's identifier, kept when its note changes
+  note: "wrong title"      # optional: what needs doing, one line
+  person: 01928f39-eeee-7fff-8000-000000000005
+  at: "2026-11-01T09:30:00-04:00"
+```
+
+Written by hand, `needs_work: true` or `needs_work: "split this folder"` mean the same without who and when; `false` is the same as leaving it out. Programs write the map. A flag stays until the owner clears it; programs **may** offer to clear it when the owner corrects or edits the card, and **may** look at flagged items first when they reassess the archive, but **must not** clear it themselves.
+
+### 5.10 Drawings
+
+The owner may write or draw notes on a card by hand, such as with Apple Pencil on iPad. Each drawing is kept as two files in `_System/drawings/<item-id>/`, named by the drawing's identifier:
+
+- `<drawing-id>.drawing`: the drawing itself, as PencilKit's `PKDrawing` data representation, which programs on Apple platforms can open to change it;
+- `<drawing-id>.png`: a picture of it, dark ink on white, which any program or reader can show.
+
+The card lists its drawings, oldest first, in `drawings`:
+
+```yaml
+drawings:
+  - id: 019a4b2c-5d6e-7f80-9a1b-2c3d4e5f6a7b
+    text: "ask Ana for the raw latency data"   # optional: the text recognised in it
+    at: "2026-11-02T08:41:00-05:00"             # when it was first drawn
+    modified: "2026-11-02T09:05:12-05:00"       # optional: when it last changed
+    person: 01928f39-eeee-7fff-8000-000000000005
+    device: 01928f3a-0000-7000-8000-00000000d003   # the device it was last drawn on
+```
+
+- **Recognised text:** the device that saves a drawing recognises its handwriting and records the text in `text`, so search and other programs find the note by its words. It's a reading, not the owner's words: programs replace it whenever the drawing changes.
+- **The `drawings` section:** programs write a managed section (§5.3) showing each drawing, so people reading the card without Carrel see it. Each drawing is a level-3 heading with its date, its picture embedded by its path from the archive root (`![[_System/drawings/<item-id>/<drawing-id>.png]]`, which Obsidian shows and stays valid when the card moves), and its recognised text as a quotation. The section is rewritten from the field whenever a drawing is saved or removed.
+- **History:** saving or removing a drawing is one `edit` change (§8.2) recording the card and the drawing's files, which history tracks as `_System` files, so undo restores them.
+- **Removing an item:** when an item is purged (§10.2), its drawings folder is removed with it.
 
 ## 6. Collections and design documents
 
@@ -360,6 +401,9 @@ item_template: project          # optional: a card template name for this collec
 compressed_files: keep          # optional: expand, keep or ask; overrides settings.json (§7.2)
 restructure:                    # optional
   eagerness: settled            # settled, balanced or eager; overrides settings.json (§7.2) here and below
+sync:                           # optional
+  keep_downloaded: true         # keep this collection's items downloaded on every device (§7.13); here and below
+needs_work: "split this folder" # optional: the owner's flag (§5.9)
 tags:                           # this collection's tag vocabulary
   - name: simulation
     description: "Numerical models and simulation code"
@@ -448,11 +492,18 @@ _System/
   manifests/            folder and bundle manifests (§7.7)
   history.git/          the history repository (§8)
   writer.lock           which device may write, on local and external disks (§8.4)
-  inbox/<device-id>/    quick actions from devices that aren't the writer (§7.8)
+  inbox/<device-id>/    changes from devices that aren't the writer (§7.8)
+  inbox-skipped/<device-id>/  inbox entries the writer skipped, and why (§7.8)
+  holding/              replaced content waiting for a snapshot (§7.14)
+  feedback/<device-id>/ feedback the owner sends for development (§7.8)
   queue/                pending proposals, questions and tasks (§7.9)
   devices/<device-id>/  device profiles and desk-item registries (§7.10)
+  drawings/<item-id>/   handwritten notes drawn on cards (§5.10)
   index/                search index (§7.11)
   cache.nosync/         rebuildable caches, excluded from iCloud sync
+  holding/              replaced content waiting for a snapshot, from devices without backups
+  tasks/                re-checks waiting for a stronger device (§7.9)
+  moved.json            only in an old copy left behind by a move: where the archive went (§7.13)
 ```
 
 ### 7.1 `archive.json`
@@ -496,6 +547,7 @@ Archive-level settings that every device follows. Version 1.0 defines:
 | `restructure.move_budget` | integer, or `none` for no limit: how many items one proposal may move between branches or top-level collections; subdividing, renaming and rewriting don't count. Unset, the level's: 10, none, none | none |
 | `crawler.changes` | `true` (the crawler may refile items and correct model-written card fields on its own when it's sure, each an undoable change marked as its own, §8.2) or `false` (its findings wait in Review, §7.9) | `false` |
 | `crawler.pace` | `off`, `gentle`, `steady` or `brisk`: how much of a device's idle time the crawler uses to recheck where items are filed. It runs only when the device is idle and on power | `steady` |
+| `spotlight.index` | `standard` (a Mac's Spotlight finds public and personal items' cards in full, sensitive items by title only, and the collections and glossary facts), `all-but-restricted` (every item's card in full but restricted items') or `off` (nothing). Restricted items are never indexed, whatever it says | `standard` |
 
 Programs **must** preserve unknown keys.
 
@@ -567,28 +619,78 @@ src/main.rs	sha256:e3b0c442…	2048	2026-09-14T10:02:11.137401922-07:00
 - **Storage:** manifests are stored at `_System/manifests/<item-id>.tsv`. They sync with the archive but are not part of the history repository (§8.1). While an item is checked out, the manifest of what it held when it went out is kept beside them as `<item-id>.checkout.tsv`, for comparing with on return (§9.1); it's deleted when the item comes back.
 - **Content checksum:** the card's `manifest.checksum` identifies the item's contents, not the manifest file. It is the checksum of the text made by writing, for every row in order, the encoded path, a tab, the checksum, a tab, the size and a line feed. Modification times and the header are left out, so touching a file without changing it never changes the card, and a manifest rebuilt from a backup can be checked exactly against history.
 - **Reusing checksums:** a program may reuse an entry's checksum when a file's size and modification time both match the previous manifest, instead of reading the file again, but only when that modification time is at least two seconds before the previous manifest's `built` time. File systems stamp writes from a coarse clock (about 16 ms on Windows, up to two seconds on FAT), so a file edited just after it was read can keep the modification time recorded for it; such files, and every file when `built` is missing, are read again.
+- **Evicted files:** a file whose contents a sync service evicted (§7.13) is never read to build a manifest: it keeps its previous manifest's entry, whatever its modification time. One with no previous entry is left out, and isn't counted as removed.
 - **Past manifests** can be rebuilt from the backup snapshot named in a history commit's `Carrel-Snapshot` trailer, using the rules in `_System/rules/` as of that commit, and checked against the `manifest.checksum` in the card as of that commit.
 
 ### 7.8 Inboxes
 
-Devices that are not the current writer (§8.2) record quick actions as one JSON file each in `_System/inbox/<device-id>/`, named `<timestamp>-<uuid>.json`:
+Devices that are not the current writer (§8.4), and devices that can't take the writer lock at all, such as the command line on Linux or Windows with a synced archive, record every change they make as one JSON file each in `_System/inbox/<device-id>/`, named `<timestamp>-<uuid>.json` so names sort in the order they were made:
 
 ```json
 {
-  "action": "approve-entry",
-  "item": "01928f3a-7c41-7d2e-9b6a-3f0c5e2a1b44",
-  "entry": "2026-10-29 · 2h 10m",
+  "action": "reject",
+  "proposals": ["01928f3a-7c41-7d2e-9b6a-3f0c5e2a1b44"],
   "person": "01928f39-eeee-7fff-8000-000000000005",
   "device": "01928f3a-0000-7000-8000-00000000d002",
   "at": "2026-10-29T18:01:00-07:00"
 }
 ```
 
-A device only ever writes to its own inbox folder. The writer applies inbox files in timestamp order and records each as applied in the history.
+A device only ever writes to its own inbox folder, so entries never conflict, even offline. Files an entry needs are copied into a folder beside it, named as the entry is without `.json`.
+
+The writer applies every device's entries in timestamp order, each as its sender's: the commit recording it names the sending person and device (§8.2), as if they had made the change themselves. It then removes the entry and its folder. An entry a program doesn't understand, such as an `action` from a later version, is left for a writer that does.
+
+| `action` | Keys | What the writer does |
+| --- | --- | --- |
+| `add` | `files`: the copies' names; `each`: read folders entry by entry; `note`; `desk_card`: for a desk item, its card's copy, kept (§9.4) | Moves the copies out of the archive to a folder of its own and adds them to its intake queue (§7.9), with the note |
+| `add-url` | `url`, `title`, `note` | Adds the web address to its intake queue as a `url` item |
+| `approve` | `proposals`; `holding`: file in Holding instead; `keep`: `{"link": "version" or "both", "target"}` for duplicates | Files the proposals still open, on the device their items are on |
+| `reject` | `proposals` | Rejects the proposals still open |
+| `move-proposal` | `proposal`, `collection` | Proposes the collection instead |
+| `choose-compressed` | `proposals`, `choice` | Records whether their compressed files are expanded |
+| `answer` | `question`; `answer`: `{"kind": "decline"}`, `"skip"`, `"dismiss"`, `"settle"`, `{"kind": "teach", "fact"}` or `{"kind": "place", "collection", "create"}` | Answers the question |
+| `add-rule` | `subject`, `collection` | Adds a routing rule (§7.4) |
+| `learn` | `about`, `fact` | Adds the fact to the glossary (§7.3) |
+| `correct` | `corrects`: `{"kind": "proposal" or "filed", "id"}`; `words`; `changes`: what the words were worked out into on the sending device; `model`; `by`; `answering`: a question | Saves the correction as if worked out there, without a model |
+| `edit-fields` | `item`; `base`: the fields as the editor opened them; `fields`: as edited | Merges the edit field by field with the card as it is |
+| `edit-body` | `item`, `base`, `body` | Merges the edit with the body as it is |
+| `check-out` | `item`; `to`: the working copy, on the sending device; `checksum`: the manifest checksum of the copy taken; `due`; `git_head` | Records the checkout (§9.1) as the sending device's |
+| `return` | `item`; `name`: the working copy's copy beside the entry | Returns the item from the copy |
+| `cancel-checkout` | `item` | Cancels the sending device's checkout |
+| `flag`, `unflag` | `target`: `{"kind": "item", "id"}` or `{"kind": "collection", "path"}`; `note` | Sets or clears the flag (§5.9) |
+| `expand` | `item`, `anyway` | Expands the compressed file |
+| `undo` | `change`: a commit | Undoes the change (§8.3) |
+| `record` | `operation`, `summary`, `items` | Records a change the device already made in its own files, such as its desk (§7.10), as one commit |
+| `edit-proposal` | `proposal`; `base`: the card's fields as the editor opened them, checked on the sending device; `fields`: as edited | Saves the edit while the proposal is still as it was |
+| `redraft` | `proposals` | Drafts the proposals still open again with its own models, keeping what the owner set |
+| `approve-findings`, `reject-findings` | `findings`: the crawler's (§7.9) | Makes their changes, or rejects them so they aren't proposed again |
+| `approve-restructure` | `proposal`; `only`: the changes approved, when not all | Makes the approved changes |
+| `reject-restructure` | `proposal` | Drops the proposal |
+| `undo-since` | `by`: an agent, such as `librarian` or `crawler`; `since`: seconds since the Unix epoch | Undoes every change the agent made on its own since then |
+| `create-collection` | `path`, `description`; `tags`: `[name, meaning]` pairs | Creates the collection and its design document (§6.3) |
+| `rename` | `item`, `name` | Renames the item and its card together |
+| `session-entries` | `item`; `entries`: pending work-session entries as they were; `decision`: `approve`, `drop` or `combine` | Decides the entries, while they're still pending as they were (§5.5) |
+| `edit-session-entry` | `item`; `was`: the entry as it was; `text` | Replaces the pending entry's text |
+| `raise` | `questions`: questions worked out on the sending device (§7.9) | Adds them to the question queue |
+
+**Skipped entries.** An entry that no longer applies, such as approving a proposal decided elsewhere meanwhile, editing a field changed elsewhere to something else, or returning an item no longer checked out to that device, is removed from the inbox and recorded in `_System/inbox-skipped/<device-id>/` under the same name, for that device to show:
+
+```json
+{
+  "entry": { "action": "reject", "proposals": ["…"], "person": "…", "device": "…", "at": "…" },
+  "reason": "the proposal was already decided elsewhere, or gone",
+  "by": "01928f3a-0000-7000-8000-00000000d001",
+  "skipped": "2026-10-30T09:12:00-07:00"
+}
+```
+
+The writer removes skipped records after 30 days. An entry that can't be applied for now, such as while the writer lease is busy, stays in its inbox to be tried again.
+
+Feedback the owner sends for development, from any screen of any program, is kept the same way, in `_System/feedback/<device-id>/`: one `<timestamp>-<id>.json` each, with `kind` (`bug`, `idea` or `confusing`), the owner's `words`, the `screen` and `step` they were on, `in_view` (the items and collections shown, by `kind`, `id` and `title`, never their contents), the `interface`, Carrel's `version` and `commit`, the `device` and `os`, the `model` in use, `recent_problems` from the device's own gap log, and `at`. A `screenshot` names a PNG beside it. `sent.json` maps the entries that device has marked sent to their issues' addresses. A device writes only its own folder, needs no writer lease to do so, and nothing applies or removes the entries; history doesn't track them (§8.1).
 
 ### 7.9 Queues
 
-`_System/queue/` holds pending work as one JSON file per entry, in subfolders `intake/` (items waiting to be ingested), `review/` (ingest and change proposals), `questions/` (questions for the owner), `tasks/` (work for a more capable device), `proposals/` (restructure proposals) and `crawler/` (the crawler's findings). Entry schemas are defined alongside the features that use them and are versioned with this specification. Programs **must** preserve unknown keys in entries.
+`_System/queue/` holds pending work as one JSON file per entry, in subfolders `intake/` (items waiting to be ingested), `review/` (ingest and change proposals), `questions/` (questions for the owner), `proposals/` (restructure proposals), `crawler/` (the crawler's findings) and `flags/` (the librarian's work on flags). Work for a more capable device waits in `_System/tasks/` (below). Entry schemas are defined alongside the features that use them and are versioned with this specification. Programs **must** preserve unknown keys in entries.
 
 #### Review entries
 
@@ -634,7 +736,7 @@ A device only ever writes to its own inbox folder. The writer applies inbox file
 | `id`, `batch` | The entry's identifier, and the ingest batch it came from (UUIDv7) |
 | `state` | `proposed`, `needs-owner` (something couldn't be settled; see `problems`), `approved`, `held` (to go to Holding), `rejected` (to stay where it is) or `archived` |
 | `source` | Where the item is now: an absolute path on the device `device`, with its checksum (§2.6) and size, or the manifest's content checksum and total size for a folder or bundle |
-| `kind` | `file`, `folder` or `bundle`; a bundle also has `sealed` |
+| `kind` | `file`, `folder` or `bundle`; a bundle also has `sealed`. `url` for a shared web address, which is filed as a card-only item (§4.1) and has no file: `source` is then the text it was drafted from, which needn't still exist |
 | `duplicate_of` | The identifier of an archived item with the same checksum, if any |
 | `likely_duplicates` | Optional. Archived items it's likely a duplicate of, at most three: each with its `id`, its `card` path, and `why`, a list of `same-name`, `newer-version`, `older-version` and `same-title-and-date` |
 | `card` | The card fields to write (§5), except those programs fill in when archiving (`id`, `item`, `checksum`, `size`, `manifest`). In `links`, a `path` is relative to the archive root until the item is filed, when it's rewritten relative to the card |
@@ -643,7 +745,11 @@ A device only ever writes to its own inbox folder. The writer applies inbox file
 | `problems` | What validation or the owner needs to settle, as `{"stage", "message"}` objects |
 | `attempts` | Every provider call made for the entry: `stage`, `provider`, `offer`, `result` (`ok`, `unsupported`, `unavailable`, `declined` (a model's safety refusal) or `failed`) and an optional `message` |
 | `sensitivity_reasons` | Why `card.sensitivity` is `sensitive` or `restricted`, in words that never quote what was found; absent otherwise |
+| `owner_fields` | Optional. The card fields the owner set by editing or correcting the entry (`title`, `summary`, `tags`, `dates`, `sensitivity`), which drafting the entry again keeps |
+| `readings` | Optional. When the drafting model wasn't sure what the item is, two or three readings of it, each with a `title`, `summary`, `tags` and the model's `reason`, and `against`: what about the item (its file name, folder or text) doesn't fit that reading. The one the card was drafted from comes first. Picking another is a correction of the card's title, summary and tags; the readings stay, and their `against` is cleared once the owner has picked |
 | `desk_card` | Optional. For a desk item being archived (§9.4), its desk card's absolute path: the filed card keeps that card's `id` and body |
+| `url` | For `kind: url`, the web address the card's `url` gets when it's filed |
+| `note` | Optional. The owner's note from adding it (the intake entry's `note`), which the filed card keeps at the start of its body |
 | `compressed` | Optional, for a compressed file. `format` (`zip`, `tar`, `tar-gz`, `tar-bz2`, `tar-xz`, `tar-zst`, `gz`, `bz2`, `xz`, `zst`, `7z` or `rar`); `action`: `expand` (on approval, what it holds is filed in its place, with `expanded_from` on the card, and the compressed file goes to the system Trash), `keep` or `ask` (the entry needs the owner); `reason` for keeping or asking; `by_owner` when the owner chose the action, which lifts the size limits; and when known, what expanding makes: `files`, `size`, `kind`, `sealed` and `name` |
 
 When an approved or held entry has been archived, programs remove the entry; the history commit (§8.2) records what was filed. A rejected entry is removed once the owner has seen the batch summary. Entries whose `source.device` is another device can't be archived there; they wait for that device.
@@ -671,6 +777,8 @@ Items added for ingest wait in `_System/queue/intake/`, one JSON file each, name
 | `order` | Its place in the queue, lower first, then by `id`; omitted when `0` |
 | `attempts`, `failure` | How many times processing it has failed, and why the last time; after two, it waits for the owner to retry it |
 | `desk_card` | Optional. For a desk item being archived (§9.4), its desk card's absolute path. The proposal gets the card's fields and the same key |
+| `url`, `title` | Optional. A web address to file as a `url` item, and the title it came with. Its card is drafted from the address and title alone: nothing is fetched. `path` repeats the address |
+| `note` | Optional. What the owner said about the item when adding it, such as in a share sheet: it's given to the model drafting the card, and the proposal gets it as `note` |
 
 Programs process entries one at a time, save each item's proposal to `review/` as soon as it's ready, and then remove the entry.
 
@@ -699,7 +807,7 @@ When several items depend on the same unknown, a program asks the owner one ques
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `term` (what a recurring term means; the answer becomes a glossary fact, §7.3), `collection` (which collection items about a term belong in), `group` (where a group of items that belong together goes, such as a collection they're split across or a new one), `sender` (whether a sender or project that recurs deserves its own collection) or `item` (something about one item, such as what a photo shows or who someone named in it is; the answer is a correction of its card). For `collection`, `group` and `sender`, the answer is a collection's path, or for `sender`, no |
+| `kind` | `term` (what a recurring term means; the answer becomes a glossary fact, §7.3), `collection` (which collection items about a term belong in), `group` (where a group of items that belong together goes, such as a collection they're split across or a new one), `sender` (whether a sender or project that recurs deserves its own collection) `item` (something about one item, such as what a photo shows or who someone named in it is; the answer is a correction of its card) or `flag` (what the librarian needs to know to fix something the owner flagged; the answer goes back to the librarian, which tries again). For `collection`, `group` and `sender`, the answer is a collection's path, or for `sender`, no |
 | `batch` | Optional. The ingest batch that raised it; questions raised outside ingest have none |
 | `subject` | What the question is about: the term as it appears in the items' names, the sender or project, or for `item`, the item's title or the name asked about |
 | `question` | The question in words |
@@ -709,10 +817,45 @@ When several items depend on the same unknown, a program asks the owner one ques
 | `suggestions` | Optional. Likely answers to offer, most likely first. Each has an `answer`, optionally `why` it's likely, `new_collection: true` when picking it creates that collection, and `no_change: true` when picking it settles the question without changing anything |
 | `skipped`, `skips` | Optional. When the owner last skipped it, and how many times. It isn't asked again until `questions.skip_days` (§7.2) after `skipped` |
 | `declined` | Optional. When the owner answered it with no change, such as "no, it doesn't need its own collection". Programs keep the entry so the question isn't asked again, and don't show it |
+| `flag` | For `flag`, the flag request (`flags/<id>.json`) it asks for. Programs ask flag questions before others, since the owner asked for the work |
 
 Programs **should** ask the questions whose answers would settle the most items they're least sure of first, **should not** ask a question the glossary or a routing rule already answers, and **should** merge a new question into one already waiting that asks the same about the same subject. An answer becomes a glossary fact or a routing rule only with the owner's agreement.
 
 Once a question is answered or dismissed, programs remove it and clear the problem from its items, except a declined question, which stays with `declined` set. Items waiting on a term are drafted again with the new fact. Question files without the optional fields, as earlier programs wrote them, remain valid.
+
+#### Flag requests
+
+When the owner flags an item or a collection (§5.9), the librarian takes a look, with the flag's note as the request, and records what it came to in `flags/<id>.json`, named for the flag's `id` (or, for a flag written by hand without one, the item's identifier, or for a collection, an identifier derived from its folder):
+
+```json
+{
+  "carrel": "flag-request",
+  "format": "1.0",
+  "id": "019a3f00-1c2d-7e3f-8a4b-5c6d7e8f9a0b",
+  "what": {"kind": "collection", "path": "Finances/Receipts 2023"},
+  "title": "Receipts 2023",
+  "note": "messy",
+  "state": "asked",
+  "updated": "2026-11-02T10:15:00-08:00",
+  "model": "llama/qwen3.5-9b",
+  "said": "what's wrong with it: too mixed, or the wrong year?",
+  "exchanges": [{"question": "what's wrong with it: too mixed, or the wrong year?"}],
+  "question": "019a3f10-0000-7000-8000-000000000001"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `what` | The flagged item (`{"kind": "item", "id", "card"}`) or collection (`{"kind": "collection", "path"}`) |
+| `note` | The flag's note when the librarian took it up. A flag whose note has changed since is a new request, and programs remove the old one |
+| `state` | `waiting` (for the librarian), `asked` (waiting for the owner's answer), `suggested` (a fix waiting for the owner), `cant-help` or `done` (the librarian made the fix itself). A flag with no request is `waiting` |
+| `said` | What the librarian last said about it |
+| `exchanges` | Optional. What the librarian asked (`question`) and the owner answered (`answer`), oldest first; each is told to the librarian when it tries again |
+| `question` | Optional. The question entry asking the last one, while it waits |
+| `suggestions` | Optional. The librarian's fixes, each a change (`change`: `refile`, `correct`, `rename` or `collection`, with its item and value), `why`, `confidence`, and `outcome` (`proposed`, `made` with its `commit`, `refused` or `failed`, with a `reason`) |
+| `cant_help` | Optional. Why it couldn't help (`why`), what Carrel would need in Carrel's own words (`missing`), and the gap recorded on the device that found it (`gap`), to report to development |
+
+Accepting a fix makes it as the owner's change; once none waits, programs clear the flag (the owner's action) and remove the request. Programs remove a request, and its question, when its flag is cleared. A flag stays until the owner clears it, even when the librarian made the fix itself.
 
 #### Proposal entries
 
@@ -790,9 +933,77 @@ The crawler rechecks filed items in the background and leaves what it finds for 
 - **Owner fields:** a correction is only ever of a field a model wrote (§5.6).
 - **Approving** makes the change through the corrections path as the owner's change, then removes the entry. **Rejecting** removes it, and the device's verdicts (§7.10) remember it, so it isn't proposed again.
 
+#### Re-check tasks
+
+`_System/tasks/<item-id>.json` names a card drafted below the preferred level, waiting for a stronger device to re-check it. A card waits when its `generated.level` (§5.6) is `below-preferred`, or when another device's profile (§7.10) lists a stronger text model than both the model that drafted it and the device it was drafted on. It stops waiting once a stronger model than the one that drafted it has judged it at the current drafting version, as the device's `crawler.json` records. Naming the file by the item means two devices queuing the same card write the same file.
+
+```json
+{
+  "task": "recheck-card",
+  "item": "01a18701-0500-776a-9867-0810dc3b08d1",
+  "card": "Holding/untitled scan.txt.md",
+  "title": "Untitled scan",
+  "model": "apple/afm-3-core-advanced",
+  "device": "01928f3a-0000-7000-8000-00000000d002",
+  "level": "below-preferred",
+  "added": "2026-11-02T09:00:00Z",
+  "claim": {
+    "device": "01928f3a-0000-7000-8000-00000000d001",
+    "at": "2026-11-02T10:00:00Z",
+    "until": "2026-11-03T10:00:00Z"
+  }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `task` | `recheck-card` |
+| `item`, `card`, `title` | The item, and its card's path and title when it was queued |
+| `model`, `device`, `level` | What drafted the card, where, and at what level, from its `generated` |
+| `added` | When it was queued |
+| `claim` | The device re-checking it, when it claimed it, and when the claim lapses |
+
+Programs write tasks and claims only while holding the writer lock (§8.4), so two devices never claim the same card. A device claims only tasks it's stronger for and that no other device's claim holds; a claim lapses after a day, so a device that went away doesn't keep its cards. The device that claimed a task proposes what could be better as crawler findings, for the owner to approve, then removes the task. A task whose card changed or was removed is removed unchecked.
+
 ### 7.10 Devices
 
-`_System/devices/<device-id>/device.json` records a device's name, type and capability profile. `desk.json` lists the desk items tracked on that device with their local paths. Paths in `desk.json` are only meaningful on that device.
+`_System/devices/<device-id>/device.json` records a device's name, type and capability profile, written only by that device, when what it can do changes and at least once a day while it's used:
+
+```json
+{
+  "id": "01928f3a-0000-7000-8000-00000000d002",
+  "name": "The owner's iPad",
+  "type": "ipad",
+  "updated": "2026-11-02T09:00:00Z",
+  "by": "carrel 0.8.0",
+  "capabilities": {
+    "chip": "iPad16,3",
+    "memory_gb": 8,
+    "free_gb": 120,
+    "models": ["apple/afm-3-core-advanced"],
+    "tools": [],
+    "on_power": false,
+    "low_power": false,
+    "thermal": "nominal",
+    "background": "limited",
+    "benchmark": { "mb_per_second": 1800 }
+  }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `id`, `name` | The device, and its name for people |
+| `type` | `mac`, `ipad`, `iphone`, `linux`, `windows` or `other` |
+| `updated`, `by` | When the profile was written, and the program that wrote it |
+| `capabilities.chip`, `memory_gb`, `free_gb` | The chip, memory, and free storage where the archive is, in gigabytes |
+| `capabilities.models` | The text models it has, best first, as `provider/offer` |
+| `capabilities.tools` | Of `git`, `kopia` and `file-watching`, those it has |
+| `capabilities.on_power`, `low_power`, `thermal` | Whether it was on mains power or in low-power mode, and how warm it ran: `nominal`, `fair`, `serious` or `critical` |
+| `capabilities.background` | How much time it gets when Carrel isn't in front: `unlimited`, `limited` (now and then, as iPad and iPhone schedule it) or `none` |
+| `capabilities.benchmark` | A short self-benchmark: `mb_per_second`, how fast it hashes |
+
+Every key but `id`, `name` and `type` is optional. Other devices read profiles to tell which is stronger, by the strongest text model each lists, for the re-check queue (§7.9). `desk.json` lists the desk items tracked on that device with their local paths. Paths in `desk.json` are only meaningful on that device.
 
 `desk.json` is an object whose `items` is a list, in the order they were added, of:
 
@@ -830,13 +1041,43 @@ While the archive switches models (`embedding.switching_to`, §7.2), the new mod
 
 Rebuildable, device-specific data. The `.nosync` suffix keeps iCloud Drive from syncing it. Readers **must** ignore it and programs **must** tolerate it being missing.
 
+### 7.13 iCloud Drive
+
+An archive may live in iCloud Drive, as the same plain files.
+
+- **Evicted files:** iCloud Drive may evict a file's contents to save space, leaving a placeholder: a "dataless" file with the file's own name on current macOS, or a hidden `.<name>.icloud` file in its place elsewhere. Programs **must not** treat a placeholder as a missing or changed file, nor list a `.icloud` file as a file of its own. Cards and design documents are read as they are (a `.icloud` card is downloaded first); an item's contents are downloaded only when needed, to open, preview, check out, draft or snapshot it.
+- **Keep downloaded:** a collection whose `_collection.md` says `sync: {keep_downloaded: true}` (§6.3) keeps its items, and those of the collections inside it that don't say otherwise, downloaded on every device. Off by default.
+- **Conflicted copies:** when two devices change a file before syncing, iCloud Drive keeps both, the other as `<name> 2.<ext>` (other services write `<name> (… conflicted copy …).<ext>`). Programs report conflicted copies of cards, design documents and `_System` files for a person to choose between, and never choose silently.
+- **Moving an archive:** a program that moves an archive copies it, checks every file of the copy against a manifest of the original, and leaves `_System/moved.json` in the old copy, `{"to": "<new root>", "moved": "<RFC 3339 time>"}`, so programs opening it say it was moved. The old copy is the person's to remove.
+
+### 7.14 The holding folder
+
+On a device that has no backups set up, such as an iPad or iPhone, which can't run Kopia, a change that replaces or removes an item's contents keeps the old version in `_System/holding/<id>/` until a device with backups snapshots it: the archive copy a return replaced, or a compressed file an expansion replaced. Each folder holds the version, under its own name, and `held.json`:
+
+```json
+{
+  "id": "019a3f00-0000-7000-8000-000000000001",
+  "item": "01928f3a-7c41-7d2e-9b6a-3f0c5e2a1b44",
+  "title": "Desk lamp parts list",
+  "path": "Projects/Hardware/parts-list.csv",
+  "name": "parts-list.csv",
+  "why": "return",
+  "size": 1294,
+  "person": "01928f39-eeee-7fff-8000-000000000005",
+  "device": "01928f3a-0000-7000-8000-00000000d002",
+  "at": "2026-10-30T16:02:11Z"
+}
+```
+
+`why` is `return` or `expand`; `path` is where the version was, relative to the archive root. A device with backups snapshots the archive, holding folder included, then removes the folders that were there before the snapshot started. Until then a program may restore a version from it, outside the archive, and should say how much is waiting and warn when it's large or old. Programs **must** preserve unknown keys in `held.json`.
+
 ## 8. History
 
 ### 8.1 The history repository
 
 The archive's metadata history is a Git repository whose Git directory is `_System/history.git` and whose work tree is the archive root. Keeping the Git directory under `_System` leaves no `.git` folder at the root, so the root never looks like a code repository and never interferes with sealed bundles that are repositories themselves.
 
-The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/` and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
+The repository tracks **only metadata**: `ARCHIVE.md`, the root `README.md`, every collection's `_collection.md` and `CHANGELOG.md`, every card, everything under `Active/` and `Journal/`, and `_System/` files other than `history.git/`, `manifests/`, `index/`, `cache.nosync/`, `inbox/` and `holding/` (which only pass through, and hold copies of contents), `feedback/` and the writer lock (`writer.lock` and files named `writer.lock.*`, §8.4). Nothing else is tracked: not the contents of any item or sealed bundle, not uncataloged files, and not other tools' folders such as `.obsidian/`. Item contents are versioned by the backup system, not by Git. Manifests are left out because a manifest of a large bundle can reach hundreds of megabytes and is fully determined by the item's contents; history keeps each manifest's content checksum in the card instead (§7.7).
 
 - **Staging:** programs compute that set of files and stage exactly it for each commit, rather than relying on ignore patterns. The repository's `info/exclude` contains `*`, so Git tools never add item contents by accident.
 - **Work tree:** the repository's `core.worktree` is the relative path `../..`, so it stays valid when the archive is moved or synced to another device.
@@ -900,7 +1141,17 @@ On a local or external disk, the writer is whoever holds `_System/writer.lock`, 
 - **Before each commit** the writer re-reads the lock and commits only if it still holds its own `token` and has not expired. A writer whose lease was lost stops and does not commit.
 - **Expired locks** may be taken over: rename the lock to `writer.lock.expired-<token>` (only one program's rename succeeds), delete it, and take the lock as usual. A lock that is not valid JSON is never taken over automatically; a person must confirm no writer is running before it is removed.
 - **Releasing:** the writer deletes the lock when it finishes, but only while it still holds its own `token`.
-- **Synced folders:** a lock file is only safe while a single device uses the archive. Sync services such as iCloud Drive can let two devices each create the file before either sees the other's, so archives shared between devices use a coordinator the sync service supports instead (to be specified with iCloud support). Programs should warn when the lock is used inside a synced folder.
+- **Synced folders:** a lock file is only safe while a single device uses the archive. Sync services can let two devices each create the file before either sees the other's, so programs should warn when the lock file is used inside a synced folder. `carrel sync status` shows the lock's holder and expiry, each device's inbox backlog, and what waits in `holding/` and `tasks/`.
+
+#### iCloud Drive
+
+In iCloud Drive, the writing device is chosen through a record in the owner's private CloudKit database, one per archive, holding the lease's `token`, `person`, `device`, `purpose`, `program`, `acquired` and `expires` as above, and `head`, the history commit the last writer recorded. It never holds file contents.
+
+- **Taking the lock:** a device saves its lease into the record only if the lease there has expired or was released, and only if the record hasn't changed since it read it (CloudKit's record change tag), so of several devices trying at once exactly one succeeds. It keeps `head`.
+- **Before writing,** it waits until iCloud Drive has delivered `head`: the history's `HEAD` is that commit or descends from it. A device that gives up waiting releases the lock unchanged.
+- **Renewing and releasing** record the history's `HEAD` in `head`. Releasing sets `expires` to the time of release.
+- **On the device,** its programs take turns with the lock file above, kept at `_System/cache.nosync/writer.lock` so it never syncs.
+- **`_System/coordinator.json`,** `{"coordinator": "cloudkit"}`, is written when the CloudKit lock is first taken. Once it exists, a program that can't reach CloudKit **must not** write the archive's history; it acts through its device's inbox (§7.8) instead.
 
 ## 9. Active items and the Journal
 

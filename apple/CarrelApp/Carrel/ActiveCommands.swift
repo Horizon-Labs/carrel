@@ -1,4 +1,4 @@
-// The Active and History menus: every action on those screens, with a key, for the key
+// The Checked Out (Active) and History menus: every action on those screens, with a key, for the key
 // archive window.
 
 import CarrelKit
@@ -8,7 +8,7 @@ struct ActiveCommands: Commands {
     @FocusedValue(\.activeWindow) private var window
 
     var body: some Commands {
-        CommandMenu("Active") {
+        CommandMenu("Checked Out") {
             ActiveMenu(window: window)
         }
         CommandMenu("History") {
@@ -49,7 +49,7 @@ private struct ActiveMenu: View {
         Button("Cancel Checkout…") { active?.askToCancel() }
             .keyboardShortcut(.delete, modifiers: [.command, .option])
             .disabled(!(active?.canReturn ?? false))
-        Button("Show Working Copy in Finder") {
+        Button("Show Working Copy in \(fileBrowser)") {
             if let active, let item { openWorkingCopy(item, of: active) }
         }
         .keyboardShortcut("o", modifiers: [.command, .option])

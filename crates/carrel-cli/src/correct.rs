@@ -55,7 +55,8 @@ fn working(words: &str) {
             )
         })
     });
-    if !lines && std::io::stderr().is_terminal() {
+    let picking = carrel_core::ingest::readings::picked(words).is_some();
+    if !lines && !picking && std::io::stderr().is_terminal() {
         eprintln!("Working out what that changes…");
     }
 }
@@ -221,6 +222,9 @@ pub struct Saved {
     pub commit: Option<String>,
     /// The card's path after, for a filed item.
     pub card: Option<String>,
+    /// When it went into this device's inbox instead, for the writer to save: what `--json`
+    /// says about that.
+    pub sent: Option<serde_json::Value>,
 }
 
 impl Prepared {
@@ -302,6 +306,24 @@ pub fn prepare_filed(archive: &Archive, query: &str, words: &str) -> Result<Prep
 /// [`Failure`] if it can't be written or committed.
 pub fn save(archive: &Archive, prepared: Prepared) -> Result<Saved, Failure> {
     let answering = prepared.answering;
+    if let Some(through) = crate::through_inbox::check(archive)? {
+        let inner = &prepared.inner;
+        let request = carrel_core::inbox::Request::Correct {
+            corrects: inner.corrects(),
+            words: inner.words.clone(),
+            changes: Box::new(inner.worked.changes.clone()),
+            model: inner.worked.model.clone(),
+            by: Some(inner.by().to_owned()).filter(|by| by != carrel_core::correct::prepare::OWNER),
+            answering,
+        };
+        let sent = through.send(archive, request)?;
+        return Ok(Saved {
+            message: sent.text.trim_end().to_owned(),
+            commit: None,
+            card: None,
+            sent: Some(sent.json),
+        });
+    }
     let saved = prepare::save(archive, prepared.inner, || {
         crate::config::Identity::load_or_create()
             .map(|i| crate::commands::holder(&i))
@@ -325,6 +347,7 @@ pub fn save(archive: &Archive, prepared: Prepared) -> Result<Saved, Failure> {
         message,
         commit: saved.commit,
         card: saved.card,
+        sent: None,
     })
 }
 
@@ -334,6 +357,13 @@ pub fn save(archive: &Archive, prepared: Prepared) -> Result<Saved, Failure> {
 ///
 /// [`Failure`] if the glossary can't be written or committed.
 pub fn learn(archive: &Archive, fact: &Fact) -> Result<String, Failure> {
+    if let Some(through) = crate::through_inbox::check(archive)? {
+        let request = carrel_core::inbox::Request::Learn {
+            about: fact.about.clone(),
+            fact: fact.fact.clone(),
+        };
+        return Ok(through.send(archive, request)?.text.trim_end().to_owned());
+    }
     let identity = crate::config::Identity::load_or_create()?;
     actions::learn(
         archive,
@@ -378,7 +408,12 @@ pub(crate) fn finish(
                 json["entry"] = serde_json::to_value(entry).unwrap_or_default();
             }
             let saved = save(archive, prepared)?;
-            json["saved"] = json!(true);
+            json["saved"] = json!(saved.sent.is_none());
+            if let Some(serde_json::Value::Object(sent)) = &saved.sent {
+                for (k, v) in sent {
+                    json[k] = v.clone();
+                }
+            }
             json["commit"] = json!(saved.commit);
             if let Some(card) = &saved.card {
                 json["card"] = json!(card);
@@ -452,12 +487,16 @@ pub fn filed(
     working(&words);
     let prepared = prepare_filed(&archive, query, &words)?;
     let json = json!({"item": item.id, "card": item.card});
-    finish(
+    let mut report = finish(
         &archive,
         format!("Correcting {title}\n"),
         prepared,
         yes,
         learn_fact,
         json,
-    )
+    )?;
+    if report.json["saved"] == json!(true) {
+        crate::flag::offer_to_clear(&archive, item.id, &mut report)?;
+    }
+    Ok(report)
 }

@@ -67,10 +67,10 @@ impl Theme {
 
 /// Where each tab's title starts on the top line, for mouse clicks: after a leading space,
 /// each is drawn as ` N Title ` followed by a space.
-pub fn tab_starts() -> Vec<u16> {
+pub fn tab_starts(app: &App) -> Vec<u16> {
     let mut starts = Vec::new();
     let mut x = 1u16;
-    for tab in Tab::ALL {
+    for tab in app.shown_tabs() {
         starts.push(x);
         x += u16::try_from(tab.title().len() + 5).unwrap_or(0);
     }
@@ -97,15 +97,33 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
     ])
     .areas(area);
     draw_tabs(frame, app, theme, top);
-    let block = Block::bordered().title(format!(" {} ", app.archive.doc().name));
+    let mut block = Block::bordered().title(if app.tab == Tab::Discover {
+        format!(" {} · {} ", app.archive.doc().name, app.views_title())
+    } else {
+        format!(" {} ", app.archive.doc().name)
+    });
+    // A test build says which one it is, for reports.
+    if let Some(label) = carrel_core::build_label() {
+        block = block.title_top(
+            Line::from(format!(" {label} "))
+                .right_aligned()
+                .style(theme.dim()),
+        );
+    }
     let inner = block.inner(body);
     frame.render_widget(block, body);
     match app.tab {
+        Tab::Library => super::library::draw_library(frame, app, theme, inner),
         Tab::History => draw_history(frame, app, theme, inner),
         Tab::Review => draw_review(frame, app, theme, inner),
         Tab::Active => draw_active(frame, app, theme, inner),
         Tab::Questions => draw_questions(frame, app, theme, inner),
         Tab::Browse => draw_browse(frame, app, theme, inner),
+        Tab::Status if app.flags.shown => {
+            super::flag_requests::draw_flags(frame, app, theme, inner);
+        }
+        Tab::Status if app.sync.shown => super::sync::draw_sync(frame, app, theme, inner),
+        Tab::Status if app.gaps.shown => super::gaps::draw_gaps(frame, app, theme, inner),
         Tab::Status => draw_report(frame, app, inner, Some(waiting_line(app))),
         Tab::Ingest => draw_ingest(frame, app, theme, inner),
         Tab::Settings => draw_settings(frame, app, theme, inner),
@@ -136,9 +154,15 @@ pub fn draw(frame: &mut Frame, app: &App, theme: Theme) {
 
 fn draw_tabs(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     let mut spans = vec![Span::raw(" ")];
-    for tab in Tab::ALL {
+    // The views show under the tab they were opened from.
+    let showing = if app.tab == Tab::Discover {
+        app.modes.views_from
+    } else {
+        app.tab
+    };
+    for tab in app.shown_tabs() {
         let title = format!("{} {}", tab.key(), tab.title());
-        let style = if tab == app.tab {
+        let style = if tab == showing {
             theme.selected()
         } else {
             Style::new()
@@ -149,19 +173,26 @@ fn draw_tabs(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     frame.render_widget(Line::from(spans), area);
 }
 
+/// What the librarian is asking, with the keys that show it.
 fn waiting_line(app: &App) -> String {
-    let (proposals, questions) = app.waiting;
-    match (proposals, questions) {
-        (0, 0) => "Nothing is waiting for you.".into(),
-        // Each tab's key is its place in the row of tabs.
-        _ => format!(
-            "Waiting for you: {proposals} proposal{} ({} to review), {questions} question{} ({} to answer).",
-            if proposals == 1 { "" } else { "s" },
-            Tab::Review.index() + 1,
-            if questions == 1 { "" } else { "s" },
-            Tab::Questions.index() + 1,
-        ),
+    use carrel_core::library::Queue;
+    let Some(line) = app.library.waiting.line() else {
+        return "The librarian isn't asking anything.".into();
+    };
+    let mut keys: Vec<String> = Vec::new();
+    for (queue, _) in app.library.waiting.rows() {
+        let key = match queue {
+            Queue::Questions => format!("{} {}", Tab::Questions.key(), Tab::Questions.title()),
+            Queue::Review | Queue::Restructure => {
+                format!("{} {}", Tab::Review.key(), Tab::Review.title())
+            }
+            Queue::Flagged => "f for Flags".to_owned(),
+        };
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
     }
+    format!("{line} ({})", keys.join(", "))
 }
 
 fn draw_report(frame: &mut Frame, app: &App, area: Rect, first: Option<String>) {
@@ -171,7 +202,7 @@ fn draw_report(frame: &mut Frame, app: &App, area: Rect, first: Option<String>) 
         lines.push(Line::from(""));
     }
     lines.extend(app.report().iter().map(|l| Line::from(l.as_str())));
-    let scroll = app.scroll[Tab::ALL.iter().position(|t| *t == app.tab).unwrap_or(0)];
+    let scroll = app.scroll[app.tab.index()];
     frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), area);
 }
 
@@ -275,22 +306,27 @@ const HELP_ROWS: &[(&str, &str)] = &[
         "add files and folders to ingest, with your file picker or the built-in one",
     ),
     ("↑↓, j k, PgUp PgDn, Home End", "scroll, or choose a change"),
-    ("a  h", "approve, or hold in Holding (Review)"),
+    ("a  h", "approve, or hold in Holding (To Approve)"),
     (
         "m  e  c  x",
-        "move, edit, correct in words, or reject (Review)",
+        "move, edit, correct in words, or reject (To Approve)",
+    ),
+    (
+        "p",
+        "pick another reading of what the item is, when the model gave several (To Approve)",
     ),
     (
         "v  b  s  [ ]",
-        "a duplicate: file as a version, keep both, skip; other matches (Review)",
+        "a duplicate: file as a version, keep both, skip; other matches (To Approve)",
     ),
     (
         "z",
-        "unpack a zip when it's approved, or keep it compressed (Review)",
+        "unpack a zip when it's approved, or keep it compressed (To Approve)",
     ),
+    ("d", "draft again with the models here now (To Approve)"),
     (
         "Space  A",
-        "mark several; approve all high-confidence (Review)",
+        "mark several; approve all high-confidence (To Approve)",
     ),
     ("r  o  x", "return, open, cancel checkout (Active)"),
     ("m", "return a copy that moved (Active)"),
@@ -303,8 +339,8 @@ const HELP_ROWS: &[(&str, &str)] = &[
         "approve, edit, combine, drop; mark (Active)",
     ),
     (
-        "Enter  1-9  s  d",
-        "answer, pick a suggestion, skip or dismiss a question (Questions)",
+        "Enter  [ ]  s  d",
+        "answer, choose a suggestion, skip or dismiss a question (Questions)",
     ),
     (
         "←→  e  c  /  Esc",
@@ -333,8 +369,8 @@ const HELP_ROWS: &[(&str, &str)] = &[
         "undo the librarian's change, or all this week's; open the item (Librarian)",
     ),
     (
-        "d  w  t  m  h",
-        "on this day, wander, timeline, map, activity (Discover)",
+        "v  w  Esc",
+        "the next view: timeline, map, connections, activity; wander from a random item; back (Library, Browse)",
     ),
     (
         "Space  n  p",
@@ -355,8 +391,17 @@ const HELP_ROWS: &[(&str, &str)] = &[
         "change a setting; rebuild the search index or switch its model; install the agent (Settings)",
     ),
     ("x", "uninstall the background agent, on its row (Settings)"),
+    (
+        "s  o  c  m",
+        "sync; keep a conflicted copy's original or the copy; move into iCloud Drive (Status)",
+    ),
+    (
+        "d  K",
+        "download an item or a collection; keep a collection downloaded (Browse)",
+    ),
     ("Ctrl-O", "open another archive, or create one"),
     ("Ctrl-R", "read everything again"),
+    ("!", "send feedback about this screen, for development"),
     ("?", "this help"),
     ("q, Esc, Ctrl-C", "quit"),
 ];
@@ -446,6 +491,7 @@ fn draw_confirm(frame: &mut Frame, confirm: &Confirm, theme: Theme, area: Rect) 
             " undo   ",
         ),
         Confirm::UndoLibrarian(count) => super::librarian::confirm_text(*count),
+        Confirm::Sync(sync) => super::sync::confirm_text(sync),
         Confirm::Agent(change) => super::agent::confirm_popup(change),
         Confirm::Download { name, about } => download_confirm(name, about),
         Confirm::ModelChange { change, about } => model_change_confirm(change, about),
@@ -504,7 +550,8 @@ fn draw_confirm(frame: &mut Frame, confirm: &Confirm, theme: Theme, area: Rect) 
         answers.extend([Span::styled("n", theme.key()), Span::raw(" keep it")]);
     }
     lines.extend([Line::from(""), Line::from(answers)]);
-    let width = if matches!(confirm, Confirm::Return { .. }) {
+    // Paths need the room.
+    let width = if matches!(confirm, Confirm::Return { .. } | Confirm::Sync(_)) {
         area.width.saturating_sub(8).clamp(64, 100)
     } else {
         64
@@ -518,7 +565,11 @@ fn draw_confirm(frame: &mut Frame, confirm: &Confirm, theme: Theme, area: Rect) 
                 .max(1)
         })
         .sum();
-    let height = u16::try_from(wrapped + 2).unwrap_or(u16::MAX).max(9);
+    // Long paths wrap early, at a word's start, so a sync pop-up gets a line to spare.
+    let spare = usize::from(matches!(confirm, Confirm::Sync(_)));
+    let height = u16::try_from(wrapped + 2 + spare)
+        .unwrap_or(u16::MAX)
+        .max(9);
     let popup = centered(area, width, height);
     frame.render_widget(Clear, popup);
     frame.render_widget(
@@ -547,7 +598,7 @@ fn draw_review(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
     }
     if app.queue.is_empty() {
         let also = super::review_crawler::lists_line(app);
-        frame.render_widget(Paragraph::new(format!("Nothing to review. {also}")), area);
+        frame.render_widget(Paragraph::new(format!("Nothing to approve. {also}")), area);
         return;
     }
     let also = super::review_crawler::lists_line(app);
@@ -593,6 +644,10 @@ fn draw_review(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
                     .unwrap_or_default(),
             );
         }
+        if carrel_core::ingest::redraft::wants_redraft(entry) {
+            flags.push("draft again?".into());
+        }
+        flags.extend(carrel_core::ingest::readings::flag(entry));
         if entry.duplicate_of.is_some() {
             flags.push("duplicate".into());
         } else if !entry.likely_duplicates.is_empty() {
@@ -705,6 +760,7 @@ fn draw_picker(frame: &mut Frame, picker: &Picker, theme: Theme, area: Rect) {
         super::review::Purpose::Index(_) => "Search index",
         super::review::Purpose::Eagerness(_) => "How eager to rearrange",
         super::review::Purpose::Archive(_) => "Archives",
+        super::review::Purpose::KeepDownloaded(_) => "Keep downloaded on every device",
     };
     let title = if picker.filter.is_empty() {
         format!(" {what} (type to narrow) ")
@@ -724,6 +780,7 @@ fn draw_picker(frame: &mut Frame, picker: &Picker, theme: Theme, area: Rect) {
 /// A question's suggestions, numbered, each with why it's likely.
 fn suggestion_lines(
     question: &carrel_core::questions::QuestionEntry,
+    chosen: Option<usize>,
     theme: Theme,
 ) -> Vec<Line<'static>> {
     question
@@ -732,7 +789,7 @@ fn suggestion_lines(
         .enumerate()
         .map(|(i, suggestion)| {
             let mut spans = vec![
-                Span::styled(format!("{}", i + 1), theme.key()),
+                Span::styled(format!("{}", i + 1), theme.dim()),
                 Span::raw(format!("  {}", suggestion.answer)),
             ];
             let mut notes = Vec::new();
@@ -746,7 +803,12 @@ fn suggestion_lines(
                     theme.dim(),
                 ));
             }
-            Line::from(spans)
+            let line = Line::from(spans);
+            if chosen == Some(i) {
+                line.style(theme.selected())
+            } else {
+                line
+            }
         })
         .collect()
 }
@@ -788,25 +850,20 @@ fn draw_questions(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
         &mut state,
     );
     let question = &app.asked[app.asked_chosen];
+    let key = app.question_preview_key();
+    let detail_area = draw_preview(frame, app, theme, detail_area, key.as_deref());
     let mut lines = vec![
         Line::from(question.question.clone()).style(Style::new().add_modifier(Modifier::BOLD)),
         Line::from(""),
     ];
-    let waiting = app.waiting_titles(question);
-    if !waiting.is_empty() {
-        lines.push(Line::from("Waiting on the answer:"));
-        lines.extend(waiting.into_iter().map(|t| Line::from(format!("  {t}"))));
-    }
-    if !question.about.is_empty() {
-        lines.push(Line::from(format!(
-            "About {} filed item{}",
-            question.about.len(),
-            if question.about.len() == 1 { "" } else { "s" }
-        )));
+    let about = super::question_preview::subject_lines(&app.question_subjects);
+    if !about.is_empty() {
+        lines.extend(about);
+        lines.push(Line::from(""));
     }
     if !question.suggestions.is_empty() {
         lines.push(Line::from(""));
-        lines.extend(suggestion_lines(question, theme));
+        lines.extend(suggestion_lines(question, app.asked_suggestion, theme));
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
@@ -819,6 +876,7 @@ fn draw_questions(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
                 "Enter to answer yes, no or a collection; Carrel asks before adding a rule."
             }
             QuestionKind::Item => "Enter to answer; you see what it changes before it's saved.",
+            QuestionKind::Flag => "Enter to answer; the librarian tries again with it.",
         },
         theme.dim(),
     )));
@@ -826,7 +884,7 @@ fn draw_questions(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
         if question.suggestions.is_empty() {
             "s skips it for now, d dismisses it."
         } else {
-            "A number picks a suggestion; s skips it for now, d dismisses it."
+            "[ ] highlight a suggestion and Enter picks it; s skips it for now, d dismisses it."
         },
         theme.dim(),
     )));
@@ -850,7 +908,12 @@ fn draw_browse(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
         .iter()
         .map(|c| {
             let depth = c.path.matches('/').count();
-            ListItem::new(format!("{}{}", "  ".repeat(depth), c.doc.title))
+            let mark = if c.doc.needs_work.is_some() {
+                super::flagging::MARK
+            } else {
+                ""
+            };
+            ListItem::new(format!("{}{mark}{}", "  ".repeat(depth), c.doc.title))
         })
         .collect();
     // The pane the arrows move in is highlighted; the other keeps its choice dimly.
@@ -881,16 +944,21 @@ fn draw_browse(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
         app.browse_items
             .iter()
             .enumerate()
-            .map(
-                |(i, (_, title))| match app.searched.hit(i).map(|h| &h.found) {
+            .map(|(i, (card, title))| {
+                let flag = if app.browse_flagged.contains(card) {
+                    super::flagging::MARK
+                } else {
+                    ""
+                };
+                match app.searched.hit(i).map(|h| &h.found) {
                     Some(Found::Item(item)) => ListItem::new(format!(
-                        "{title}{}  ({})",
+                        "{flag}{title}{}  ({})",
                         crate::related::mark(item.sensitivity),
                         item.collection
                     )),
-                    _ => ListItem::new(title.as_str()),
-                },
-            )
+                    _ => ListItem::new(format!("{flag}{title}")),
+                }
+            })
             .collect()
     };
     let mut items_state = ListState::default().with_selected(Some(app.browse_item));
@@ -1113,6 +1181,14 @@ fn draw_input(frame: &mut Frame, input: &Input, theme: Theme, area: Rect) {
                 .to_owned(),
         ),
         InputPurpose::Option(line) => line.text(),
+        InputPurpose::Gap(gap) => gap.text(),
+        InputPurpose::Feedback(context) => super::feedback::input_text(context),
+        InputPurpose::SyncMoveTo => (
+            " Move into iCloud Drive ",
+            "The folder to move the archive to; it mustn't exist yet. Next, you see what moves \
+             and the room there before anything is copied:"
+                .to_owned(),
+        ),
         purpose => super::actions::input_text(purpose).unwrap_or((" ", String::new())),
     };
     let shown = if input.masked() {
@@ -1140,6 +1216,7 @@ fn draw_input(frame: &mut Frame, input: &Input, theme: Theme, area: Rect) {
 }
 
 fn draw_backups(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
+    let area = super::held::draw_held(frame, app, theme, area);
     let status = crate::backup::status_line(&app.archive, Some(&app.history));
     let snapshots = app.snapshots();
     let [top, rest] = Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).areas(area);
@@ -1218,6 +1295,9 @@ fn draw_ingest(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
             .style(Style::new().add_modifier(Modifier::BOLD)),
         ];
         lines.extend(plan.lines.iter().map(|l| Line::from(l.as_str())));
+        if let Some(note) = &plan.note {
+            lines.push(Line::from(format!("Note: {note}")));
+        }
         lines.push(Line::from(""));
         if let Some(problem) = &plan.problem {
             lines.push(Line::from(problem.as_str()));
@@ -1226,7 +1306,7 @@ fn draw_ingest(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
         lines.push(Line::from(Span::styled(
             "Enter adds them to the queue; a worker drafts each in the background, and its \
              proposal appears in Review when it's ready. e reads folders entry by entry, w as \
-             one item.",
+             one item; n adds a note for their cards.",
             theme.dim(),
         )));
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
@@ -1238,7 +1318,7 @@ fn draw_ingest(frame: &mut Frame, app: &App, theme: Theme, area: Rect) {
         if app.intake.iter().any(|e| !e.stuck()) {
             "No worker is running; queue something or run `carrel worker` to start one".into()
         } else {
-            "Press i to add files and folders.".into()
+            "Press i to add files and folders, or a to write a note.".into()
         }
     });
     frame.render_widget(Paragraph::new(head), top);

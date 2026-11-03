@@ -196,6 +196,12 @@ pub struct StatusSummary {
     pub review: u64,
     /// How many questions wait.
     pub questions: u64,
+    /// What the owner flagged as needing work: collections, then items.
+    pub flagged: Vec<crate::flags::FlaggedThing>,
+    /// This device's inbox: what waits for the writer, and what it skipped.
+    pub inbox: crate::inbox::InboxStatus,
+    /// What waits in the holding folder for a snapshot.
+    pub holding: crate::inbox::HoldingStatus,
 }
 
 fn writer(lock: LockInfo, device: Option<carrel_core::card::Id>) -> Writer {
@@ -285,6 +291,11 @@ impl ArchiveHandle {
                 .collect(),
             review: review.iter().filter(|e| e.state.is_open()).count() as u64,
             questions: questions.len() as u64,
+            flagged: summary.flagged.into_iter().map(Into::into).collect(),
+            inbox: device
+                .map(|d| crate::inbox::inbox_status(&archive, d))
+                .unwrap_or_default(),
+            holding: crate::inbox::holding_status(&archive),
         })
     }
 
@@ -332,8 +343,9 @@ impl ArchiveHandle {
     ///
     /// # Errors
     ///
-    /// [`CarrelError::Invalid`] if no change or several match, [`CarrelError::Busy`] if
-    /// another writer holds the archive, or [`CarrelError::Failed`] if it can't be undone.
+    /// [`CarrelError::Invalid`] if no change or several match, [`CarrelError::SentToInbox`]
+    /// while another device is the writer, [`CarrelError::Busy`] if another writer holds the
+    /// archive, or [`CarrelError::Failed`] if it can't be undone.
     pub fn undo(&self, id: String) -> Result<String, CarrelError> {
         let archive = self.fresh()?;
         let history = History::open(&archive)?;
@@ -352,6 +364,11 @@ impl ArchiveHandle {
                 )));
             }
         };
+        self.through_inbox(&archive, || {
+            Ok(carrel_core::inbox::Request::Undo {
+                change: entry.id.clone(),
+            })
+        })?;
         let lease =
             DiskLock::for_archive(&archive).acquire(self.holder()?, "undo", DEFAULT_LEASE)?;
         let result = history.undo(&archive, &entry.id, &lease);

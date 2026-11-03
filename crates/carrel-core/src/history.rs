@@ -24,7 +24,18 @@ use crate::coordinator::{CoordinatorError, WriterLease};
 pub const HISTORY_DIR: &str = "_System/history.git";
 
 /// Folders under `_System/` that history never tracks (FORMAT.md §8.1).
-const UNTRACKED_SYSTEM: [&str; 4] = ["history.git", "manifests", "index", "cache.nosync"];
+const UNTRACKED_SYSTEM: [&str; 7] = [
+    "history.git",
+    "manifests",
+    "index",
+    "cache.nosync",
+    // Requests waiting for the writer, with copies of files, and versions waiting for a
+    // snapshot: both pass through, and neither is metadata.
+    "inbox",
+    "holding",
+    // Feedback, which each device writes without the writer lease (#487).
+    "feedback",
+];
 
 /// The kind of change a commit records (FORMAT.md §8.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -402,17 +413,22 @@ impl History {
         Ok(history)
     }
 
-    /// Opens the history repository of `archive`.
+    /// Opens the history repository of `archive`, downloading any of it iCloud evicted first.
     ///
     /// # Errors
     ///
-    /// [`HistoryError::NotInitialized`] if there is none, or a Git error.
+    /// [`HistoryError::NotInitialized`] if there is none, [`HistoryError::Io`] if part of it
+    /// couldn't be downloaded, or a Git error.
     pub fn open(archive: &Archive) -> Result<Self, HistoryError> {
         let root = archive.root().to_path_buf();
         let git_dir = root.join(HISTORY_DIR);
         if !git_dir.is_dir() {
             return Err(HistoryError::NotInitialized);
         }
+        crate::cloud_files::ensure_downloaded(&git_dir).map_err(|source| HistoryError::Io {
+            path: git_dir.clone(),
+            source,
+        })?;
         let repo = Repository::open(&git_dir)?;
         repo.set_workdir(&root, false)?;
         Ok(Self { repo, root })
